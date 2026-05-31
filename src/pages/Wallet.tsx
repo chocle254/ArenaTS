@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { useCountUp } from '@/hooks/use-count-up';
@@ -43,13 +44,12 @@ export default function Wallet() {
   const [hasMore, setHasMore] = useState(true);
 
   const arenaCurrency = profile?.arena_currency ?? 0;
-  // Cash balance is always derived from Arena Currency at a 100:1 ratio (formatUSD handles the /100 conversion internally)
-  const availableBalance = arenaCurrency / 100;
+  // Cash balance is derived from Arena Currency: 100 AC = $1.00
+  const cashBalance = arenaCurrency / 100;
 
-  // Count-up animation for balance
+  // Count-up animations
   const animatedAC = useCountUp(arenaCurrency, 1500, 0);
-  // Animate using raw AC units — formatUSD divides by 100 internally
-  const animatedCash = useCountUp(arenaCurrency, 1500, 0);
+  const animatedCash = useCountUp(cashBalance, 1500, 0);
 
   useEffect(() => {
     fetchTransactions();
@@ -115,6 +115,7 @@ export default function Wallet() {
 
   const [isDepositLoading, setIsDepositLoading] = useState(false);
   const [isWithdrawLoading, setIsWithdrawLoading] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
@@ -247,18 +248,25 @@ export default function Wallet() {
       return;
     }
 
-    if (availableBalance <= 0) {
+    if (cashBalance <= 0) {
       toast.error('You have no withdrawable balance');
       return;
     }
 
-    const confirmWithdraw = window.confirm(`Withdraw ${formatUSD(availableBalance)} (${formatArenaCurrency(arenaCurrency)}) to your connected Stripe account? This will also clear your Arena Currency balance.`);
-    if (!confirmWithdraw) return;
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Please enter a valid withdrawal amount');
+      return;
+    }
+    if (amount > cashBalance) {
+      toast.error(`Amount exceeds your available balance of $${cashBalance.toFixed(2)}`);
+      return;
+    }
 
     setIsWithdrawLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-payout', {
-        body: { amount: availableBalance, currency: 'usd' }
+        body: { amount, currency: 'usd' }
       });
 
       if (error) {
@@ -274,13 +282,14 @@ export default function Wallet() {
       }
 
       // Deduct the equivalent Arena Currency (100 AC = $1)
-      const acToDeduct = Math.round(availableBalance * 100);
+      const acToDeduct = Math.round(amount * 100);
       await supabase
         .from('profiles')
         .update({ arena_currency: Math.max(0, arenaCurrency - acToDeduct) })
         .eq('id', user.id);
 
-      toast.success(`Withdrawal of ${formatUSD(availableBalance)} initiated successfully!`);
+      toast.success(`Withdrawal of $${amount.toFixed(2)} initiated successfully!`);
+      setWithdrawAmount('');
       // Profile will be updated by realtime subscription
     } catch (error: any) {
       console.error('Withdrawal error:', error);
@@ -410,7 +419,7 @@ export default function Wallet() {
               </div>
             </div>
             <p className="text-4xl md:text-5xl font-orbitron text-gold tracking-tight leading-none">
-              {formatUSD(animatedCash)}
+              ${animatedCash.toFixed(2)}
             </p>
             <p className="text-xs text-muted-foreground">Withdrawable · 100 AC = $1.00</p>
           </div>
@@ -456,26 +465,64 @@ export default function Wallet() {
       <div className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Withdraw</h2>
         <Card className="border-border">
-          <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <p className="text-sm font-medium">
                 {!profile?.stripe_connect_account_id ? 'Connect your payout account' : 'Withdraw your cash balance'}
               </p>
               <p className="text-xs text-muted-foreground">
                 {!profile?.stripe_connect_account_id
                   ? 'Link a Stripe account to enable withdrawals'
-                  : `Available: ${formatUSD(availableBalance)} · ${formatArenaCurrency(arenaCurrency)}`}
+                  : `Available: $${cashBalance.toFixed(2)} · ${formatArenaCurrency(arenaCurrency)}`}
               </p>
             </div>
-            <Button
-              onClick={handleAction}
-              variant="outline"
-              disabled={isWithdrawLoading}
-              className="shrink-0 gap-2"
-            >
-              {isWithdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownLeft className="h-4 w-4" />}
-              {!profile?.stripe_connect_account_id ? 'Connect Stripe' : 'Withdraw'}
-            </Button>
+
+            {profile?.stripe_connect_account_id ? (
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    max={cashBalance}
+                    placeholder="0.00"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    className="pl-7 font-mono"
+                    disabled={isWithdrawLoading || cashBalance <= 0}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground shrink-0 px-3 h-9"
+                  onClick={() => setWithdrawAmount(cashBalance.toFixed(2))}
+                  disabled={cashBalance <= 0}
+                >
+                  Max
+                </Button>
+                <Button
+                  onClick={handleAction}
+                  variant="outline"
+                  disabled={isWithdrawLoading || !withdrawAmount || cashBalance <= 0}
+                  className="shrink-0 gap-2"
+                >
+                  {isWithdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownLeft className="h-4 w-4" />}
+                  Withdraw
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={handleAction}
+                variant="outline"
+                disabled={isWithdrawLoading}
+                className="gap-2"
+              >
+                {isWithdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownLeft className="h-4 w-4" />}
+                Connect Stripe
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
