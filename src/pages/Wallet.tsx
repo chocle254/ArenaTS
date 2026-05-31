@@ -43,12 +43,13 @@ export default function Wallet() {
   const [hasMore, setHasMore] = useState(true);
 
   const arenaCurrency = profile?.arena_currency ?? 0;
-  // Cash balance is always derived from Arena Currency at a 100:1 ratio
+  // Cash balance is always derived from Arena Currency at a 100:1 ratio (formatUSD handles the /100 conversion internally)
   const availableBalance = arenaCurrency / 100;
 
   // Count-up animation for balance
   const animatedAC = useCountUp(arenaCurrency, 1500, 0);
-  const animatedCash = useCountUp(availableBalance, 1500, 2);
+  // Animate using raw AC units — formatUSD divides by 100 internally
+  const animatedCash = useCountUp(arenaCurrency, 1500, 0);
 
   useEffect(() => {
     fetchTransactions();
