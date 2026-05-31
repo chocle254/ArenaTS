@@ -370,22 +370,42 @@ export default function Wallet() {
         className="grid grid-cols-1 md:grid-cols-2 gap-4"
       >
         {/* Arena Currency */}
-        <Card className="border-border">
-          <CardContent className="p-6 space-y-3">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">Arena Currency</p>
-            <p className="text-4xl font-bold font-mono tracking-tight">{formatArenaCurrency(animatedAC)}</p>
-            <p className="text-xs text-muted-foreground">Used for tournament & challenge entry fees</p>
-          </CardContent>
-        </Card>
+        <div className="relative overflow-hidden rounded-2xl border border-[hsl(45,90%,60%,0.25)] bg-card h-full">
+          {/* Subtle gold corner glow */}
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-[hsl(45,90%,60%,0.08)] blur-2xl pointer-events-none" />
+          <div className="relative p-6 md:p-8 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[hsl(45,90%,60%,0.8)]">Arena Currency</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[hsl(45,90%,60%,0.2)] bg-[hsl(45,90%,60%,0.06)]">
+                <div className="w-1.5 h-1.5 rounded-full bg-[hsl(45,90%,60%)] animate-pulse" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-[hsl(45,90%,60%)]">AC</span>
+              </div>
+            </div>
+            <p className="text-4xl md:text-5xl font-orbitron text-gold tracking-tight leading-none">
+              {formatArenaCurrency(animatedAC)}
+            </p>
+            <p className="text-xs text-muted-foreground">Tournament &amp; challenge entry fees</p>
+          </div>
+        </div>
 
         {/* Cash Balance */}
-        <Card className="border-border">
-          <CardContent className="p-6 space-y-3">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">Cash Balance</p>
-            <p className="text-4xl font-bold font-mono tracking-tight">{formatUSD(animatedCash)}</p>
+        <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-card h-full">
+          {/* Subtle cyan corner glow */}
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-primary/5 blur-2xl pointer-events-none" />
+          <div className="relative p-6 md:p-8 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">Cash Balance</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-primary/20 bg-primary/5">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-primary">USD</span>
+              </div>
+            </div>
+            <p className="text-4xl md:text-5xl font-orbitron text-primary tracking-tight leading-none">
+              {formatUSD(animatedCash)}
+            </p>
             <p className="text-xs text-muted-foreground">Withdrawable tournament winnings</p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </motion.div>
 
       {/* ── Buy Arena Currency ── */}
