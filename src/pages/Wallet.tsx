@@ -229,7 +229,11 @@ export default function Wallet() {
       }
       if (data?.url) {
         toast.success('Redirecting to Stripe to complete setup…');
-        window.location.href = data.url;
+        try {
+          (window.top || window).location.href = data.url;
+        } catch {
+          window.location.href = data.url;
+        }
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to resume onboarding');
@@ -259,7 +263,11 @@ export default function Wallet() {
         }
         if (data?.url) {
           toast.success('Redirecting to Stripe for account verification...');
-          window.location.href = data.url;
+          try {
+            (window.top || window).location.href = data.url;
+          } catch {
+            window.location.href = data.url;
+          }
         }
       } catch (error: any) {
         console.error('Error connecting account:', error);
