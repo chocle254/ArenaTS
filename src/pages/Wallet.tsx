@@ -43,11 +43,12 @@ export default function Wallet() {
   const [hasMore, setHasMore] = useState(true);
 
   const arenaCurrency = profile?.arena_currency ?? 0;
-  const availableBalance = profile?.available_balance ?? 0;
+  // Cash balance is always derived from Arena Currency at a 100:1 ratio
+  const availableBalance = arenaCurrency / 100;
 
   // Count-up animation for balance
   const animatedAC = useCountUp(arenaCurrency, 1500, 0);
-  const animatedCash = useCountUp(availableBalance, 1500, 0);
+  const animatedCash = useCountUp(availableBalance, 1500, 2);
 
   useEffect(() => {
     fetchTransactions();
@@ -250,7 +251,7 @@ export default function Wallet() {
       return;
     }
 
-    const confirmWithdraw = window.confirm(`Withdraw your entire balance of ${formatArenaCurrency(availableBalance)} (Approx. ${formatUSD(availableBalance)}) to your connected Stripe account?`);
+    const confirmWithdraw = window.confirm(`Withdraw ${formatUSD(availableBalance)} (${formatArenaCurrency(arenaCurrency)}) to your connected Stripe account? This will also clear your Arena Currency balance.`);
     if (!confirmWithdraw) return;
 
     setIsWithdrawLoading(true);
@@ -270,6 +271,13 @@ export default function Wallet() {
         }
         throw new Error(message);
       }
+
+      // Deduct the equivalent Arena Currency (100 AC = $1)
+      const acToDeduct = Math.round(availableBalance * 100);
+      await supabase
+        .from('profiles')
+        .update({ arena_currency: Math.max(0, arenaCurrency - acToDeduct) })
+        .eq('id', user.id);
 
       toast.success(`Withdrawal of ${formatUSD(availableBalance)} initiated successfully!`);
       // Profile will be updated by realtime subscription
@@ -400,10 +408,10 @@ export default function Wallet() {
                 <span className="text-[9px] font-bold uppercase tracking-widest text-primary">USD</span>
               </div>
             </div>
-            <p className="text-4xl md:text-5xl font-orbitron text-primary tracking-tight leading-none">
+            <p className="text-4xl md:text-5xl font-orbitron text-gold tracking-tight leading-none">
               {formatUSD(animatedCash)}
             </p>
-            <p className="text-xs text-muted-foreground">Withdrawable tournament winnings</p>
+            <p className="text-xs text-muted-foreground">Withdrawable · 100 AC = $1.00</p>
           </div>
         </div>
       </motion.div>
@@ -455,7 +463,7 @@ export default function Wallet() {
               <p className="text-xs text-muted-foreground">
                 {!profile?.stripe_connect_account_id
                   ? 'Link a Stripe account to enable withdrawals'
-                  : `Available: ${formatUSD(availableBalance)}`}
+                  : `Available: ${formatUSD(availableBalance)} · ${formatArenaCurrency(arenaCurrency)}`}
               </p>
             </div>
             <Button
