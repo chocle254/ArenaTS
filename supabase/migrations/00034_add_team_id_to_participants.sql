@@ -1,0 +1,2 @@
+ALTER TABLE tournament_participants ADD COLUMN IF NOT EXISTS team_id uuid REFERENCES tournament_teams(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_tournament_participants_team_id ON tournament_participants(team_id);
