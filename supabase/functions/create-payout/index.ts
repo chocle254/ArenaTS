@@ -55,7 +55,7 @@ serve(async (req) => {
     // Get user profile
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('stripe_connect_account_id, available_balance, currency')
+      .select('stripe_connect_account_id, arena_currency, currency')
       .eq('id', user.id)
       .single();
 
@@ -63,7 +63,8 @@ serve(async (req) => {
       throw new Error('No payout account connected');
     }
 
-    if ((profile.available_balance || 0) < acAmount) {
+    // Balance check: acAmount is in AC units, arena_currency is in AC units
+    if ((profile.arena_currency || 0) < acAmount) {
       throw new Error('Insufficient balance');
     }
 

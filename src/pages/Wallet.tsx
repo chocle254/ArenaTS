@@ -116,6 +116,7 @@ export default function Wallet() {
   const [isDepositLoading, setIsDepositLoading] = useState(false);
   const [isWithdrawLoading, setIsWithdrawLoading] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [onboardingIncomplete, setOnboardingIncomplete] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
@@ -216,11 +217,32 @@ export default function Wallet() {
     }
   };
 
+  const handleResumeOnboarding = async () => {
+    if (!user) return;
+    setIsWithdrawLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-connect-account');
+      if (error) {
+        let message = error.message;
+        try { const body = await error.context.json(); message = body.error || body.message || message; } catch { const text = await error.context?.text(); message = text || message; }
+        throw new Error(message);
+      }
+      if (data?.url) {
+        toast.success('Redirecting to Stripe to complete setup…');
+        window.location.href = data.url;
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to resume onboarding');
+    } finally {
+      setIsWithdrawLoading(false);
+    }
+  };
+
   const handleAction = async () => {
     if (!user || !profile) return;
 
     if (!profile.stripe_connect_account_id) {
-      // Onboarding flow
+      // First-time onboarding flow
       setIsWithdrawLoading(true);
       try {
         const { data, error } = await supabase.functions.invoke('create-connect-account');
@@ -265,8 +287,10 @@ export default function Wallet() {
 
     setIsWithdrawLoading(true);
     try {
+      // Edge function expects AC units (100 AC = $1)
+      const acUnits = Math.round(amount * 100);
       const { data, error } = await supabase.functions.invoke('create-payout', {
-        body: { amount, currency: 'usd' }
+        body: { amount: acUnits, currency: 'usd' }
       });
 
       if (error) {
@@ -277,6 +301,10 @@ export default function Wallet() {
         } catch (e) {
           const text = await error.context.text();
           message = text || message;
+        }
+        // Detect incomplete onboarding
+        if (message.toLowerCase().includes('not fully set up') || message.toLowerCase().includes('payouts_enabled')) {
+          setOnboardingIncomplete(true);
         }
         throw new Error(message);
       }
@@ -290,6 +318,7 @@ export default function Wallet() {
 
       toast.success(`Withdrawal of $${amount.toFixed(2)} initiated successfully!`);
       setWithdrawAmount('');
+      setOnboardingIncomplete(false);
       // Profile will be updated by realtime subscription
     } catch (error: any) {
       console.error('Withdrawal error:', error);
@@ -477,7 +506,27 @@ export default function Wallet() {
               </p>
             </div>
 
-            {profile?.stripe_connect_account_id ? (
+            {/* Onboarding incomplete banner */}
+            {profile?.stripe_connect_account_id && onboardingIncomplete && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium text-amber-400">Payout account setup incomplete</p>
+                  <p className="text-xs text-muted-foreground">Your Stripe account isn't fully verified yet. Complete onboarding to enable withdrawals.</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleResumeOnboarding}
+                  disabled={isWithdrawLoading}
+                  className="shrink-0 gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                >
+                  {isWithdrawLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  Complete Setup
+                </Button>
+              </div>
+            )}
+
+            {profile?.stripe_connect_account_id && !onboardingIncomplete ? (
               <div className="flex items-center gap-3">
                 <div className="relative flex-1">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
@@ -512,7 +561,7 @@ export default function Wallet() {
                   Withdraw
                 </Button>
               </div>
-            ) : (
+            ) : !profile?.stripe_connect_account_id ? (
               <Button
                 onClick={handleAction}
                 variant="outline"
@@ -522,7 +571,7 @@ export default function Wallet() {
                 {isWithdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownLeft className="h-4 w-4" />}
                 Connect Stripe
               </Button>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       </div>
