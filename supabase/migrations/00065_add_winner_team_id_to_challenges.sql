@@ -1,1 +1,0 @@
-ALTER TABLE challenges ADD COLUMN IF NOT EXISTS winner_team_id uuid REFERENCES teams(id) ON DELETE SET NULL;

@@ -1,1 +1,0 @@
-ALTER TABLE match_results REPLICA IDENTITY FULL;
