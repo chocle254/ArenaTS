@@ -50,7 +50,6 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
         .single();
       
       const currentBalance = latestProfile?.arena_currency || 0;
-      const currentAvailable = latestProfile?.available_balance || 0;
 
       if (stake > 0 && currentBalance < stake) {
         throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(stake)} to send this challenge.`);
@@ -76,12 +75,11 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
         myTeamId = myTeam.id;
       }
 
-      // Deduct Arena Currency
+      // Deduct Arena Currency only (non-withdrawable)
       const { error: balanceError } = await supabase
         .from('profiles')
         .update({ 
-          arena_currency: currentBalance - stake,
-          available_balance: currentAvailable - stake
+          arena_currency: currentBalance - stake
         })
         .eq('id', user!.id);
 
@@ -132,8 +130,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
         await supabase
           .from('profiles')
           .update({ 
-            arena_currency: currentBalance,
-            available_balance: currentAvailable
+            arena_currency: currentBalance
           })
           .eq('id', user!.id);
         
