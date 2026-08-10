@@ -470,6 +470,12 @@
     background-clip: text;
   }
 
+  .landing-logo-img {
+    height: 44px;
+    width: auto;
+    object-fit: contain;
+  }
+
   .landing-nav-links {
     display: flex;
     gap: 40px;
@@ -1958,6 +1964,12 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  .landing-footer-logo-img {
+    height: 36px;
+    width: auto;
+    object-fit: contain;
   }
 
   .landing-footer-text {
