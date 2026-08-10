@@ -24,7 +24,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (usernameOrEmail: string, password: string) => Promise<void>;
+  signIn: (usernameOrEmail: string, password: string) => Promise<string>;
   signUp: (email: string, password: string) => Promise<void>;
   signUpWithProfile: (data: SignUpData) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -131,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    return email;
   }, []);
 
   const signUp = React.useCallback(async (email: string, password: string) => {
@@ -191,14 +192,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = React.useCallback(async () => {
-    const { data, error } = await supabase.auth.signInWithSSO({
-      domain: 'miaoda-gg.com',
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
       options: {
         redirectTo: window.location.origin,
       },
     });
     if (error) throw error;
-    if (data?.url) window.open(data.url, '_self');
+    if (data?.url) window.location.href = data.url;
   }, []);
 
   const signInWithDiscord = React.useCallback(async () => {
