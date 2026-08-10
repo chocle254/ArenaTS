@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { invokeEdgeFunction } from '@/lib/edge-function';
 
 interface WithdrawModalProps {
   open: boolean;
@@ -34,9 +35,7 @@ export function WithdrawModal({ open, onOpenChange, onSuccess, availableBalance,
     setProcessing(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('create-connect-account', {
-        body: {},
-      });
+      const { data, error } = await invokeEdgeFunction<{ url?: string }>('create-connect-account', { body: {} });
 
       if (error) throw error;
 
@@ -68,7 +67,7 @@ export function WithdrawModal({ open, onOpenChange, onSuccess, availableBalance,
     setProcessing(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('create-payout', {
+      const { data, error } = await invokeEdgeFunction('create-payout', {
         body: { amount: withdrawAmount, currency: currency.toLowerCase() },
       });
 
