@@ -1,10 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Lock, Eye, Database, Globe, UserCheck, ShieldAlert, FileText } from 'lucide-react';
+import { ArrowLeft, Lock, Eye, Database, Globe, UserCheck, ShieldAlert, FileText, BadgeCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const PrivacyPolicy = () => {
-  const lastUpdated = "May 25, 2026";
+  const lastUpdated = "2026-05-25";
 
   const sections = [
     {
@@ -26,50 +26,62 @@ const PrivacyPolicy = () => {
       2.4 Financial & KYC Data: To comply with Anti-Money Laundering (AML) laws, we collect government-issued IDs, proof of address, and tax identification numbers for users initiating withdrawals or reaching certain transaction thresholds.`
     },
     {
+      id: "aml-kyc",
+      title: "3. AML/KYC Compliance",
+      icon: <BadgeCheck className="w-5 h-5" />,
+      content: `3.1 Identity Verification: To comply with Anti-Money Laundering (AML) and Know Your Customer (KYC) regulations, we require users to verify their identity before withdrawing funds or upon reaching certain transaction thresholds. Verification may include a valid government-issued ID, proof of address, and tax identification number.
+
+3.2 Data Usage: KYC information is used solely to verify identity, prevent fraud, detect money laundering, and satisfy legal obligations. We do not use KYC data for marketing or share it beyond what is necessary for compliance.
+
+3.3 Verification Providers: We may share identity documents with regulated third-party verification services that process data under strict confidentiality and data protection agreements.
+
+3.4 Record Keeping: KYC documents and verification records are retained for at least 7 years after account closure, or longer if required by applicable law, to comply with AML record-keeping requirements.`
+    },
+    {
       id: "usage",
-      title: "3. How We Use Your Information",
+      title: "4. How We Use Your Information",
       icon: <FileText className="w-5 h-5" />,
-      content: `3.1 Service Execution: To manage accounts, process tournament entries, and facilitate peer-to-peer wagering.
+      content: `4.1 Service Execution: To manage accounts, process tournament entries, and facilitate peer-to-peer wagering.
       
-      3.2 Compliance & Safety: To verify identities (KYC), prevent money laundering (AML), and investigate match-fixing or fraudulent transactions.
+      4.2 Compliance & Safety: To verify identities (KYC), prevent money laundering (AML), and investigate match-fixing or fraudulent transactions.
       
-      3.3 Dispute Resolution: To allow referees and admins to review match evidence and chat logs to ensure fair play.`
+      4.3 Dispute Resolution: To allow referees and admins to review match evidence and chat logs to ensure fair play.`
     },
     {
       id: "sharing",
-      title: "4. Sharing Information with Third Parties",
+      title: "5. Sharing Information with Third Parties",
       icon: <Globe className="w-5 h-5" />,
-      content: `4.1 Payment Processors: We share data with Stripe for payment processing and withdrawal fulfillment. We do not store raw credit card details; all financial transactions are handled via Stripe's secure infrastructure.
+      content: `5.1 Payment Processors: We share data with Stripe for payment processing and withdrawal fulfillment. We do not store raw credit card details; all financial transactions are handled via Stripe's secure infrastructure.
       
-      4.2 Identity Verification: We may use third-party KYC providers to verify the authenticity of government documents provided by users.
+      5.2 Identity Verification: We may use third-party KYC providers to verify the authenticity of government documents provided by users.
       
-      4.3 Legal Authorities: We reserve the right to disclose your information to law enforcement or regulatory bodies if required by law or if we believe in good faith that such action is necessary to comply with legal obligations or protect platform integrity.`
+      5.3 Legal Authorities: We reserve the right to disclose your information to law enforcement or regulatory bodies if required by law or if we believe in good faith that such action is necessary to comply with legal obligations or protect platform integrity.`
     },
     {
       id: "retention",
-      title: "5. Data Retention & Financial Security",
+      title: "6. Data Retention & Financial Security",
       icon: <Lock className="w-5 h-5" />,
-      content: `5.1 Retention Period: Account data is retained as long as the account is active. However, financial records, KYC documents, and transaction histories are retained for a minimum of 7 years to comply with statutory tax and AML requirements.
+      content: `6.1 Retention Period: Account data is retained as long as the account is active. However, financial records, KYC documents, and transaction histories are retained for a minimum of 7 years to comply with statutory tax and AML requirements.
       
-      5.2 Withdrawal Holds: As per our Terms, we may hold withdrawal data and related funds for up to 30 days to complete integrity audits and fraud investigations.`
+      6.2 Withdrawal Holds: As per our Terms, we may hold withdrawal data and related funds for up to 30 days to complete integrity audits and fraud investigations.`
     },
     {
       id: "third-party-content",
-      title: "6. Safe Harbor & Third-Party Platforms",
+      title: "7. Safe Harbor & Third-Party Platforms",
       icon: <ShieldAlert className="w-5 h-5" />,
-      content: `6.1 Twitch Integration: Users linking Twitch accounts are subject to Twitch’s privacy policy. ARENA does not host, monitor, or control external video streams.
+      content: `7.1 Twitch Integration: Users linking Twitch accounts are subject to Twitch's privacy policy. ARENA does not host, monitor, or control external video streams.
       
-      6.2 Liability Shield: We comply with DMCA (US) and DSA (EU) Safe Harbor regulations. We are not liable for user-generated content or broadcasts occurring on external third-party platforms linked to the Platform.`
+      7.2 Liability Shield: We comply with DMCA (US) and DSA (EU) Safe Harbor regulations. We are not liable for user-generated content or broadcasts occurring on external third-party platforms linked to the Platform.`
     },
     {
       id: "rights",
-      title: "7. User Rights & Regional Disclosures",
+      title: "8. User Rights & Regional Disclosures",
       icon: <UserCheck className="w-5 h-5" />,
-      content: `7.1 Global Rights: You may request access to, correction of, or deletion of your personal data, subject to our legal retention obligations.
+      content: `8.1 Global Rights: You may request access to, correction of, or deletion of your personal data, subject to our legal retention obligations.
       
-      7.2 EU/UK Consumer Protection: Digital content (Arena Currency) is provided immediately upon purchase. Pursuant to regional laws, the statutory 14-day cooling-off period is waived upon execution of the digital delivery.
+      8.2 EU/UK Consumer Protection: Digital content (Arena Currency) is provided immediately upon purchase. Pursuant to regional laws, the statutory 14-day cooling-off period is waived upon execution of the digital delivery.
       
-      7.3 Governing Venue: All data disputes are subject to the exclusive jurisdiction of the state and federal courts located in Delaware, USA.`
+      8.3 Governing Venue: All data disputes are subject to the exclusive jurisdiction of the state and federal courts located in Delaware, USA.`
     }
   ];
 
