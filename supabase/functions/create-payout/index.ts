@@ -2,12 +2,17 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || Deno.env.get('FRONTEND_URL') || 'http://localhost:5173';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -46,16 +51,19 @@ serve(async (req) => {
       throw new Error('Not authenticated');
     }
 
-    const { amount: acAmount, currency = 'usd' } = await req.json();
+    const { amount: amountDollars, currency = 'usd' } = await req.json();
 
-    if (!acAmount || acAmount <= 0) {
+    if (!amountDollars || amountDollars <= 0) {
       throw new Error('Invalid amount');
     }
 
-    // Get user profile
+    // Round to 2 decimals to match the database column
+    const amount = Math.round(amountDollars * 100) / 100;
+
+    // Get user profile (read only - balance mutation is atomic below)
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('stripe_connect_account_id, arena_currency, currency')
+      .select('stripe_connect_account_id, currency')
       .eq('id', user.id)
       .single();
 
@@ -63,64 +71,118 @@ serve(async (req) => {
       throw new Error('No payout account connected');
     }
 
-    // Balance check: acAmount is in AC units, arena_currency is in AC units
-    if ((profile.arena_currency || 0) < acAmount) {
-      throw new Error('Insufficient balance');
-    }
-
-    // Verify Connect account is active
+    // Verify Connect account is active before we touch the balance
     const account = await stripe.accounts.retrieve(profile.stripe_connect_account_id);
-    
     if (!account.payouts_enabled) {
       throw new Error('Payout account not fully set up. Please visit settings to complete onboarding.');
     }
 
-    // 1$ = 100 AC. acAmount is in units. USD = acAmount / 100.
-    // Stripe transfers amount is in cents. cents = USD * 100 = acAmount.
-    const stripeAmountCents = Math.round(acAmount);
+    // Withdrawals come from available_balance (withdrawable cash), NOT arena_currency.
+    // available_balance is stored in USD dollars.
+    // Stripe transfers amount is in cents.
+    const stripeAmountCents = Math.round(amount * 100);
 
-    // Create transfer to Connect account
-    const transfer = await stripe.transfers.create({
-      amount: stripeAmountCents, // acAmount units = USD * 100 = cents
-      currency: (currency || profile.currency || 'usd').toLowerCase(),
-      destination: profile.stripe_connect_account_id,
-      metadata: {
-        user_id: user.id,
-        type: 'withdrawal',
-        ac_amount: acAmount.toString(),
-        usd_amount: (acAmount / 100).toFixed(2)
-      },
-    });
+    let transferId: string | null = null;
 
-    // Deduct from user balance
-    await supabaseAdmin.rpc('update_user_balance', {
-      p_user_id: user.id,
-      p_amount: -acAmount,
-      p_balance_type: 'available',
-    });
+    // Check the platform's actual available balance before deducting the user.
+    // If the platform has insufficient funds, the withdrawal is rejected immediately.
+    const balance = await stripe.balance.retrieve();
+    const availableUSD = balance.available?.find((b: any) => b.currency === 'usd');
+    const availableCents = availableUSD ? availableUSD.amount : 0;
+    console.log('Platform available balance (USD cents):', availableCents, 'requested:', stripeAmountCents);
 
-    // Create transaction record
-    await supabaseAdmin.from('transactions').insert({
+    if (availableCents < stripeAmountCents) {
+      throw new Error(
+        'Platform has insufficient funds to process this withdrawal. Please try a smaller amount or contact support.'
+      );
+    }
+
+    // Deduct the user's balance only after confirming the platform has funds.
+    const { data: deducted, error: deductError } = await supabaseAdmin.rpc(
+      'withdraw_available_balance',
+      {
+        p_user_id: user.id,
+        p_amount: amount,
+      }
+    );
+
+    if (deductError || !deducted) {
+      throw new Error(deductError?.message || 'Insufficient available balance or concurrent withdrawal');
+    }
+
+    try {
+      const transfer = await stripe.transfers.create({
+        amount: stripeAmountCents,
+        currency: (currency || profile.currency || 'usd').toLowerCase(),
+        destination: profile.stripe_connect_account_id,
+        metadata: {
+          user_id: user.id,
+          type: 'withdrawal',
+          usd_amount: amount.toFixed(2)
+        },
+      });
+      transferId = transfer.id;
+      console.log('Stripe transfer created:', transfer.id);
+    } catch (stripeError: any) {
+      console.error('Stripe transfer failed:', stripeError);
+      // Refund the deducted balance because Stripe could not complete the transfer
+      await supabaseAdmin.rpc('update_user_balance', {
+        p_user_id: user.id,
+        p_amount: amount,
+        p_balance_type: 'available',
+      });
+      throw new Error(
+        stripeError?.message ||
+          'Unable to process withdrawal. Please try again or contact support.'
+      );
+    }
+
+    // Create transaction record (idempotent via unique index on stripe_payout_id)
+    const { error: insertError } = await supabaseAdmin.from('transactions').insert({
       user_id: user.id,
       type: 'withdrawal',
-      amount: acAmount,
+      amount: amount,
       currency: 'USD',
       status: 'completed',
-      stripe_payout_id: transfer.id,
+      stripe_payout_id: transferId,
       description: 'Withdrawal to payout account',
       metadata: {
-        transfer_id: transfer.id,
+        transfer_id: transferId,
         destination: profile.stripe_connect_account_id,
-        usd_amount: acAmount / 100
+        usd_amount: amount,
       },
     });
+
+    if (insertError) {
+      console.error('Failed to record withdrawal transaction:', insertError);
+      // Do not refund the balance here; the deduction succeeded. A missing record
+      // is a data inconsistency that should be fixed by support.
+      throw new Error('Withdrawal succeeded but could not be recorded. Contact support.');
+    }
+
+    // Also insert into the withdrawals table so it appears in order history
+    const { error: withdrawalRecordError } = await supabaseAdmin.from('withdrawals').insert({
+      user_id: user.id,
+      amount: amount,
+      currency: 'USD',
+      status: 'completed',
+      stripe_transfer_id: transferId,
+      metadata: {
+        destination: profile.stripe_connect_account_id,
+        usd_amount: amount,
+      },
+    });
+
+    if (withdrawalRecordError) {
+      console.error('Failed to record withdrawal row:', withdrawalRecordError);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        transferId: transfer.id,
-        amount: acAmount,
-        usdAmount: acAmount / 100,
+        transferId,
+        amount: amount,
+        usdAmount: amount,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
