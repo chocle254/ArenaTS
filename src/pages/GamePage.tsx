@@ -376,18 +376,16 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
           .single();
         
         const currentBalance = latestProfile?.arena_currency || 0;
-        const currentAvailable = latestProfile?.available_balance || 0;
 
         if (currentBalance < entryFee) {
           throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(entryFee)} to join.`);
         }
 
-        // Deduct entry fee
+        // Deduct entry fee from Arena Currency only (non-withdrawable)
         const { error: balanceError } = await supabase
           .from('profiles')
           .update({ 
-            arena_currency: currentBalance - entryFee,
-            available_balance: currentAvailable - entryFee
+            arena_currency: currentBalance - entryFee
           })
           .eq('id', user!.id);
 
@@ -660,7 +658,6 @@ function CreateTournamentDialog({
         .single();
       
       const currentBalance = latestProfile?.arena_currency || 0;
-      const currentAvailable = latestProfile?.available_balance || 0;
 
       // Build prize distribution based on number of winners
       const prizeDistribution: Record<string, number> = {};
