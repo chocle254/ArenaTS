@@ -1,7 +1,7 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import * as React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,14 +28,28 @@ export default function SignIn() {
   const [ageError, setAgeError] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
-  const { user, loading: authLoading, signIn, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signIn, signInWithGoogle, signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const emailConfirmed = searchParams.get('confirmed') === 'true';
+
+  // Supabase auto-establishes a session when the confirmation link is
+  // clicked. Sign that session back out so the user lands on this page
+  // and has to explicitly log in, then let them know why they're here.
+  React.useEffect(() => {
+    if (!emailConfirmed) return;
+    signOut().finally(() => {
+      toast.success('Email confirmed! You can now sign in.');
+      setSearchParams({}, { replace: true });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailConfirmed]);
 
   React.useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && user && !emailConfirmed) {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, emailConfirmed]);
 
   React.useEffect(() => {
     const interval = setInterval(() => {
