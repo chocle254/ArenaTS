@@ -1,4 +1,4 @@
-import { AlertCircle, Calendar, Check, DollarSign, Download, Shield, ShieldAlert, TrendingUp, Trophy, Users, X } from 'lucide-react';
+import { AlertCircle, Calendar, Check, DollarSign, Download, Loader2, Shield, ShieldAlert, TrendingUp, Trophy, Users, Wallet, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -6,10 +6,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { invokeEdgeFunction } from '@/lib/edge-function';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
 
 interface TournamentRevenue {
@@ -29,6 +31,7 @@ interface RevenueStats {
   yearlyFees: number;
   completedTournaments: number;
   totalUsers: number;
+  platformRevenueBalance: number;
 }
 
 interface DisputedChallenge {
@@ -53,12 +56,15 @@ export default function AdminDashboard() {
     monthlyFees: 0,
     yearlyFees: 0,
     completedTournaments: 0,
-    totalUsers: 0
+    totalUsers: 0,
+    platformRevenueBalance: 0,
   });
   const [tournaments, setTournaments] = useState<TournamentRevenue[]>([]);
   const [disputedChallenges, setDisputedChallenges] = useState<DisputedChallenge[]>([]);
   const [resolving, setResolving] = useState<string | null>(null);
   const [platformUsers, setPlatformUsers] = useState<any[]>([]);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawingRevenue, setWithdrawingRevenue] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -170,6 +176,7 @@ export default function AdminDashboard() {
         { data: completedTournaments, error: tournamentError },
         { data: completedChallenges, error: challengeError },
         { count: totalUsers, error: userError },
+        { data: platformSettings, error: settingsError },
       ] = await Promise.all([
         supabase
           .from('tournaments')
@@ -183,6 +190,10 @@ export default function AdminDashboard() {
         supabase
           .from('profiles')
           .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('platform_settings')
+          .select('maintenance_balance')
+          .single(),
       ]);
 
       if (tournamentError) throw tournamentError;
@@ -251,13 +262,54 @@ export default function AdminDashboard() {
         monthlyFees,
         yearlyFees,
         completedTournaments: tournamentsWithFees.length,
-        totalUsers: totalUsers || 0
+        totalUsers: totalUsers || 0,
+        platformRevenueBalance: Number(platformSettings?.maintenance_balance || 0),
       });
     } catch (error) {
       console.error('Error fetching revenue data:', error);
       toast.error('Failed to load revenue data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleWithdrawRevenue = async () => {
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (amount > stats.platformRevenueBalance) {
+      toast.error('Amount exceeds platform revenue balance');
+      return;
+    }
+
+    setWithdrawingRevenue(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const { data, error } = await invokeEdgeFunction<{ message?: string; usdAmount?: number }>('admin-withdraw-revenue', {
+        accessToken: token,
+        body: { amount: Math.round(amount * 100) / 100 },
+      });
+
+      if (error) {
+        const msg = error.message;
+        if (msg.toLowerCase().includes('insufficient')) {
+          toast.error('Platform revenue balance is too low for this withdrawal');
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      toast.success(`Platform revenue withdrawal of $${amount.toFixed(2)} initiated`);
+      setWithdrawAmount('');
+      fetchRevenueData(false);
+    } catch (error: any) {
+      console.error('Revenue withdrawal error:', error);
+      toast.error(error.message || 'Failed to withdraw platform revenue');
+    } finally {
+      setWithdrawingRevenue(false);
     }
   };
 
@@ -322,6 +374,10 @@ export default function AdminDashboard() {
               <Users className="h-4 w-4" />
               Manage Referees
             </button>
+            <button onClick={() => navigate('/admin/kyc')} className="admin-btn-secondary gap-2 flex items-center">
+              <Shield className="h-4 w-4" />
+              KYC Review
+            </button>
             <button onClick={exportToCSV} className="admin-btn-secondary gap-2 flex items-center">
               <Download className="h-4 w-4" />
               Export
@@ -356,6 +412,15 @@ export default function AdminDashboard() {
             </div>
             <div className="admin-stat-value">{formatArenaCurrency(stats.yearlyFees)}</div>
             <div className="admin-stat-sub">Annual performance</div>
+          </div>
+
+          <div className="admin-stat-card">
+            <div className="admin-stat-label">
+              <Wallet className="h-[18px] w-[18px] text-emerald-400" />
+              Withdrawable Revenue
+            </div>
+            <div className="admin-stat-value">${stats.platformRevenueBalance.toFixed(2)}</div>
+            <div className="admin-stat-sub">Platform wallet balance</div>
           </div>
 
           <div className="admin-stat-card">
@@ -395,7 +460,60 @@ export default function AdminDashboard() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="revenue" className="mt-8">
+          <TabsContent value="revenue" className="mt-8 space-y-6">
+            {/* Platform Revenue Withdrawal Card */}
+            <Card className="border-border bg-card/50">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Wallet className="h-4 w-4" />
+                  Withdraw Platform Revenue
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                  <div className="flex-1 w-full">
+                    <p className="text-xs text-muted-foreground mb-1.5">Amount to withdraw</p>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                      <Input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        max={stats.platformRevenueBalance / 100}
+                        placeholder="0.00"
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        className="pl-7 font-mono"
+                        disabled={withdrawingRevenue || stats.platformRevenueBalance <= 0}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setWithdrawAmount(stats.platformRevenueBalance.toFixed(2))}
+                      disabled={stats.platformRevenueBalance <= 0}
+                    >
+                      Max
+                    </Button>
+                    <Button
+                      onClick={handleWithdrawRevenue}
+                      disabled={withdrawingRevenue || !withdrawAmount || stats.platformRevenueBalance <= 0}
+                      className="gap-2"
+                    >
+                      {withdrawingRevenue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                      Withdraw
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Available platform revenue: <span className="font-mono font-semibold">${stats.platformRevenueBalance.toFixed(2)}</span>.
+                  This is the sum of all platform fees collected from tournaments and challenges. It can be withdrawn to ARENA's Stripe wallet.
+                </p>
+              </CardContent>
+            </Card>
+
             <div className="admin-table-container">
               <Table>
                 <TableHeader>
