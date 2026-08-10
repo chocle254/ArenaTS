@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { EmailOTPVerification } from '@/components/EmailOTPVerification';
 import { GAME_INFO, type GameType } from '@/types/database';
 
 const gameImages = [
@@ -65,7 +66,9 @@ export default function SignUp() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [ageError, setAgeError] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+  const [showOtpDialog, setShowOtpDialog] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+
   const toggleGame = (game: GameType) => {
     if (selectedGames.includes(game)) {
       setSelectedGames(selectedGames.filter(g => g !== game));
@@ -102,8 +105,8 @@ export default function SignUp() {
       return;
     }
 
-    // Validate email format if provided
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // Validate email format
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast.error('Please enter a valid email address');
       return;
     }
@@ -129,6 +132,11 @@ export default function SignUp() {
     if (missingGameAccounts.length > 0) {
       const gameNames = missingGameAccounts.map(g => GAME_INFO[g].name).join(', ');
       toast.error(`Please enter your in-game name for: ${gameNames}`);
+      return;
+    }
+
+    if (!otpVerified) {
+      setShowOtpDialog(true);
       return;
     }
 
@@ -431,8 +439,23 @@ export default function SignUp() {
 
               <Button type="submit" className="w-full md:h-12 md:text-lg font-bold uppercase tracking-wider sheen-effect" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Account
+                {otpVerified ? 'Create Account' : 'Verify Email to Continue'}
               </Button>
+
+              <EmailOTPVerification
+                email={email}
+                purpose="signup"
+                open={showOtpDialog}
+                onOpenChange={setShowOtpDialog}
+                onVerified={() => {
+                  setOtpVerified(true);
+                  setShowOtpDialog(false);
+                  toast.success('Email verified. Complete your registration below.');
+                }}
+                onCancel={() => {
+                  setOtpVerified(false);
+                }}
+              />
 
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
