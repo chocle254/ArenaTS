@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { EmailOTPVerification } from '@/components/EmailOTPVerification';
 
 const gameImages = [
   'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_4246118f-7c56-4af3-bc4d-6569d919b747.jpg',
@@ -28,6 +29,8 @@ export default function SignIn() {
   const [ageError, setAgeError] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
+  const [showOtpDialog, setShowOtpDialog] = React.useState(false);
+  const [pendingEmail, setPendingEmail] = React.useState('');
   const { user, loading: authLoading, signIn, signInWithGoogle, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -46,10 +49,10 @@ export default function SignIn() {
   }, [emailConfirmed]);
 
   React.useEffect(() => {
-    if (!authLoading && user && !emailConfirmed) {
+    if (!authLoading && user && !emailConfirmed && !showOtpDialog) {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, authLoading, navigate, emailConfirmed]);
+  }, [user, authLoading, navigate, emailConfirmed, showOtpDialog]);
 
   React.useEffect(() => {
     const interval = setInterval(() => {
@@ -75,9 +78,9 @@ export default function SignIn() {
     setLoading(true);
 
     try {
-      await signIn(usernameOrEmail, password);
-      toast.success('Welcome back to ARENA!');
-      navigate('/dashboard');
+      const resolvedEmail = await signIn(usernameOrEmail, password);
+      setPendingEmail(resolvedEmail);
+      setShowOtpDialog(true);
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign in');
     } finally {
@@ -226,6 +229,23 @@ export default function SignIn() {
                 </svg>
                 Google
               </Button>
+
+              <EmailOTPVerification
+                email={pendingEmail}
+                purpose="signin"
+                open={showOtpDialog}
+                onOpenChange={setShowOtpDialog}
+                onVerified={() => {
+                  setShowOtpDialog(false);
+                  toast.success('Welcome back to ARENA!');
+                  navigate('/dashboard', { replace: true });
+                }}
+                onCancel={() => {
+                  // Don't leave a half-authenticated session hanging around
+                  signOut();
+                  setShowOtpDialog(false);
+                }}
+              />
             </form>
           </CardContent>
           <CardFooter className="flex flex-col space-y-2 pb-8 md:pb-10">
