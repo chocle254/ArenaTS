@@ -120,8 +120,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <aside className="w-64 flex-shrink-0 fixed left-0 top-0 bottom-0 z-[60] hidden md:block">
         <div className="h-full glassmorphism-sidebar p-6 flex flex-col overflow-y-auto scrollbar-hide">
           {/* Logo */}
-          <Link to={user ? "/dashboard" : "/"} className="mb-8">
-            <h1 className="text-3xl font-display font-bold gradient-text">ARENA</h1>
+          <Link to={user ? "/dashboard" : "/"} className="mb-8 block">
+            <img src="/images/logo.png" alt="Arena Royal" className="h-16 w-auto object-contain" />
           </Link>
 
           {/* Main Navigation */}
@@ -376,8 +376,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               <SheetContent side="left" className="w-64 p-0 bg-gradient-to-b from-blue-600/20 via-purple-600/20 to-[#0a0a0f] border-r border-white/10 backdrop-blur-2xl">
                 <div className="h-full p-6 flex flex-col overflow-y-auto scrollbar-hide">
                   {/* Logo */}
-                  <Link to={user ? "/dashboard" : "/"} className="mb-8" onClick={() => setMobileMenuOpen(false)}>
-                    <h1 className="text-3xl font-display font-bold gradient-text">ARENA</h1>
+                  <Link to={user ? "/dashboard" : "/"} className="mb-8 block" onClick={() => setMobileMenuOpen(false)}>
+                    <img src="/images/logo.png" alt="Arena Royal" className="h-16 w-auto object-contain" />
                   </Link>
 
                   {/* Main Navigation */}
@@ -577,8 +577,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </Sheet>
 
             {/* Logo - Mobile Only */}
-            <Link to={user ? "/dashboard" : "/"} className="md:hidden">
-              <h1 className="text-2xl font-display font-bold gradient-text">ARENA</h1>
+            <Link to={user ? "/dashboard" : "/"} className="md:hidden block">
+              <img src="/images/logo.png" alt="Arena Royal" className="h-10 w-auto object-contain" />
             </Link>
 
             {/* Search Bar */}
