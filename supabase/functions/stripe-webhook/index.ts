@@ -16,26 +16,23 @@ serve(async (req) => {
     const body = await req.text();
     let event: Stripe.Event;
 
-    // If webhook secret is not set (development), parse body directly
-    // WARNING: This is insecure and should only be used for development/testing
+    // Production: Verify webhook signature
     if (!webhookSecret) {
-      console.warn('⚠️  WEBHOOK SECRET NOT SET - Running in development mode without signature verification');
-      console.warn('⚠️  This is INSECURE and should only be used for testing');
-      event = JSON.parse(body);
-    } else {
-      // Production: Verify webhook signature
-      if (!signature) {
-        return new Response('Missing signature', { status: 400 });
-      }
-      
-      event = await stripe.webhooks.constructEventAsync(
-        body,
-        signature,
-        webhookSecret,
-        undefined,
-        cryptoProvider
-      );
+      console.error('CRITICAL: STRIPE_WEBHOOK_SECRET is missing. Rejecting request for security.');
+      return new Response('Webhook secret not configured', { status: 500 });
     }
+    
+    if (!signature) {
+      return new Response('Missing signature', { status: 400 });
+    }
+    
+    event = await stripe.webhooks.constructEventAsync(
+      body,
+      signature,
+      webhookSecret,
+      undefined,
+      cryptoProvider
+    );
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -43,6 +40,29 @@ serve(async (req) => {
     );
 
     console.log('Webhook event:', event.type);
+
+    // Idempotency guard: record the event ID first
+    const { data: recordedEvent, error: eventRecordError } = await supabaseClient
+      .from('stripe_webhook_events')
+      .insert({ event_id: event.id, event_type: event.type })
+      .select('id')
+      .single();
+
+    if (eventRecordError) {
+      // Unique violation likely means this event was already processed
+      if (eventRecordError.message?.includes('duplicate') || eventRecordError.code === '23505') {
+        console.log(`Event ${event.id} already processed. Skipping.`);
+        return new Response(JSON.stringify({ received: true, skipped: true }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+      throw new Error(`Failed to record webhook event: ${eventRecordError.message}`);
+    }
+
+    if (!recordedEvent) {
+      throw new Error('Failed to record webhook event: no record returned');
+    }
 
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -65,17 +85,22 @@ serve(async (req) => {
             .eq('id', orderId);
         }
 
-        // Update user balance based on purchase type
+        // All deposits via checkout are for Arena Currency (non-withdrawable).
+        // withdrawable cash is only earned through tournament winnings/creator fees.
         if (purchaseType === 'arena_currency' && acAmount) {
           const ac = parseFloat(acAmount);
-          await supabaseClient.rpc('update_user_balance', {
+          const { data: acSuccess } = await supabaseClient.rpc('update_user_balance', {
             p_user_id: userId,
             p_amount: ac,
             p_balance_type: 'arena_currency',
           });
-          
-          // Create transaction record
-          await supabaseClient.from('transactions').insert({
+
+          if (!acSuccess) {
+            throw new Error(`Failed to credit arena currency for user ${userId}: balance update rejected`);
+          }
+
+          // Create transaction record (idempotent via unique index)
+          const { error: txError } = await supabaseClient.from('transactions').insert({
             user_id: userId,
             type: 'deposit',
             amount: ac,
@@ -89,37 +114,47 @@ serve(async (req) => {
                order_id: orderId
             }
           });
-          
+
+          if (txError && !txError.message?.includes('duplicate')) {
+            throw new Error(`Failed to record deposit transaction: ${txError.message}`);
+          }
+
           console.log(`AC added for user ${userId}: ${acAmount} AC`);
         } else {
-          // 1$ = 100 AC. amount_total is in cents.
-          // cents / 100 = USD. USD * 100 = AC units.
-          // So cents = AC units.
+          // Legacy/other top-ups: still credit arena_currency only so users cannot
+          // deposit cash and withdraw it for arbitrage.
           const acUnits = session.amount_total || 0;
-          await supabaseClient.rpc('update_user_balance', {
+          const { data: acSuccess } = await supabaseClient.rpc('update_user_balance', {
             p_user_id: userId,
             p_amount: acUnits,
-            p_balance_type: 'available',
+            p_balance_type: 'arena_currency',
           });
 
-          // Create transaction record
-          await supabaseClient.from('transactions').insert({
+          if (!acSuccess) {
+            throw new Error(`Failed to credit arena currency for user ${userId}: balance update rejected`);
+          }
+
+          const { error: txError } = await supabaseClient.from('transactions').insert({
             user_id: userId,
             type: 'deposit',
             amount: acUnits,
-            currency: 'USD',
-            description: 'Account Top-up',
+            currency: 'AC',
+            description: 'Purchased Arena Currency (legacy top-up)',
             status: 'completed',
             stripe_payment_intent_id: session.payment_intent as string,
             metadata: {
                stripe_session_id: session.id,
-               purchase_type: 'available',
+               purchase_type: purchaseType,
                order_id: orderId,
                usd_amount: acUnits / 100
             }
           });
 
-          console.log(`Cash balance added for user ${userId}: ${acUnits} AC units ($${acUnits / 100})`);
+          if (txError && !txError.message?.includes('duplicate')) {
+            throw new Error(`Failed to record deposit transaction: ${txError.message}`);
+          }
+
+          console.log(`AC added for user ${userId}: ${acUnits} AC (legacy top-up)`);
         }
         break;
       }
@@ -145,12 +180,16 @@ serve(async (req) => {
 
         // Update user balance
         if (userId) {
-          await supabaseClient.rpc('update_user_balance', {
+          const { data: success } = await supabaseClient.rpc('update_user_balance', {
             p_user_id: userId,
             p_amount: acUnits,
             p_balance_type: purchaseType === 'arena_currency' ? 'arena_currency' : 'available',
           });
-          console.log(`Payment succeeded for user ${userId}: ${acUnits} AC units (${purchaseType || 'available'})`);
+          if (!success) {
+            console.error(`Failed to credit balance for user ${userId} after payment_intent.succeeded`);
+          } else {
+            console.log(`Payment succeeded for user ${userId}: ${acUnits} AC units (${purchaseType || 'available'})`);
+          }
         }
         break;
       }
@@ -196,11 +235,14 @@ serve(async (req) => {
 
         // Refund balance to user
         if (userId) {
-          await supabaseClient.rpc('update_user_balance', {
+          const { data: success } = await supabaseClient.rpc('update_user_balance', {
             p_user_id: userId,
             p_amount: acUnits,
             p_balance_type: 'available',
           });
+          if (!success) {
+            console.error(`Failed to refund balance to user ${userId} after payout.failed`);
+          }
         }
 
         console.log(`Payout failed: ${payout.id}. Refunded ${acUnits} AC units to user ${userId}`);
