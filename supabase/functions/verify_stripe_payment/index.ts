@@ -5,12 +5,17 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const supabase = createClient(supabaseUrl!, supabaseKey!);
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+function getCorsHeaders(req: Request) {
+    const origin = req.headers.get('origin') || Deno.env.get('FRONTEND_URL') || 'http://localhost:5173';
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+    };
+}
 
-function ok(data: any): Response {
+function ok(data: any, req: Request): Response {
+    const corsHeaders = getCorsHeaders(req);
     return new Response(
         JSON.stringify({ code: "SUCCESS", message: "ok", data }),
         {
@@ -20,7 +25,8 @@ function ok(data: any): Response {
     );
 }
 
-function fail(msg: string, code = 400): Response {
+function fail(msg: string, req: Request, code = 400): Response {
+    const corsHeaders = getCorsHeaders(req);
     return new Response(
         JSON.stringify({ code: "FAIL", message: msg }),
         {
@@ -32,6 +38,7 @@ function fail(msg: string, code = 400): Response {
 
 Deno.serve(async (req) => {
     try {
+        const corsHeaders = getCorsHeaders(req);
         if (req.method === "OPTIONS") {
             return new Response(null, { headers: corsHeaders });
         }
@@ -55,7 +62,7 @@ Deno.serve(async (req) => {
                 verified: false,
                 status: session.payment_status,
                 sessionId: session.id,
-            });
+            }, req);
         }
 
         // Get the order
@@ -67,13 +74,24 @@ Deno.serve(async (req) => {
 
         if (orderError || !order) throw new Error("Order not found");
 
+        // Already processed by webhook or previous success-page load. Return the existing
+        // details without mutating balance or inserting another transaction.
         if (order.status === "completed") {
+            const { data: existingProfile } = await supabase
+                .from("profiles")
+                .select("arena_currency")
+                .eq("id", order.user_id)
+                .single();
             return ok({
                 verified: true,
                 status: "paid",
                 sessionId: session.id,
-                already_processed: true
-            });
+                amount: session.amount_total,
+                currency: session.currency,
+                arenaCurrencyAdded: Math.round(Number(order.total_amount) * 100),
+                already_processed: true,
+                currentBalance: existingProfile?.arena_currency ?? 0,
+            }, req);
         }
 
         // Update order status
@@ -94,20 +112,19 @@ Deno.serve(async (req) => {
         // Rate: $1 = 100 Arena Currency
         const arenaCurrencyAmount = Math.round(Number(order.total_amount) * 100);
         
-        // 1. Update Profile Balance
-        const { data: profile, error: profileError } = await supabase
+        // 1. Update Profile Balance — only Arena Currency (non-withdrawable)
+        const { error: profileError } = await supabase
             .rpc('increment_arena_currency', { 
-                user_uuid: order.user_id, 
-                amount: arenaCurrencyAmount 
+                p_user_id: order.user_id, 
+                p_amount: arenaCurrencyAmount 
             });
 
         if (profileError) {
             console.error("Error updating profile balance:", profileError);
-            // We should probably log this but the payment was successful
         }
 
-        // 2. Create Transaction Record
-        await supabase
+        // 2. Create Transaction Record (idempotent: unique index on stripe_payment_intent_id)
+        const { error: txError } = await supabase
             .from("transactions")
             .insert({
                 user_id: order.user_id,
@@ -123,6 +140,10 @@ Deno.serve(async (req) => {
                 }
             });
 
+        if (txError && !txError.message?.includes('duplicate')) {
+            console.error("Error recording transaction:", txError);
+        }
+
         return ok({
             verified: true,
             status: "paid",
@@ -130,9 +151,9 @@ Deno.serve(async (req) => {
             amount: session.amount_total,
             currency: session.currency,
             arenaCurrencyAdded: arenaCurrencyAmount
-        });
+        }, req);
     } catch (error) {
         console.error("Payment verification failed:", error);
-        return fail(error instanceof Error ? error.message : "Payment verification failed", 500);
+        return fail(error instanceof Error ? error.message : "Payment verification failed", req, 500);
     }
 });
