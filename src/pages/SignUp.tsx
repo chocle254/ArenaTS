@@ -173,8 +173,8 @@ export default function SignUp() {
         gameAccounts: gameAccountsArray
       });
 
-      toast.success('Account created successfully! You can now sign in.');
-      navigate('/sign-in');
+      toast.success('Account created! Welcome to ARENA.');
+      navigate('/dashboard');
     } catch (error: any) {
       toast.error(error.message || 'Failed to create account');
     } finally {
