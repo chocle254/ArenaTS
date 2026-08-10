@@ -65,6 +65,10 @@ export interface Profile {
   twitch_handle?: string | null;
   efootball_id?: string | null;
   pubg_id?: string | null;
+  // KYC 
+  kyc_status?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  kyc_rejection_reason?: string | null;
+  extracted_dob?: string | null;
 }
 
 export interface Gamertag {
@@ -267,6 +271,8 @@ export interface DirectMessage {
   created_at: string;
   read_at: string | null;
   image_url: string | null;
+  parent_message_id: string | null;
+  parent_message?: DirectMessage | null;
   sender?: Profile;
   receiver?: Profile;
 }
