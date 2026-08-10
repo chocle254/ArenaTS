@@ -77,12 +77,33 @@ serve(async (req) => {
           break;
         }
 
-        // Update order status
+        // Atomically claim this order before crediting anything. The client
+        // (via verify_stripe_payment on the success page) races this same
+        // webhook to process the same order — whichever one flips status
+        // away from 'pending' first is the only one that credits the
+        // balance. This single UPDATE...WHERE is race-free because Postgres
+        // serializes concurrent updates to the same row; a separate
+        // read-then-write check would have a window where both callers see
+        // the order as still pending and both credit it.
         if (orderId) {
-          await supabaseClient
+          const { data: claimedOrder, error: claimError } = await supabaseClient
             .from('orders')
             .update({ status: 'completed' })
-            .eq('id', orderId);
+            .eq('id', orderId)
+            .neq('status', 'completed')
+            .select('id')
+            .maybeSingle();
+
+          if (claimError) {
+            throw new Error(`Failed to claim order ${orderId}: ${claimError.message}`);
+          }
+
+          if (!claimedOrder) {
+            // verify_stripe_payment (or a previous webhook delivery) already
+            // completed this order. Do not credit again.
+            console.log(`Order ${orderId} already completed by another process. Skipping credit.`);
+            break;
+          }
         }
 
         // All deposits via checkout are for Arena Currency (non-withdrawable).
@@ -163,8 +184,14 @@ serve(async (req) => {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const userId = paymentIntent.metadata.user_id;
         const purchaseType = paymentIntent.metadata?.purchase_type;
-        // 1$ = 100 AC. amount is in cents. cents = AC units.
-        const acUnits = paymentIntent.amount;
+        // Stripe's paymentIntent.amount is always in cents.
+        const amountCents = paymentIntent.amount;
+        const isArenaCurrency = purchaseType === 'arena_currency';
+        // arena_currency is stored 1:1 with cents ($1 = 100 AC = 100 cents),
+        // so cents can be used directly there. available_balance (cash) is
+        // stored in DOLLARS, so it must be converted from cents — crediting
+        // it with the raw cents figure was a 100x over-credit bug.
+        const creditAmount = isArenaCurrency ? amountCents : amountCents / 100;
 
         // If it was a checkout session, we handle it in checkout.session.completed
         if (paymentIntent.metadata?.order_id) {
@@ -182,13 +209,13 @@ serve(async (req) => {
         if (userId) {
           const { data: success } = await supabaseClient.rpc('update_user_balance', {
             p_user_id: userId,
-            p_amount: acUnits,
-            p_balance_type: purchaseType === 'arena_currency' ? 'arena_currency' : 'available',
+            p_amount: creditAmount,
+            p_balance_type: isArenaCurrency ? 'arena_currency' : 'available',
           });
           if (!success) {
             console.error(`Failed to credit balance for user ${userId} after payment_intent.succeeded`);
           } else {
-            console.log(`Payment succeeded for user ${userId}: ${acUnits} AC units (${purchaseType || 'available'})`);
+            console.log(`Payment succeeded for user ${userId}: credited ${creditAmount} (${isArenaCurrency ? 'arena_currency' : 'available (USD)'})`);
           }
         }
         break;
@@ -224,8 +251,10 @@ serve(async (req) => {
         const payout = event.data.object as Stripe.Payout;
         const metadata = payout.metadata;
         const userId = metadata?.user_id;
-        // 1$ = 100 AC. payout.amount is in cents. cents = AC units.
-        const acUnits = payout.amount;
+        // payout.amount is in cents. available_balance is stored in DOLLARS,
+        // so it must be converted — refunding it with the raw cents figure
+        // was a 100x over-refund bug on failed withdrawals.
+        const refundDollars = payout.amount / 100;
 
         // Update transaction status
         await supabaseClient
@@ -237,7 +266,7 @@ serve(async (req) => {
         if (userId) {
           const { data: success } = await supabaseClient.rpc('update_user_balance', {
             p_user_id: userId,
-            p_amount: acUnits,
+            p_amount: refundDollars,
             p_balance_type: 'available',
           });
           if (!success) {
@@ -245,7 +274,7 @@ serve(async (req) => {
           }
         }
 
-        console.log(`Payout failed: ${payout.id}. Refunded ${acUnits} AC units to user ${userId}`);
+        console.log(`Payout failed: ${payout.id}. Refunded $${refundDollars.toFixed(2)} to user ${userId}`);
         break;
       }
 
