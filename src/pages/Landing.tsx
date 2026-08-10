@@ -63,7 +63,7 @@ export default function Landing() {
         {/* Navigation Bar */}
         <nav className="landing-nav">
           <div className="landing-nav-inner">
-            <div className="landing-logo">ARENA</div>
+            <img src="/images/logo.png" alt="Arena Royal" className="landing-logo-img" />
             <div className="landing-nav-links">
               <a href="#features">Features</a>
               <a href="#how-it-works">How It Works</a>
@@ -488,7 +488,7 @@ export default function Landing() {
         {/* Footer */}
         <footer className="landing-footer">
           <div className="landing-footer-inner">
-            <div className="landing-footer-logo">ARENA</div>
+            <img src="/images/logo.png" alt="Arena Royal" className="landing-footer-logo-img" />
             <div className="landing-footer-text">© 2026 Arena. Where Gamers Showcase Their Real Talents.</div>
           </div>
         </footer>
@@ -497,7 +497,7 @@ export default function Landing() {
           <div className="landing-section-inner">
             <div className="flex flex-col md:flex-row justify-between items-center gap-10">
               <div className="flex flex-col items-center md:items-start gap-4">
-                <div className="landing-logo">ARENA</div>
+                <img src="/images/logo.png" alt="Arena Royal" className="landing-logo-img" />
                 <p className="text-muted-foreground text-sm max-w-xs text-center md:text-left">
                   The world's premier competitive gaming platform for serious players.
                 </p>
