@@ -1,8 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
-const RESEND_API_URL = 'https://api.resend.com/emails';
-const OTP_EXPIRY_MINUTES = 10;
+const OTP_EXPIRY_MINUTES = 5;
 
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get('origin') || Deno.env.get('FRONTEND_URL') || 'http://localhost:5173';
@@ -72,9 +72,10 @@ serve(async (req) => {
   }
 
   try {
-    const resendKey = Deno.env.get('RESEND_API_KEY');
-    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'Arena <noreply@arena.gg>';
-    if (!resendKey) {
+    const gmailUser = Deno.env.get('GMAIL_USER');
+    const gmailAppPassword = Deno.env.get('GMAIL_APP_PASSWORD');
+    const fromEmail = Deno.env.get('SMTP_FROM_EMAIL') || `Arena <${gmailUser}>`;
+    if (!gmailUser || !gmailAppPassword) {
       throw new Error('Email service is not configured.');
     }
 
@@ -118,30 +119,37 @@ serve(async (req) => {
       throw new Error('Unable to generate verification code. Please try again.');
     }
 
-    // Send email via Resend
-    const resendResponse = await fetch(RESEND_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendKey}`,
-        'Content-Type': 'application/json',
+    // Send email via Gmail SMTP
+    const client = new SMTPClient({
+      connection: {
+        hostname: 'smtp.gmail.com',
+        port: 587,
+        tls: true,
+        auth: {
+          username: gmailUser,
+          password: gmailAppPassword,
+        },
       },
-      body: JSON.stringify({
+    });
+
+    try {
+      await client.send({
         from: fromEmail,
         to: normalizedEmail,
         subject: 'Your ARENA Verification Code',
         html: arenaEmailTemplate(code, normalizedEmail),
-      }),
-    });
-
-    if (!resendResponse.ok) {
-      const resendError = await resendResponse.text();
-      console.error('Resend API error:', resendResponse.status, resendError);
+        // A few headers that help avoid spam-filter penalties on personal Gmail sending
+        headers: {
+          'Reply-To': gmailUser,
+        },
+      });
+      await client.close();
+    } catch (smtpError) {
+      console.error('SMTP send error:', smtpError);
       // Rollback the stored code so the user can retry
       await supabaseAdmin.from('email_otps').delete().eq('email', normalizedEmail).eq('code', code);
       throw new Error('Unable to send verification email. Please try again.');
     }
-
-    const resendData = await resendResponse.json();
 
     return new Response(
       JSON.stringify({
@@ -150,7 +158,6 @@ serve(async (req) => {
         email: normalizedEmail,
         // Only return the last 2 digits for UI hint, never the full code
         hint: `••••${code.slice(4)}`,
-        resendId: resendData?.id,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
