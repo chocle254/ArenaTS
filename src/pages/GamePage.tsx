@@ -368,40 +368,21 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
     setIsJoining(true);
     try {
       if (entryFee > 0) {
-        // Fetch latest balance
+        // Fetch latest balance for a fast client-side check.
+        // The actual deduction + transaction record happens once, in the
+        // tr_tournament_join_fee trigger (AFTER INSERT on tournament_participants)
+        // — do not deduct here too, or players get charged twice.
         const { data: latestProfile } = await supabase
           .from('profiles')
-          .select('arena_currency, available_balance')
+          .select('arena_currency')
           .eq('id', user!.id)
           .single();
-        
+
         const currentBalance = latestProfile?.arena_currency || 0;
 
         if (currentBalance < entryFee) {
           throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(entryFee)} to join.`);
         }
-
-        // Deduct entry fee from Arena Currency only (non-withdrawable)
-        const { error: balanceError } = await supabase
-          .from('profiles')
-          .update({ 
-            arena_currency: currentBalance - entryFee
-          })
-          .eq('id', user!.id);
-
-        if (balanceError) throw balanceError;
-
-        // Record transaction
-        await supabase.from('transactions').insert({
-          user_id: user!.id,
-          type: 'tournament_fee',
-          amount: -entryFee,
-          description: `Entry fee for tournament: ${tournament.name}`,
-          status: 'completed',
-          tournament_id: tournament.id
-        });
-
-        await refreshProfile();
       }
 
       // Get gamertag from profile or generate default
@@ -425,6 +406,7 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
         .update({ current_players: tournament.current_players + 1 })
         .eq('id', tournament.id);
 
+      await refreshProfile();
       setIsJoined(true);
       setConsentOpen(false);
       toast.success('Successfully joined tournament!');
