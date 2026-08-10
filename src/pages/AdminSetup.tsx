@@ -3,20 +3,27 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/db/supabase';
 
 export default function AdminSetup() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [gamertag, setGamertag] = useState('');
+  const [secret, setSecret] = useState('');
 
   const createAdmin = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const { data, error: invokeError } = await supabase.functions.invoke('create-admin', {
-        method: 'POST'
+        method: 'POST',
+        body: { email, password, gamertag, secret },
       });
 
       if (invokeError) {
@@ -51,18 +58,59 @@ export default function AdminSetup() {
         <CardContent className="space-y-6">
           {!success && !error && (
             <>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>This will create an admin account with the following credentials:</p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>Email: admin@admin.com</li>
-                  <li>Password: Admin123</li>
-                  <li>Role: Admin</li>
-                </ul>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-email">Admin email</Label>
+                  <Input
+                    id="admin-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-password">Admin password</Label>
+                  <Input
+                    id="admin-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-gamertag">Gamertag (optional)</Label>
+                  <Input
+                    id="admin-gamertag"
+                    type="text"
+                    value={gamertag}
+                    onChange={(e) => setGamertag(e.target.value)}
+                    placeholder="Admin"
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-secret">Setup secret</Label>
+                  <Input
+                    id="admin-secret"
+                    type="password"
+                    value={secret}
+                    onChange={(e) => setSecret(e.target.value)}
+                    placeholder="Provided separately, not shown here"
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Matches the ADMIN_SETUP_SECRET set on the server. Anyone without it cannot create an admin account.
+                  </p>
+                </div>
               </div>
 
               <Button 
                 onClick={createAdmin} 
-                disabled={loading}
+                disabled={loading || !email || !password || !secret}
                 className="w-full"
               >
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -78,16 +126,8 @@ export default function AdminSetup() {
                 <div className="space-y-1">
                   <p className="font-semibold text-green-500">Admin Account Created!</p>
                   <p className="text-sm text-muted-foreground">
-                    You can now sign in with the admin credentials.
+                    You can now sign in with the credentials you just set.
                   </p>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold">Login Credentials:</p>
-                <div className="bg-muted/50 p-3 rounded-lg space-y-1 font-mono text-xs">
-                  <p>Email: admin@admin.com</p>
-                  <p>Password: Admin123</p>
                 </div>
               </div>
 
@@ -111,8 +151,7 @@ export default function AdminSetup() {
               </div>
 
               <Button 
-                onClick={createAdmin} 
-                disabled={loading}
+                onClick={() => setError(null)} 
                 variant="outline"
                 className="w-full"
               >
