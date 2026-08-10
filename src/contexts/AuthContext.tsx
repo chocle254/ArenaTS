@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin
+        emailRedirectTo: `${window.location.origin}/sign-in?confirmed=true`
       }
     });
     if (error) throw error;
@@ -153,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password: data.password,
       options: {
+        emailRedirectTo: `${window.location.origin}/sign-in?confirmed=true`,
         data: {
           full_name: data.fullName,
           username: data.username,
