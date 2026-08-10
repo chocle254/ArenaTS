@@ -74,9 +74,33 @@ Deno.serve(async (req) => {
 
         if (orderError || !order) throw new Error("Order not found");
 
-        // Already processed by webhook or previous success-page load. Return the existing
-        // details without mutating balance or inserting another transaction.
-        if (order.status === "completed") {
+        // Atomically claim this order for crediting. Both the Stripe webhook
+        // (checkout.session.completed) and this success-page verification call
+        // race to process the same order — whichever one flips status away
+        // from 'pending' first "wins" and is the only one that credits the
+        // balance. Postgres serializes concurrent UPDATEs on the same row, so
+        // this single statement is race-free (unlike a separate read-then-write
+        // check, which has a window where both callers see status = 'pending').
+        const { data: claimedOrder, error: claimError } = await supabase
+            .from("orders")
+            .update({
+                status: "completed",
+                completed_at: new Date().toISOString(),
+                stripe_payment_intent_id: session.payment_intent as string,
+                customer_email: session.customer_details?.email,
+                customer_name: session.customer_details?.name,
+            })
+            .eq("id", order.id)
+            .neq("status", "completed")
+            .select("id")
+            .maybeSingle();
+
+        if (claimError) throw claimError;
+
+        if (!claimedOrder) {
+            // Someone else (the webhook, or an earlier call to this function)
+            // already completed this order. Do NOT credit again — just report
+            // the current balance so the success page still renders correctly.
             const { data: existingProfile } = await supabase
                 .from("profiles")
                 .select("arena_currency")
@@ -94,20 +118,7 @@ Deno.serve(async (req) => {
             }, req);
         }
 
-        // Update order status
-        const { error: updateError } = await supabase
-            .from("orders")
-            .update({
-                status: "completed",
-                completed_at: new Date().toISOString(),
-                stripe_payment_intent_id: session.payment_intent as string,
-                customer_email: session.customer_details?.email,
-                customer_name: session.customer_details?.name,
-            })
-            .eq("id", order.id);
-
-        if (updateError) throw updateError;
-
+        // We won the claim — this call is responsible for crediting.
         // Business Logic: Add Arena Currency
         // Rate: $1 = 100 Arena Currency
         const arenaCurrencyAmount = Math.round(Number(order.total_amount) * 100);
