@@ -1,36 +1,31 @@
-import { lazy } from 'react';
 import type { ReactNode } from 'react';
-
-// Lazy-loaded pages: each page's code is only downloaded when the user
-// actually navigates to that route, instead of all being bundled into
-// one large chunk loaded on first visit.
-const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
-const AdminReferees = lazy(() => import('@/pages/AdminReferees'));
-const AdminSetup = lazy(() => import('@/pages/AdminSetup'));
-const Dashboard = lazy(() => import('@/pages/Dashboard'));
-const DirectMessages = lazy(() => import('@/pages/DirectMessages'));
-const ExchangeRates = lazy(() => import('@/pages/ExchangeRates'));
-const Friends = lazy(() => import('@/pages/Friends'));
-const GamePage = lazy(() => import('@/pages/GamePage'));
-const Landing = lazy(() => import('@/pages/Landing'));
-const Leaderboard = lazy(() => import('@/pages/Leaderboard'));
-const LiveStream = lazy(() => import('@/pages/LiveStream'));
-const NotFound = lazy(() => import('@/pages/NotFound'));
-const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
-const TermsAndConditions = lazy(() => import('@/pages/TermsAndConditions'));
-const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
-const PaymentSuccess = lazy(() => import('@/pages/PaymentSuccess'));
-const Profile = lazy(() => import('@/pages/Profile'));
-const QuickMatch = lazy(() => import('@/pages/QuickMatch'));
-const RefereeDashboard = lazy(() => import('@/pages/RefereeDashboard'));
-const Settings = lazy(() => import('@/pages/Settings'));
-const SignIn = lazy(() => import('@/pages/SignIn'));
-const SignUp = lazy(() => import('@/pages/SignUp'));
-const StreamingLounge = lazy(() => import('@/pages/StreamingLounge'));
-const TournamentDetail = lazy(() => import('@/pages/TournamentDetail'));
-const Tournaments = lazy(() => import('@/pages/Tournaments'));
-const Wallet = lazy(() => import('@/pages/Wallet'));
-const WorldChat = lazy(() => import('@/pages/WorldChat'));
+import AdminDashboard from '@/pages/AdminDashboard';
+import AdminKYC from '@/pages/AdminKYC';
+import AdminReferees from '@/pages/AdminReferees';
+import Dashboard from '@/pages/Dashboard';
+import DirectMessages from '@/pages/DirectMessages';
+import ExchangeRates from '@/pages/ExchangeRates';
+import Friends from '@/pages/Friends';
+import GamePage from '@/pages/GamePage';
+import Landing from '@/pages/Landing';
+import Leaderboard from '@/pages/Leaderboard';
+import LiveStream from '@/pages/LiveStream';
+import NotFound from '@/pages/NotFound';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
+import TermsAndConditions from '@/pages/TermsAndConditions';
+import NotificationsPage from '@/pages/NotificationsPage';
+import PaymentSuccess from '@/pages/PaymentSuccess';
+import Profile from '@/pages/Profile';
+import QuickMatch from '@/pages/QuickMatch';
+import RefereeDashboard from '@/pages/RefereeDashboard';
+import Settings from '@/pages/Settings';
+import SignIn from '@/pages/SignIn';
+import SignUp from '@/pages/SignUp';
+import StreamingLounge from '@/pages/StreamingLounge';
+import TournamentDetail from '@/pages/TournamentDetail';
+import Tournaments from '@/pages/Tournaments';
+import Wallet from '@/pages/Wallet';
+import WorldChat from '@/pages/WorldChat';
 
 export interface RouteConfig {
   name: string;
@@ -81,12 +76,6 @@ export const routes: RouteConfig[] = [
     name: 'Sign Up',
     path: '/sign-up',
     element: <SignUp />,
-    public: true,
-  },
-  {
-    name: 'Admin Setup',
-    path: '/admin-setup',
-    element: <AdminSetup />,
     public: true,
   },
   {
@@ -171,6 +160,12 @@ export const routes: RouteConfig[] = [
     name: 'Admin Referees',
     path: '/admin/referees',
     element: <AdminReferees />,
+    public: false,
+  },
+  {
+    name: 'Admin KYC',
+    path: '/admin/kyc',
+    element: <AdminKYC />,
     public: false,
   },
   {
