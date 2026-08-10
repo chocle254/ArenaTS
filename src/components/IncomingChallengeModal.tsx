@@ -101,18 +101,16 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
         .single();
       
       const currentBalance = latestProfile?.arena_currency || 0;
-      const currentAvailable = latestProfile?.available_balance || 0;
 
       if (challenge.stake_amount > 0 && currentBalance < challenge.stake_amount) {
         throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(challenge.stake_amount)} to accept this challenge.`);
       }
 
-      // Deduct balance
+      // Deduct stake from Arena Currency only (non-withdrawable)
       const { error: balanceError } = await supabase
         .from('profiles')
         .update({ 
-          arena_currency: currentBalance - challenge.stake_amount,
-          available_balance: currentAvailable - challenge.stake_amount
+          arena_currency: currentBalance - challenge.stake_amount
         })
         .eq('id', profile.id);
 
@@ -143,8 +141,7 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
         await supabase
           .from('profiles')
           .update({ 
-            arena_currency: currentBalance,
-            available_balance: currentAvailable
+            arena_currency: currentBalance
           })
           .eq('id', profile.id);
         
