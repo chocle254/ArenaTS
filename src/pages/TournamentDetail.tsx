@@ -164,6 +164,9 @@ export default function TournamentDetail() {
   const [teams, setTeams] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [gameIdPromptOpen, setGameIdPromptOpen] = useState(false);
+  const [pendingGameId, setPendingGameId] = useState('');
+  const [checkingGameId, setCheckingGameId] = useState(false);
   const [joinTeamDialogOpen, setJoinTeamDialogOpen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const [consentConfig, setConsentConfig] = useState<{
@@ -555,8 +558,59 @@ export default function TournamentDetail() {
     }
   };
 
-  const handleJoinTournament = async () => {
+  const checkGameIdThenProceed = async (proceed: () => void) => {
     if (!user || !tournament) return;
+    setCheckingGameId(true);
+    try {
+      const { data: existingAccount } = await supabase
+        .from('game_accounts')
+        .select('id, in_game_name')
+        .eq('user_id', user.id)
+        .eq('game', tournament.game)
+        .maybeSingle();
+
+      if (!existingAccount || !existingAccount.in_game_name) {
+        setGameIdPromptOpen(true);
+        return;
+      }
+      proceed();
+    } catch (error) {
+      console.error('Error checking game account:', error);
+      // Don't hard-block joining over a lookup failure — fall through
+      proceed();
+    } finally {
+      setCheckingGameId(false);
+    }
+  };
+
+  const saveGameIdAndContinue = async () => {
+    if (!user || !tournament || !pendingGameId.trim()) return;
+    try {
+      const { error } = await supabase
+        .from('game_accounts')
+        .upsert(
+          { user_id: user.id, game: tournament.game, in_game_name: pendingGameId.trim() },
+          { onConflict: 'user_id,game' }
+        );
+      if (error) throw error;
+
+      toast.success(`${GAME_INFO[tournament.game]?.name ?? tournament.game} ID saved`);
+      setGameIdPromptOpen(false);
+      setPendingGameId('');
+      handleJoinTournament(true);
+    } catch (error: any) {
+      console.error('Error saving game ID:', error);
+      toast.error(error.message || 'Failed to save game ID');
+    }
+  };
+
+  const handleJoinTournament = async (skipGameIdCheck = false) => {
+    if (!user || !tournament) return;
+
+    if (!skipGameIdCheck) {
+      checkGameIdThenProceed(() => handleJoinTournament(true));
+      return;
+    }
 
     if (tournament.team_size > 1) {
       setJoinTeamDialogOpen(true);
@@ -705,6 +759,38 @@ export default function TournamentDetail() {
         />
       )}
 
+      {/* Game ID prompt — shown when joining a game the user hasn't registered an ID for yet */}
+      {tournament && (
+        <Dialog open={gameIdPromptOpen} onOpenChange={setGameIdPromptOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add your {GAME_INFO[tournament.game]?.name ?? tournament.game} ID</DialogTitle>
+              <DialogDescription>
+                We need your in-game ID for {GAME_INFO[tournament.game]?.name ?? tournament.game} before you can
+                join this tournament — this is how opponents and referees identify you in-match.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2">
+              <Label htmlFor="pending-game-id">In-game ID / username</Label>
+              <Input
+                id="pending-game-id"
+                value={pendingGameId}
+                onChange={(e) => setPendingGameId(e.target.value)}
+                placeholder="e.g. your in-game handle or player ID"
+                autoFocus
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={saveGameIdAndContinue}
+              disabled={!pendingGameId.trim()}
+            >
+              Save & Continue Joining
+            </Button>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Winner Spotlight Modal */}
       {tournamentWinner && tournament && (
         <WinnerSpotlight
@@ -754,7 +840,7 @@ export default function TournamentDetail() {
             {canJoin && !isPastTournament && (
               <Button 
                 size="lg" 
-                onClick={handleJoinTournament}
+                onClick={() => handleJoinTournament()}
                 disabled={joining}
                 className="w-full md:w-auto bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 hover:from-blue-700 hover:via-purple-700 hover:to-blue-700 border-0"
               >
@@ -762,37 +848,6 @@ export default function TournamentDetail() {
               </Button>
             )}
 
-            {/* false && user && !isPastTournament && tournament.status !== 'cancelled' && (
-              <Button 
-                size="lg" 
-                onClick={async () => {
-                  if (hasAppliedForReferee) {
-                    setRefereeChatOpen(true);
-                  } else {
-                    try {
-                      const { data, error } = await supabase
-                        .from('referee_applications')
-                        .insert({ user_id: user.id })
-                        .select()
-                        .single();
-                      if (error) throw error;
-                      setHasAppliedForReferee(true);
-                      setRefereeApplicationId(data.id);
-                      setRefereeChatOpen(true);
-                      toast.success('Application submitted! Chat with admin to proceed.');
-                    } catch (error) {
-                      toast.error('Failed to submit application');
-                    }
-                  }
-                }}
-                variant="secondary"
-                className="w-full md:w-auto gap-2"
-              >
-                <Users className="h-4 w-4" />
-                {hasAppliedForReferee ? 'View Referee Application' : 'Apply to be Referee'}
-              </Button>
-            ) */}
-            
             {(isPastTournament || tournament.status === 'cancelled') && (
               <Badge variant={tournament.status === 'cancelled' ? 'destructive' : 'secondary'} className="text-sm font-light px-4 py-2">
                 {tournament.status === 'cancelled' ? 'Tournament Cancelled' : 'Tournament Ended'}
@@ -810,7 +865,7 @@ export default function TournamentDetail() {
                 View Champion
               </Button>
             )}
-            {/* false && user && !isPastTournament && tournament.status !== 'cancelled' && (
+            {user && !isPastTournament && tournament.status !== 'cancelled' && (
               <Button 
                 size="lg" 
                 onClick={async () => {
@@ -839,7 +894,7 @@ export default function TournamentDetail() {
                 <Users className="h-4 w-4" />
                 {hasAppliedForReferee ? 'View Referee Application' : 'Apply to be Referee'}
               </Button>
-            ) */}
+            )}
           </div>
         </div>
 
