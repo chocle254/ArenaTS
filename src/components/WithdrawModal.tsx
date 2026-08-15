@@ -67,13 +67,17 @@ export function WithdrawModal({ open, onOpenChange, onSuccess, availableBalance,
     setProcessing(true);
 
     try {
-      const { data, error } = await invokeEdgeFunction('create-payout', {
+      const { data, error } = await invokeEdgeFunction<{ queued?: boolean; message?: string }>('create-payout', {
         body: { amount: withdrawAmount, currency: currency.toLowerCase() },
       });
 
       if (error) throw error;
 
-      toast.success('Withdrawal initiated — arriving within 2 business days');
+      if (data?.queued) {
+        toast.success(data.message || 'Your withdrawal has been received and is being processed. This should take about 10 minutes.');
+      } else {
+        toast.success('Withdrawal initiated — arriving within 2 business days');
+      }
       onSuccess();
       onOpenChange(false);
       setAmount('');
