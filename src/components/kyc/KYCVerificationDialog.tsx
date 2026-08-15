@@ -29,11 +29,15 @@ type KYCStep = 'intro' | 'id_upload' | 'face_scan' | 'processing' | 'success' | 
 export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerificationDialogProps) {
   const { user, profile, refreshProfile } = useAuth();
   const [step, setStep] = useState<KYCStep>('intro');
-  const [idFile, setIdFile] = useState<File | null>(null);
+  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
+  const [idBackFile, setIdBackFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const [faceCaptured, setFaceCaptured] = useState(false);
+  const [selfieBlob, setSelfieBlob] = useState<Blob | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
 
@@ -42,7 +46,9 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
     if (!open) {
       setTimeout(() => {
         setStep('intro');
-        setIdFile(null);
+        setIdFrontFile(null);
+        setIdBackFile(null);
+        setSelfieBlob(null);
         setFaceCaptured(false);
         stopCamera();
       }, 300);
@@ -71,19 +77,45 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
     };
   }, []);
 
+  const cameraErrorMessage = (err: unknown) => {
+    const name = (err as { name?: string })?.name;
+    switch (name) {
+      case 'NotAllowedError':
+      case 'PermissionDeniedError':
+        return 'Camera access was denied. Please allow camera permissions for this site in your browser settings and try again.';
+      case 'NotFoundError':
+      case 'DevicesNotFoundError':
+        return 'No camera was found on this device.';
+      case 'NotReadableError':
+      case 'TrackStartError':
+        return 'Your camera is already in use by another application. Close it and try again.';
+      case 'SecurityError':
+        return 'Camera access requires a secure (https) connection.';
+      default:
+        return 'Could not access camera. Please check permissions and try again.';
+    }
+  };
+
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'user' } 
       });
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Capture button stays disabled until the video actually has
+        // frame data (videoWidth/Height), otherwise a capture attempt
+        // produces a blank/zero-size image and silently "does nothing".
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(() => {});
+          setVideoReady(true);
+        };
       }
-      streamRef.current = stream;
       setCameraActive(true);
     } catch (err) {
-      console.error("Error accessing camera:", err);
-      toast.error("Could not access camera. Please check permissions.");
+      console.error('Error accessing camera:', err);
+      toast.error(cameraErrorMessage(err));
     }
   };
 
@@ -93,76 +125,99 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
       streamRef.current = null;
     }
     setCameraActive(false);
+    setVideoReady(false);
   };
 
   const captureFace = () => {
-    setFaceCaptured(true);
-    setTimeout(() => {
-      stopCamera();
-      setStep('processing');
-      simulateProcessing();
-    }, 1500);
-  };
-
-  const handleIdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // In a real app, you'd check file type and size
-      setIdFile(file);
-      // Automatically advance after a brief delay for UI feedback
-      setTimeout(() => setStep('face_scan'), 1000);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      toast.error('Camera is still starting up — give it a second and try again.');
+      return;
     }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      toast.error('Could not capture photo on this device/browser.');
+      return;
+    }
+
+    // The preview is mirrored (-scale-x-100) so it feels like a mirror;
+    // un-mirror the actual captured frame so the saved photo is natural.
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        toast.error('Could not capture photo, please try again.');
+        return;
+      }
+      setSelfieBlob(blob);
+      setFaceCaptured(true);
+      setTimeout(() => {
+        stopCamera();
+        setStep('processing');
+        submitVerification(blob);
+      }, 1200);
+    }, 'image/jpeg', 0.92);
   };
 
-  const simulateProcessing = async () => {
+  const handleIdFrontUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setIdFrontFile(file);
+  };
+
+  const handleIdBackUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setIdBackFile(file);
+  };
+
+  const submitVerification = async (selfie: Blob) => {
     setIsUploading(true);
-    
-    // Simulate API delay for document analysis, face matching, and age verification
-    await new Promise(resolve => setTimeout(resolve, 3500));
-    
+
     try {
       if (!user) throw new Error('Not authenticated');
+      if (!idFrontFile || !idBackFile) throw new Error('Both sides of your ID are required');
 
-      // Randomly decide if they pass age verification (for demo purposes)
-      // 90% pass rate
-      const passedAgeCheck = Math.random() > 0.1;
-      
-      if (!passedAgeCheck) {
-        const reason = "We could not verify that you are at least 18 years old based on the provided document.";
-        const { error } = await supabase
-          .from('profiles')
-          .update({ 
-            kyc_status: 'rejected',
-            kyc_rejection_reason: reason
-          })
-          .eq('id', user.id);
+      // Fixed per-user paths (upsert) so a resubmission cleanly replaces
+      // the previous documents rather than orphaning old files.
+      const uploadDoc = async (file: Blob, name: string, contentType: string) => {
+        const path = `${user.id}/${name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('kyc-documents')
+          .upload(path, file, { upsert: true, contentType });
+        if (uploadError) throw uploadError;
+        return path;
+      };
 
-        if (error) throw new Error(error.message);
-        await refreshProfile();
-        setRejectionReason(reason);
-        setStep('rejected');
-      } else {
-        // Passed initial checks, set to pending for admin review
-        // In a real automated system, this might go straight to verified
-        const { error } = await supabase
-          .from('profiles')
-          .update({ 
-            kyc_status: 'pending',
-            kyc_rejection_reason: null,
-            // Mock extracted DOB for demo
-            extracted_dob: '1995-05-15'
-          })
-          .eq('id', user.id);
+      const [frontPath, backPath, selfiePath] = await Promise.all([
+        uploadDoc(idFrontFile, 'id-front.jpg', idFrontFile.type || 'image/jpeg'),
+        uploadDoc(idBackFile, 'id-back.jpg', idBackFile.type || 'image/jpeg'),
+        uploadDoc(selfie, 'selfie.jpg', 'image/jpeg'),
+      ]);
 
-        if (error) throw new Error(error.message);
-        await refreshProfile();
-        setStep('processing');
-        // Let the user know it's pending review
-        toast.success("Documents submitted! Pending admin review.");
-      }
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          kyc_status: 'pending',
+          kyc_rejection_reason: null,
+          kyc_id_front_path: frontPath,
+          kyc_id_back_path: backPath,
+          kyc_selfie_path: selfiePath,
+          kyc_submitted_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (error) throw new Error(error.message);
+      await refreshProfile();
+      setStep('processing');
+      toast.success('Documents submitted! Pending admin review.');
     } catch (err: any) {
-      toast.error(err.message || "An error occurred during verification");
-      setStep('rejected');
+      toast.error(err.message || 'An error occurred during verification');
+      setStep('id_upload');
     } finally {
       setIsUploading(false);
     }
@@ -241,41 +296,79 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
                   <div className="text-center space-y-2">
                     <h3 className="text-xl font-semibold">Upload ID Document</h3>
                     <p className="text-sm text-muted-foreground">
-                      Please upload a clear photo of your government-issued ID.
+                      Please upload clear photos of the front and back of your government-issued ID.
                     </p>
                   </div>
 
-                  <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-muted/30 transition-colors relative cursor-pointer">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={handleIdUpload}
-                    />
-                    
-                    {idFile ? (
-                      <div className="space-y-3">
-                        <div className="w-12 h-12 bg-primary/20 text-primary rounded-full flex items-center justify-center mx-auto">
-                          <Check className="h-6 w-6" />
-                        </div>
-                        <p className="text-sm font-medium text-primary">ID Uploaded</p>
-                        <p className="text-xs text-muted-foreground">{idFile.name}</p>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Front of ID</p>
+                      <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:bg-muted/30 transition-colors relative cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={handleIdFrontUpload}
+                        />
+                        {idFrontFile ? (
+                          <div className="space-y-2">
+                            <div className="w-10 h-10 bg-primary/20 text-primary rounded-full flex items-center justify-center mx-auto">
+                              <Check className="h-5 w-5" />
+                            </div>
+                            <p className="text-sm font-medium text-primary">Front Uploaded</p>
+                            <p className="text-xs text-muted-foreground">{idFrontFile.name}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <UploadCloud className="h-8 w-8 text-muted-foreground mx-auto" />
+                            <p className="text-sm font-medium">Click to upload front</p>
+                            <p className="text-xs text-muted-foreground">JPEG, PNG up to 10MB</p>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <UploadCloud className="h-10 w-10 text-muted-foreground mx-auto" />
-                        <div>
-                          <p className="text-sm font-medium">Click to upload or drag & drop</p>
-                          <p className="text-xs text-muted-foreground mt-1">JPEG, PNG up to 10MB</p>
-                        </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Back of ID</p>
+                      <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:bg-muted/30 transition-colors relative cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={handleIdBackUpload}
+                        />
+                        {idBackFile ? (
+                          <div className="space-y-2">
+                            <div className="w-10 h-10 bg-primary/20 text-primary rounded-full flex items-center justify-center mx-auto">
+                              <Check className="h-5 w-5" />
+                            </div>
+                            <p className="text-sm font-medium text-primary">Back Uploaded</p>
+                            <p className="text-xs text-muted-foreground">{idBackFile.name}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <UploadCloud className="h-8 w-8 text-muted-foreground mx-auto" />
+                            <p className="text-sm font-medium">Click to upload back</p>
+                            <p className="text-xs text-muted-foreground">JPEG, PNG up to 10MB</p>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                  
+
                   <div className="flex gap-2 text-xs text-muted-foreground items-start bg-muted/50 p-3 rounded-lg">
                     <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                     <p>Make sure all corners are visible, text is readable, and there is no glare blocking your face or details.</p>
                   </div>
+
+                  <Button
+                    className="w-full"
+                    disabled={!idFrontFile || !idBackFile}
+                    onClick={() => setStep('face_scan')}
+                  >
+                    Continue
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
                 </motion.div>
               )}
 
@@ -341,11 +434,16 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
                       size="lg" 
                       className="rounded-full w-16 h-16 p-0 shadow-lg border-4 border-background"
                       onClick={captureFace}
-                      disabled={!cameraActive || faceCaptured}
+                      disabled={!cameraActive || !videoReady || faceCaptured}
                     >
-                      <Camera className="h-6 w-6" />
+                      {cameraActive && !videoReady && !faceCaptured ? (
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      ) : (
+                        <Camera className="h-6 w-6" />
+                      )}
                     </Button>
                   </div>
+                  <canvas ref={canvasRef} className="hidden" />
                 </motion.div>
               )}
 
