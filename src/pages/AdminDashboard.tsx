@@ -34,6 +34,25 @@ interface RevenueStats {
   platformRevenueBalance: number;
 }
 
+interface QueuedWithdrawal {
+  id: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  status: 'queued' | 'processing' | 'failed';
+  reason: string | null;
+  failure_reason: string | null;
+  created_at: string;
+  profiles: { gamertag: string } | null;
+}
+
+interface PlatformFloat {
+  availableCents: number;
+  pendingCents: number;
+  queuedWithdrawals: QueuedWithdrawal[];
+  queuedTotal: number;
+}
+
 interface DisputedChallenge {
   id: string;
   game: string;
@@ -65,6 +84,14 @@ export default function AdminDashboard() {
   const [platformUsers, setPlatformUsers] = useState<any[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawingRevenue, setWithdrawingRevenue] = useState(false);
+  const [platformFloat, setPlatformFloat] = useState<PlatformFloat>({
+    availableCents: 0,
+    pendingCents: 0,
+    queuedWithdrawals: [],
+    queuedTotal: 0,
+  });
+  const [floatLoading, setFloatLoading] = useState(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -85,7 +112,8 @@ export default function AdminDashboard() {
       Promise.all([
         fetchRevenueData(false),
         fetchDisputedChallenges(),
-        fetchPlatformUsers()
+        fetchPlatformUsers(),
+        fetchPlatformFloat()
       ]);
     }
   }, [user, profile, navigate]);
@@ -106,6 +134,46 @@ export default function AdminDashboard() {
       setDisputedChallenges(data || []);
     } catch (error) {
       console.error('Error fetching disputed challenges:', error);
+    }
+  };
+
+  const fetchPlatformFloat = async () => {
+    setFloatLoading(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const { data, error } = await invokeEdgeFunction<PlatformFloat>('get-platform-float', {
+        accessToken: token,
+        body: {},
+      });
+
+      if (error) throw error;
+      if (data) setPlatformFloat(data);
+    } catch (error) {
+      console.error('Error fetching platform float:', error);
+      toast.error('Failed to load platform float');
+    } finally {
+      setFloatLoading(false);
+    }
+  };
+
+  const retryQueuedWithdrawal = async (queueId: string) => {
+    setRetryingId(queueId);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const { data, error } = await invokeEdgeFunction<{ amount?: number }>('retry-queued-withdrawal', {
+        accessToken: token,
+        body: { queueId },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Released withdrawal of $${(data?.amount ?? 0).toFixed(2)}`);
+      fetchPlatformFloat();
+    } catch (error: any) {
+      console.error('Error retrying withdrawal:', error);
+      toast.error(error.message || 'Still insufficient funds — try again once the float has topped up');
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -458,6 +526,14 @@ export default function AdminDashboard() {
             <TabsTrigger value="users" className="referee-tab uppercase">
               Platform Users
             </TabsTrigger>
+            <TabsTrigger value="float" className="referee-tab uppercase">
+              Platform Float
+              {platformFloat.queuedWithdrawals.filter(q => q.status === 'queued').length > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] rounded-full">
+                  {formatCompactNumber(platformFloat.queuedWithdrawals.filter(q => q.status === 'queued').length)}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="revenue" className="mt-8 space-y-6">
@@ -655,6 +731,133 @@ export default function AdminDashboard() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="float" className="mt-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="border-border bg-card/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Wallet className="h-4 w-4" />
+                    Available (Stripe)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-mono">
+                    ${(platformFloat.availableCents / 100).toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Funds ready to cover withdrawals now</p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border bg-card/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Pending (Stripe)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-mono">
+                    ${(platformFloat.pendingCents / 100).toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Settling from recent charges, not yet available</p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border bg-card/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    Queued Withdrawals
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-mono text-amber-500">
+                    ${platformFloat.queuedTotal.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {platformFloat.queuedWithdrawals.filter(q => q.status === 'queued').length} waiting on float
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground max-w-xl">
+                Stripe's available balance replenishes automatically as customer payments settle — there's no way to
+                deposit into it on demand. When a withdrawal is queued, retry it here once the available balance
+                covers it.
+              </p>
+              <Button variant="ghost" size="sm" onClick={fetchPlatformFloat} disabled={floatLoading} className="gap-2">
+                {floatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Refresh
+              </Button>
+            </div>
+
+            <div className="admin-table-container">
+              <Table>
+                <TableHeader>
+                  <TableRow className="admin-table-header hover:bg-transparent border-none">
+                    <TableHead className="admin-table-header">User</TableHead>
+                    <TableHead className="admin-table-header text-right">Amount</TableHead>
+                    <TableHead className="admin-table-header">Status</TableHead>
+                    <TableHead className="admin-table-header">Queued</TableHead>
+                    <TableHead className="admin-table-header text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {platformFloat.queuedWithdrawals.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-12 text-[#64748b] font-light">
+                        No queued withdrawals — the platform float is covering everyone
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    platformFloat.queuedWithdrawals.map((q) => (
+                      <TableRow key={q.id} className="admin-table-row">
+                        <TableCell className="text-white font-semibold">
+                          {q.profiles?.gamertag || q.user_id.slice(0, 8)}
+                        </TableCell>
+                        <TableCell className="text-right text-white font-semibold font-mono">
+                          ${Number(q.amount).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={
+                              q.status === 'failed'
+                                ? 'admin-badge-admin'
+                                : q.status === 'processing'
+                                ? 'admin-badge-user'
+                                : 'admin-badge-user'
+                            }
+                          >
+                            {q.status === 'queued' ? 'Queued' : q.status === 'processing' ? 'Processing' : 'Failed'}
+                          </span>
+                          {q.failure_reason && (
+                            <p className="text-[11px] text-[#ef4444] mt-1">{q.failure_reason}</p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-[#64748b] font-inter text-[13px]">
+                          {new Date(q.created_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => retryQueuedWithdrawal(q.id)}
+                            disabled={retryingId === q.id || q.status === 'processing'}
+                            className="gap-2"
+                          >
+                            {retryingId === q.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                            Retry
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
