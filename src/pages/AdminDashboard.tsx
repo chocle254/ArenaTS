@@ -1,11 +1,12 @@
-import { AlertCircle, Calendar, Check, DollarSign, Download, Loader2, Shield, ShieldAlert, TrendingUp, Trophy, Users, Wallet, X } from 'lucide-react';
+import { AlertCircle, Calendar, Check, DollarSign, Download, Loader2, PiggyBank, Shield, ShieldAlert, TrendingUp, Trophy, Users, Wallet, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -69,6 +70,7 @@ interface DisputedChallenge {
 export default function AdminDashboard() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<RevenueStats>({
     totalFees: 0,
@@ -92,6 +94,9 @@ export default function AdminDashboard() {
   });
   const [floatLoading, setFloatLoading] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [depositFloatOpen, setDepositFloatOpen] = useState(false);
+  const [depositFloatAmount, setDepositFloatAmount] = useState('');
+  const [depositingFloat, setDepositingFloat] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -117,6 +122,28 @@ export default function AdminDashboard() {
       ]);
     }
   }, [user, profile, navigate]);
+
+  // Handle the redirect back from Stripe Checkout after a float top-up
+  // (create-float-topup-checkout sends the admin to /admin?float_topup=success&session_id=...).
+  // The actual balance update happens server-side via the stripe-webhook, so we just
+  // surface confirmation here and refresh the float numbers a moment later.
+  useEffect(() => {
+    if (!profile || profile.role !== 'admin') return;
+
+    const floatTopup = searchParams.get('float_topup');
+    if (!floatTopup) return;
+
+    if (floatTopup === 'success') {
+      toast.success('Float top-up received — Stripe is settling the payment now.');
+      setTimeout(() => fetchPlatformFloat(), 2500);
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('float_topup');
+    next.delete('session_id');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, searchParams]);
 
   const fetchDisputedChallenges = async () => {
     try {
@@ -174,6 +201,42 @@ export default function AdminDashboard() {
       toast.error(error.message || 'Still insufficient funds — try again once the float has topped up');
     } finally {
       setRetryingId(null);
+    }
+  };
+
+  const handleDepositFloat = async () => {
+    const amount = parseFloat(depositFloatAmount);
+    if (!amount || amount <= 0) {
+      toast.error('Enter a valid amount to deposit');
+      return;
+    }
+
+    setDepositingFloat(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const { data, error } = await invokeEdgeFunction<{ url?: string; error?: string }>('create-float-topup-checkout', {
+        accessToken: token,
+        body: { amount, currency: 'usd' },
+      });
+
+      if (error) throw error;
+      if (!data?.url) throw new Error(data?.error || 'Stripe did not return a checkout URL');
+
+      toast.success('Redirecting to Stripe to complete the float deposit…');
+      try {
+        if (window.top && window.top !== window) {
+          window.top.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
+      } catch {
+        window.location.href = data.url;
+      }
+    } catch (error: any) {
+      console.error('Error creating float top-up checkout:', error);
+      toast.error(error.message || 'Failed to start float deposit');
+    } finally {
+      setDepositingFloat(false);
     }
   };
 
@@ -786,16 +849,22 @@ export default function AdminDashboard() {
               </Card>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <p className="text-xs text-muted-foreground max-w-xl">
-                Stripe's available balance replenishes automatically as customer payments settle — there's no way to
-                deposit into it on demand. When a withdrawal is queued, retry it here once the available balance
-                covers it.
+                Stripe's available balance replenishes automatically as customer payments settle. Short on float?
+                Deposit funds directly into the platform's Stripe wallet below — they land in Available (Stripe) and
+                can be used immediately to cover queued withdrawals.
               </p>
-              <Button variant="ghost" size="sm" onClick={fetchPlatformFloat} disabled={floatLoading} className="gap-2">
-                {floatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Refresh
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button onClick={() => setDepositFloatOpen(true)} className="gap-2">
+                  <PiggyBank className="h-4 w-4" />
+                  Deposit Float
+                </Button>
+                <Button variant="ghost" size="sm" onClick={fetchPlatformFloat} disabled={floatLoading} className="gap-2">
+                  {floatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Refresh
+                </Button>
+              </div>
             </div>
 
             <div className="admin-table-container">
@@ -864,6 +933,44 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={depositFloatOpen} onOpenChange={(open) => { if (!depositingFloat) { setDepositFloatOpen(open); if (!open) setDepositFloatAmount(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PiggyBank className="h-5 w-5" />
+              Deposit Platform Float
+            </DialogTitle>
+            <DialogDescription>
+              Pay real funds into ARENA's Stripe wallet via Stripe Checkout. This does not credit any user — it only
+              tops up the balance used to cover withdrawals.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <p className="text-xs text-muted-foreground mb-1.5">Amount to deposit (USD)</p>
+            <Input
+              type="number"
+              min="1"
+              step="0.01"
+              placeholder="0.00"
+              value={depositFloatAmount}
+              onChange={(e) => setDepositFloatAmount(e.target.value)}
+              disabled={depositingFloat}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDepositFloatOpen(false)} disabled={depositingFloat}>
+              Cancel
+            </Button>
+            <Button onClick={handleDepositFloat} disabled={depositingFloat || !depositFloatAmount} className="gap-2">
+              {depositingFloat ? <Loader2 className="h-4 w-4 animate-spin" /> : <PiggyBank className="h-4 w-4" />}
+              Continue to Stripe
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
