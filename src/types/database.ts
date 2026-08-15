@@ -68,6 +68,12 @@ export interface Profile {
   // KYC 
   kyc_status?: 'unverified' | 'pending' | 'verified' | 'rejected';
   kyc_rejection_reason?: string | null;
+  kyc_id_front_path?: string | null;
+  kyc_id_back_path?: string | null;
+  kyc_selfie_path?: string | null;
+  kyc_submitted_at?: string | null;
+  kyc_reviewed_at?: string | null;
+  kyc_reviewed_by?: string | null;
   extracted_dob?: string | null;
 }
 
