@@ -34,6 +34,8 @@ export default function AdminKYC() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
+  const [docUrls, setDocUrls] = useState<{ front?: string; back?: string; selfie?: string }>({});
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -52,6 +54,43 @@ export default function AdminKYC() {
       fetchSubmissions();
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (!selected) {
+      setDocUrls({});
+      return;
+    }
+    loadDocuments(selected.profile);
+  }, [selected]);
+
+  const loadDocuments = async (p: Profile) => {
+    setLoadingDocs(true);
+    try {
+      const paths: Array<['front' | 'back' | 'selfie', string | null | undefined]> = [
+        ['front', p.kyc_id_front_path],
+        ['back', p.kyc_id_back_path],
+        ['selfie', p.kyc_selfie_path],
+      ];
+
+      const entries = await Promise.all(
+        paths.map(async ([key, path]) => {
+          if (!path) return [key, undefined] as const;
+          const { data, error } = await supabase.storage
+            .from('kyc-documents')
+            .createSignedUrl(path, 60 * 10); // 10 minutes
+          if (error || !data) return [key, undefined] as const;
+          return [key, data.signedUrl] as const;
+        })
+      );
+
+      setDocUrls(Object.fromEntries(entries));
+    } catch (error) {
+      console.error('Error loading KYC documents:', error);
+      toast.error('Failed to load submitted documents');
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
 
   const fetchSubmissions = async () => {
     try {
@@ -97,6 +136,8 @@ export default function AdminKYC() {
         .update({
           kyc_status: 'verified',
           kyc_rejection_reason: null,
+          kyc_reviewed_at: new Date().toISOString(),
+          kyc_reviewed_by: user?.id,
           updated_at: new Date().toISOString(),
         })
         .eq('id', item.profile.id);
@@ -127,6 +168,8 @@ export default function AdminKYC() {
         .update({
           kyc_status: 'rejected',
           kyc_rejection_reason: rejectionReason.trim(),
+          kyc_reviewed_at: new Date().toISOString(),
+          kyc_reviewed_by: user?.id,
           updated_at: new Date().toISOString(),
         })
         .eq('id', item.profile.id);
@@ -315,27 +358,13 @@ export default function AdminKYC() {
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
                                 {item.profile.kyc_status === 'pending' ? (
-                                  <>
-                                    <Button
-                                      size="sm"
-                                      className="bg-emerald-500 hover:bg-emerald-600 text-white"
-                                      onClick={() => handleApprove(item)}
-                                      disabled={processing}
-                                    >
-                                      <CheckCircle2 className="h-4 w-4 mr-1" />
-                                      Approve
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
-                                      onClick={() => setSelected(item)}
-                                      disabled={processing}
-                                    >
-                                      <XCircle className="h-4 w-4 mr-1" />
-                                      Reject
-                                    </Button>
-                                  </>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => setSelected(item)}
+                                    disabled={processing}
+                                  >
+                                    Review
+                                  </Button>
                                 ) : (
                                   <Button
                                     size="sm"
@@ -413,6 +442,40 @@ export default function AdminKYC() {
                   <p className="text-rose-400 text-sm mt-1">{selected.profile.kyc_rejection_reason}</p>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <p className="text-muted-foreground text-sm">Submitted Documents</p>
+                {loadingDocs ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      ['front', 'ID Front'],
+                      ['back', 'ID Back'],
+                      ['selfie', 'Selfie'],
+                    ] as const).map(([key, label]) => (
+                      <a
+                        key={key}
+                        href={docUrls[key]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`block rounded-lg overflow-hidden border border-border bg-muted/30 aspect-[3/4] ${!docUrls[key] ? 'pointer-events-none opacity-50' : 'hover:opacity-80 transition-opacity'}`}
+                      >
+                        {docUrls[key] ? (
+                          <img src={docUrls[key]} alt={label} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground text-center p-2">
+                            No {label} on file
+                          </div>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">Click a document to open it full size. Links expire after 10 minutes.</p>
+              </div>
 
               {selected.profile.kyc_status === 'pending' && (
                 <div className="space-y-2">
