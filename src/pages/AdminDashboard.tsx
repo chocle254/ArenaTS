@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import FinanceAnalytics from '@/components/admin/FinanceAnalytics';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { invokeEdgeFunction } from '@/lib/edge-function';
@@ -324,12 +325,17 @@ export default function AdminDashboard() {
         supabase
           .from('platform_settings')
           .select('maintenance_balance')
-          .single(),
+          .maybeSingle(),
       ]);
 
       if (tournamentError) throw tournamentError;
       if (challengeError) throw challengeError;
       if (userError) throw userError;
+      if (settingsError) {
+        // Don't let this one silently zero out the revenue balance — surface it.
+        console.error('Error fetching platform_settings:', settingsError);
+        toast.error('Platform revenue balance may be inaccurate — could not load platform_settings.');
+      }
 
       // Calculate platform fees for each tournament
       const tournamentsWithFees: TournamentRevenue[] = (completedTournaments || []).map(t => ({
@@ -596,6 +602,9 @@ export default function AdminDashboard() {
                   {formatCompactNumber(platformFloat.queuedWithdrawals.filter(q => q.status === 'queued').length)}
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="referee-tab uppercase">
+              Analytics
             </TabsTrigger>
           </TabsList>
 
@@ -930,6 +939,10 @@ export default function AdminDashboard() {
                 </TableBody>
               </Table>
             </div>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="mt-8">
+            <FinanceAnalytics />
           </TabsContent>
         </Tabs>
       </div>
