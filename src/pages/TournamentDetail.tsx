@@ -951,7 +951,7 @@ export default function TournamentDetail() {
             <Calendar className="h-8 w-8 text-purple-400 mb-3" />
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Starts In</p>
-              <CountdownTimer targetDate={startTime} />
+              <CountdownTimer targetDate={startTime} status={tournament.status} />
             </div>
           </div>
         </div>
@@ -1129,6 +1129,7 @@ export default function TournamentDetail() {
                             <CountdownTimer 
                               targetDate={new Date(tournament.start_time)} 
                               onComplete={handleCountdownComplete}
+                              status={tournament.status}
                             />
                           </div>
                         </div>
