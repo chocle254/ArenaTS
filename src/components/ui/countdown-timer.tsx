@@ -3,9 +3,14 @@ import { useEffect, useState } from 'react';
 interface CountdownTimerProps {
   targetDate: Date;
   onComplete?: () => void;
+  /** Tournament status, if known. When 'completed' or 'cancelled', this
+   *  always shows that outcome instead of falling back to a time-based
+   *  "LIVE" guess — the countdown has no way to know the tournament
+   *  actually ended just because the start time has passed. */
+  status?: string;
 }
 
-export function CountdownTimer({ targetDate, onComplete }: CountdownTimerProps) {
+export function CountdownTimer({ targetDate, onComplete, status }: CountdownTimerProps) {
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
   function calculateTimeLeft() {
@@ -43,6 +48,24 @@ export function CountdownTimer({ targetDate, onComplete }: CountdownTimerProps) 
 
     return () => clearInterval(timer);
   }, [targetDate]); // Remove onComplete from dependencies to avoid loops
+
+  if (status === 'completed') {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+        <span className="text-2xl font-bold font-mono text-muted-foreground">ENDED</span>
+      </div>
+    );
+  }
+
+  if (status === 'cancelled') {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+        <span className="text-2xl font-bold font-mono text-muted-foreground">CANCELLED</span>
+      </div>
+    );
+  }
 
   if (timeLeft.total <= 0) {
     return (
