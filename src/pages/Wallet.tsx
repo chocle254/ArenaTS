@@ -118,6 +118,8 @@ export default function Wallet() {
   const [isDepositLoading, setIsDepositLoading] = useState(false);
   const [isWithdrawLoading, setIsWithdrawLoading] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [isTransferLoading, setIsTransferLoading] = useState(false);
   const [onboardingIncomplete, setOnboardingIncomplete] = useState(false);
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
@@ -258,6 +260,33 @@ export default function Wallet() {
       toast.error(error.message || 'Failed to resume onboarding');
     } finally {
       setIsWithdrawLoading(false);
+    }
+  };
+
+  const handleTransferToArenaCurrency = async () => {
+    if (!user) return;
+    const amount = parseFloat(transferAmount);
+    if (!amount || amount <= 0) {
+      toast.error('Enter a valid amount to transfer');
+      return;
+    }
+    if (amount > cashBalance) {
+      toast.error(`Amount exceeds your cash balance of $${cashBalance.toFixed(2)}`);
+      return;
+    }
+
+    setIsTransferLoading(true);
+    try {
+      const { error } = await supabase.rpc('transfer_cash_to_arena_currency', { p_amount_usd: amount });
+      if (error) throw error;
+      toast.success(`Transferred $${amount.toFixed(2)} to Arena Currency`);
+      setTransferAmount('');
+      await refreshProfile();
+      fetchTransactions(true);
+    } catch (error: any) {
+      toast.error(error.message || 'Transfer failed');
+    } finally {
+      setIsTransferLoading(false);
     }
   };
 
@@ -502,6 +531,48 @@ export default function Wallet() {
           ))}
         </div>
         <p className="text-xs text-muted-foreground">Arena Currency is non-withdrawable and for platform use only.</p>
+      </div>
+
+      {/* ── Transfer Cash to Arena Currency (one-way only) ── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Transfer to Arena Currency</h2>
+        <Card className="border-border">
+          <CardContent className="p-5 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Move cash balance into Arena Currency at $1 = 100 AC. This is one-way — Arena Currency cannot be converted back to cash.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                disabled={isTransferLoading || cashBalance <= 0}
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                onClick={() => setTransferAmount(cashBalance.toFixed(2))}
+                disabled={cashBalance <= 0}
+              >
+                Max
+              </Button>
+            </div>
+            {transferAmount && parseFloat(transferAmount) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                You'll receive <span className="text-primary font-semibold">{formatArenaCurrency(parseFloat(transferAmount) * 100)}</span>
+              </p>
+            )}
+            <Button
+              className="w-full gap-2"
+              onClick={handleTransferToArenaCurrency}
+              disabled={isTransferLoading || !transferAmount || cashBalance <= 0}
+            >
+              {isTransferLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              Transfer
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* ── Withdraw Cash ── */}
