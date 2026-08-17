@@ -188,6 +188,8 @@ export default function TournamentDetail() {
   const [hasAppliedForReferee, setHasAppliedForReferee] = useState(false);
   const [refereeApplicationId, setRefereeApplicationId] = useState<string | null>(null);
   const [isLiveToastShown, setIsLiveToastShown] = useState(false);
+  const [pendingTeamInvite, setPendingTeamInvite] = useState<{ id: string; team_name: string } | null>(null);
+  const [respondingToInvite, setRespondingToInvite] = useState(false);
 
   const fetchTournamentData = React.useCallback(async () => {
     try {
@@ -307,6 +309,57 @@ export default function TournamentDetail() {
       return subscribeToUpdates();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !user) return;
+    (async () => {
+      const { data } = await supabase
+        .from('tournament_team_members')
+        .select('id, status, tournament_teams!inner(team_name, tournament_id)')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .eq('tournament_teams.tournament_id', id)
+        .maybeSingle();
+
+      if (data) {
+        setPendingTeamInvite({ id: data.id, team_name: (data as any).tournament_teams.team_name });
+      } else {
+        setPendingTeamInvite(null);
+      }
+    })();
+  }, [id, user]);
+
+  const handleAcceptTeamInvite = async () => {
+    if (!pendingTeamInvite) return;
+    setRespondingToInvite(true);
+    try {
+      const { error } = await supabase.rpc('accept_team_invite', { p_team_member_id: pendingTeamInvite.id });
+      if (error) throw error;
+      toast.success(`You've joined team ${pendingTeamInvite.team_name}!`);
+      setPendingTeamInvite(null);
+      fetchTournamentData();
+      await refreshProfile();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to accept invite');
+    } finally {
+      setRespondingToInvite(false);
+    }
+  };
+
+  const handleDeclineTeamInvite = async () => {
+    if (!pendingTeamInvite) return;
+    setRespondingToInvite(true);
+    try {
+      const { error } = await supabase.rpc('decline_team_invite', { p_team_member_id: pendingTeamInvite.id });
+      if (error) throw error;
+      toast.success('Invite declined');
+      setPendingTeamInvite(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to decline invite');
+    } finally {
+      setRespondingToInvite(false);
+    }
+  };
 
   const subscribeToUpdates = () => {
     const participantsChannel = supabase
@@ -432,35 +485,30 @@ export default function TournamentDetail() {
 
       if (teamError) throw teamError;
 
-      // 3. Add all members to tournament_participants and tournament_team_members
-      const allMembers = [
-        { user_id: user!.id, gamertag: profile?.gamertag || 'Captain' },
-        ...profiles.map(p => ({ user_id: p.id, gamertag: p.gamertag }))
-      ];
-
-      // Add to participants
-      const participantEntries = allMembers.map((m, i) => ({
-        tournament_id: tournament!.id,
-        user_id: m.user_id,
-        gamertag: m.gamertag,
-        team_id: teamId,
-        checked_in: false,
-        is_standby: isFull,
-        amount_paid: i === 0 ? totalTeamFee : 0
-      }));
-
-      const { error: partError } = await supabase
+      // 3. Captain joins immediately (they're covering the team's entry fee).
+      //    Teammates are NOT added to tournament_participants yet — they get
+      //    a pending invite in tournament_team_members and must accept it
+      //    themselves before they're actually registered.
+      const { error: captainPartError } = await supabase
         .from('tournament_participants')
-        .insert(participantEntries);
+        .insert({
+          tournament_id: tournament!.id,
+          user_id: user!.id,
+          gamertag: profile?.gamertag || 'Captain',
+          team_id: teamId,
+          checked_in: false,
+          is_standby: isFull,
+          amount_paid: totalTeamFee
+        });
 
-      if (partError) throw partError;
+      if (captainPartError) throw captainPartError;
 
-      // Add to team members
-      const teamMemberEntries = allMembers.map((m, i) => ({
-        team_id: teamId,
-        user_id: m.user_id,
-        role: i === 0 ? 'captain' : 'member'
-      }));
+      // Add everyone to tournament_team_members: captain is accepted
+      // immediately, teammates start pending until they respond.
+      const teamMemberEntries = [
+        { team_id: teamId, user_id: user!.id, role: 'captain', status: 'accepted' },
+        ...profiles.map(p => ({ team_id: teamId, user_id: p.id, role: 'member', status: 'pending' }))
+      ];
 
       const { error: memberError } = await supabase
         .from('tournament_team_members')
@@ -468,7 +516,21 @@ export default function TournamentDetail() {
 
       if (memberError) throw memberError;
 
-      toast.success(`Team ${teamName} registered successfully!`);
+      // Notify each invited teammate so they can accept/decline.
+      const inviteNotifications = profiles.map(p => ({
+        user_id: p.id,
+        type: 'team_invite',
+        title: 'Team Invite',
+        message: `${profile?.gamertag || 'A captain'} invited you to join team "${teamName}" for ${tournament!.name}.`,
+        link: `/tournaments/${tournament!.id}`
+      }));
+
+      if (inviteNotifications.length > 0) {
+        const { error: notifError } = await supabase.from('notifications').insert(inviteNotifications);
+        if (notifError) console.error('Error sending team invite notifications:', notifError);
+      }
+
+      toast.success(`Team ${teamName} created! Waiting on teammates to accept their invites.`);
       setJoinTeamDialogOpen(false);
       setConsentOpen(false);
       fetchTournamentData();
@@ -852,6 +914,22 @@ export default function TournamentDetail() {
               <Badge variant={tournament.status === 'cancelled' ? 'destructive' : 'secondary'} className="text-sm font-light px-4 py-2">
                 {tournament.status === 'cancelled' ? 'Tournament Cancelled' : 'Tournament Ended'}
               </Badge>
+            )}
+
+            {pendingTeamInvite && (
+              <div className="w-full flex flex-col sm:flex-row items-center gap-3 bg-primary/5 border border-primary/20 rounded-xl px-5 py-4">
+                <p className="text-sm flex-1 text-center sm:text-left">
+                  You've been invited to join <span className="font-semibold text-primary">{pendingTeamInvite.team_name}</span> for this tournament.
+                </p>
+                <div className="flex gap-2 shrink-0">
+                  <Button size="sm" variant="outline" disabled={respondingToInvite} onClick={handleDeclineTeamInvite}>
+                    Decline
+                  </Button>
+                  <Button size="sm" disabled={respondingToInvite} onClick={handleAcceptTeamInvite}>
+                    {respondingToInvite ? 'Please wait…' : 'Accept Invite'}
+                  </Button>
+                </div>
+              </div>
             )}
             
             {tournamentWinner && (
