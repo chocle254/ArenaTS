@@ -499,7 +499,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
           <div className="space-y-1">
             <h1 className="admin-header-title uppercase">Admin Control Center</h1>
-            <p className="text-[#64748b] font-inter font-light text-[15px]">Platform revenue, disputes, and tournament analytics</p>
+            <p className="text-muted-foreground font-inter font-light text-[15px]">Platform revenue, disputes, and tournament analytics</p>
           </div>
           <div className="flex flex-wrap gap-4">
             <button 
@@ -580,7 +580,7 @@ export default function AdminDashboard() {
 
           <div className="admin-stat-card">
             <div className="admin-stat-label">
-              <Users className="h-[18px] w-[18px] text-purple-500" />
+              <Users className="h-[18px] w-[18px] text-primary" />
               Users
             </div>
             <div className="admin-stat-value">{formatCompactNumber(stats.totalUsers)}</div>
@@ -686,7 +686,7 @@ export default function AdminDashboard() {
                 <TableBody>
                   {tournaments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12 text-[#64748b] font-light">
+                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground font-light">
                         No completed tournaments yet
                       </TableCell>
                     </TableRow>
@@ -694,17 +694,17 @@ export default function AdminDashboard() {
                     tournaments.map((tournament) => (
                       <TableRow key={tournament.id} className="admin-table-row">
                         <TableCell className="text-white font-semibold">{tournament.name}</TableCell>
-                        <TableCell className="text-[#64748b] font-medium capitalize">{tournament.game}</TableCell>
+                        <TableCell className="text-muted-foreground font-medium capitalize">{tournament.game}</TableCell>
                         <TableCell className="text-right text-white font-semibold">
                           {formatArenaCurrency(tournament.prize_pool)}
                         </TableCell>
                         <TableCell className="text-right text-[#22c55e] font-bold">
                           {formatArenaCurrency(tournament.platform_fee)}
                         </TableCell>
-                        <TableCell className="text-center text-[#a855f7] font-medium">
+                        <TableCell className="text-center text-primary-soft font-medium">
                           {formatCompactNumber(tournament.current_players)}
                         </TableCell>
-                        <TableCell className="text-right text-[#64748b] font-inter text-[13px]">
+                        <TableCell className="text-right text-muted-foreground font-inter text-[13px]">
                           {new Date(tournament.start_time).toLocaleDateString()}
                         </TableCell>
                       </TableRow>
@@ -719,8 +719,8 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {disputedChallenges.length === 0 ? (
                 <div className="col-span-full py-20 text-center">
-                  <ShieldAlert className="h-16 w-16 text-[#64748b] opacity-20 mx-auto mb-4" />
-                  <p className="text-[#64748b] font-inter font-light">No disputed challenges found</p>
+                  <ShieldAlert className="h-16 w-16 text-muted-foreground opacity-20 mx-auto mb-4" />
+                  <p className="text-muted-foreground font-inter font-light">No disputed challenges found</p>
                 </div>
               ) : (
                 disputedChallenges.map((challenge) => (
@@ -804,10 +804,10 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell className="text-center font-medium">
                         <span className="text-[#22c55e]">{pUser.wins || 0}W</span>
-                        <span className="text-[#64748b] mx-1">/</span>
+                        <span className="text-muted-foreground mx-1">/</span>
                         <span className="text-[#ef4444]">{pUser.losses || 0}L</span>
                       </TableCell>
-                      <TableCell className="text-right text-[#64748b] font-inter text-[13px]">
+                      <TableCell className="text-right text-muted-foreground font-inter text-[13px]">
                         {new Date(pUser.created_at).toLocaleDateString()}
                       </TableCell>
                     </TableRow>
@@ -899,7 +899,7 @@ export default function AdminDashboard() {
                 <TableBody>
                   {platformFloat.queuedWithdrawals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-12 text-[#64748b] font-light">
+                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground font-light">
                         No queued withdrawals — the platform float is covering everyone
                       </TableCell>
                     </TableRow>
@@ -928,7 +928,7 @@ export default function AdminDashboard() {
                             <p className="text-[11px] text-[#ef4444] mt-1">{q.failure_reason}</p>
                           )}
                         </TableCell>
-                        <TableCell className="text-[#64748b] font-inter text-[13px]">
+                        <TableCell className="text-muted-foreground font-inter text-[13px]">
                           {new Date(q.created_at).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">

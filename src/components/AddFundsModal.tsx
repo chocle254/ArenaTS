@@ -22,7 +22,7 @@ const CARD_ELEMENT_OPTIONS = {
   style: {
     base: {
       color: '#ffffff',
-      fontFamily: '"Inter", sans-serif',
+      fontFamily: "Manrope, sans-serif",
       fontSmoothing: 'antialiased',
       fontSize: '16px',
       backgroundColor: '#0F1118',
@@ -188,7 +188,7 @@ export function AddFundsModal({ open, onOpenChange, onSuccess, currency }: AddFu
                 {/* Title */}
                 <h2 
                   className="text-2xl font-bold pt-2"
-                  style={{ fontFamily: 'Orbitron, sans-serif' }}
+                  style={{ fontFamily: "'Saira Condensed', sans-serif" }}
                 >
                   Add Funds
                 </h2>
@@ -218,7 +218,7 @@ export function AddFundsModal({ open, onOpenChange, onSuccess, currency }: AddFu
                           }}
                           className={`px-6 py-2.5 rounded-full font-medium transition-all ${
                             selectedAmountUSD === usdAmt && !customAmountLocal
-                              ? 'bg-violet-600 text-white border-2 border-violet-500'
+                              ? 'bg-primary text-white border-2 border-primary'
                               : 'bg-muted text-foreground border-2 border-transparent hover:border-border'
                           }`}
                         >
@@ -233,7 +233,7 @@ export function AddFundsModal({ open, onOpenChange, onSuccess, currency }: AddFu
                       onChange={(e) => setCustomAmountLocal(e.target.value)}
                       className={`w-32 px-6 py-2.5 rounded-full font-medium ${
                         customAmountLocal
-                          ? 'border-2 border-violet-500 bg-violet-600/10'
+                          ? 'border-2 border-primary bg-primary/10'
                           : 'border-2 border-transparent bg-muted'
                       }`}
                       min="5"
@@ -266,7 +266,7 @@ export function AddFundsModal({ open, onOpenChange, onSuccess, currency }: AddFu
                     className="p-4 rounded-xl border-2 transition-colors"
                     style={{
                       backgroundColor: '#0F1118',
-                      borderColor: 'rgba(124, 58, 237, 0.4)',
+                      borderColor: 'hsl(var(--primary) / 0.4)',
                     }}
                   >
                     <CardElement options={CARD_ELEMENT_OPTIONS} />
@@ -296,8 +296,8 @@ export function AddFundsModal({ open, onOpenChange, onSuccess, currency }: AddFu
                   disabled={!stripe || processing || amountInUSD < 5}
                   className="sheen-effect w-full py-6 text-lg font-bold transition-all duration-300 hover:scale-[1.02]"
                   style={{
-                    fontFamily: 'Orbitron, sans-serif',
-                    background: 'linear-gradient(90deg, #8b5cf6 0%, #06b6d4 100%)',
+                    fontFamily: "'Saira Condensed', sans-serif",
+                    background: 'hsl(var(--primary))',
                     border: 0,
                   }}
                 >

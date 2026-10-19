@@ -23,7 +23,7 @@ interface WinnerSpotlightProps {
   totalPlayers?: number;
 }
 
-const CONFETTI_COLORS = ['#F5C451', '#8B5CF6', '#38E1FF', '#FFFFFF'];
+const CONFETTI_COLORS = ['#F5C451', '#3D6EFF', '#9DB6FF', '#FFFFFF'];
 
 export function WinnerSpotlight({ open, onOpenChange, winner, tournamentId, tournamentName, prizeAmount, game, totalPlayers }: WinnerSpotlightProps) {
   const reduceMotion = useReducedMotion();

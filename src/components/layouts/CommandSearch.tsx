@@ -1,5 +1,5 @@
 import { Command as CommandPrimitive } from 'cmdk';
-import { Loader2, Search, Trophy, User } from 'lucide-react';
+import { Coins, Loader2, Search, Swords, Trophy, User, UserPlus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -33,6 +33,13 @@ interface CommandSearchProps {
   onOpenChange: (open: boolean) => void;
   pages: NavItem[];
 }
+
+const QUICK_ACTIONS = [
+  { label: 'Open tournaments', to: '/tournaments?tab=upcoming', icon: Trophy },
+  { label: 'Quick match', to: '/quick-match', icon: Swords },
+  { label: 'Top up wallet', to: '/wallet', icon: Coins },
+  { label: 'Find friends', to: '/world-chat', icon: UserPlus },
+];
 
 /** Escape PostgREST/LIKE wildcards so the search matches literally. */
 const likeSafe = (q: string) => q.replace(/[%_\\]/g, (m) => `\\${m}`);
@@ -84,7 +91,7 @@ export function CommandSearch({ open, onOpenChange, pages }: CommandSearchProps)
 
   const pageHits = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return pages;
+    if (!q) return [];
     return pages.filter((p) => p.name.toLowerCase().includes(q) || p.keywords?.some((k) => k.includes(q)));
   }, [pages, query]);
 
@@ -101,12 +108,12 @@ export function CommandSearch({ open, onOpenChange, pages }: CommandSearchProps)
         <DialogTitle className="sr-only">Search Arena</DialogTitle>
         <DialogDescription className="sr-only">Find players, tournaments and pages</DialogDescription>
         <CommandPrimitive shouldFilter={false} className="flex flex-col">
-          <div className="flex items-center gap-3 border-b border-border px-4">
+          <div className="flex items-center gap-3 border-b border-border pl-4 pr-14">
             <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
             <CommandPrimitive.Input
               value={query}
               onValueChange={setQuery}
-              placeholder="Search players, tournaments, pages"
+              placeholder="Search players and tournaments"
               className="h-14 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
               autoFocus
             />
@@ -186,6 +193,26 @@ export function CommandSearch({ open, onOpenChange, pages }: CommandSearchProps)
                   );
                 })}
               </CommandPrimitive.Group>
+            )}
+
+            {query.trim().length === 0 && (
+              <div className="px-3 py-3">
+                <p className="pb-2 text-xs text-muted-foreground">Jump in</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {QUICK_ACTIONS.map((a) => (
+                    <button
+                      key={a.to}
+                      type="button"
+                      onClick={() => go(a.to)}
+                      className="flex items-center gap-2.5 rounded-xl border border-border bg-background/40 px-3 py-2.5 text-left text-sm font-semibold hover:border-primary/50"
+                    >
+                      <a.icon className="h-4 w-4 shrink-0 text-primary-soft" />
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="pt-4 text-center text-xs text-muted-foreground">Type a gamertag or tournament name. Page names work too.</p>
+              </div>
             )}
 
             {debounced.length < 2 && query.trim().length > 0 && (

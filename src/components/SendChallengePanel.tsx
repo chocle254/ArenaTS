@@ -146,7 +146,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4" role="dialog" aria-modal="true" aria-labelledby="send-challenge-title">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center md:items-center md:p-4" role="dialog" aria-modal="true" aria-labelledby="send-challenge-title">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
           <motion.div

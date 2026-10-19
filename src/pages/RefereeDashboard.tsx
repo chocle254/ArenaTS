@@ -94,16 +94,16 @@ export default function RefereeDashboard() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
         <div className="space-y-1">
           <h1 className="referee-header-title uppercase">Referee Control Center</h1>
-          <p className="text-[#64748b] font-inter font-light text-[15px]">Monitor matches and resolve disputes</p>
+          <p className="text-muted-foreground font-inter font-light text-[15px]">Monitor matches and resolve disputes</p>
         </div>
         
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#64748b]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search matches..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 referee-search-bar h-11 border-none placeholder:text-[#64748b] focus-visible:ring-0"
+            className="pl-10 referee-search-bar h-11 border-none placeholder:text-muted-foreground focus-visible:ring-0"
           />
         </div>
       </div>
@@ -130,8 +130,8 @@ export default function RefereeDashboard() {
               ))
             ) : sortedMatches.length === 0 ? (
               <div className="col-span-full py-20 text-center">
-                <ShieldAlert className="h-16 w-16 text-[#64748b] opacity-20 mx-auto mb-4" />
-                <p className="text-[#64748b] font-inter font-light">No matches found matching your criteria</p>
+                <ShieldAlert className="h-16 w-16 text-muted-foreground opacity-20 mx-auto mb-4" />
+                <p className="text-muted-foreground font-inter font-light">No matches found matching your criteria</p>
               </div>
             ) : (
               sortedMatches.map((match) => {
@@ -162,7 +162,7 @@ export default function RefereeDashboard() {
                     </div>
                     
                     <div className="flex items-center justify-between pt-4 mt-4 border-t border-white/5">
-                      <div className="flex items-center gap-2 text-[#64748b]">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <Clock className="h-3.5 w-3.5" />
                         <span className="text-[12px]">
                           {new Date(match.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

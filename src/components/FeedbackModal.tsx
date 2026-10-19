@@ -77,7 +77,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <div className="flex items-center justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center">
+            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-600 to-primary flex items-center justify-center">
               <Trophy className="h-8 w-8 text-white" />
             </div>
           </div>

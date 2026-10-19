@@ -129,7 +129,7 @@ export function WithdrawModal({ open, onOpenChange, onSuccess, availableBalance,
                 <div className="py-8 space-y-6">
                   <h2 
                     className="text-2xl font-bold"
-                    style={{ fontFamily: 'Orbitron, sans-serif' }}
+                    style={{ fontFamily: "'Saira Condensed', sans-serif" }}
                   >
                     Set Up Payouts
                   </h2>
@@ -163,8 +163,8 @@ export function WithdrawModal({ open, onOpenChange, onSuccess, availableBalance,
                     disabled={processing}
                     className="sheen-effect w-full py-6 text-lg font-bold gap-2 transition-all duration-300 hover:scale-[1.02]"
                     style={{
-                      fontFamily: 'Orbitron, sans-serif',
-                      background: 'linear-gradient(90deg, #8b5cf6 0%, #06b6d4 100%)',
+                      fontFamily: "'Saira Condensed', sans-serif",
+                      background: 'hsl(var(--primary))',
                       border: 0,
                     }}
                   >
@@ -177,7 +177,7 @@ export function WithdrawModal({ open, onOpenChange, onSuccess, availableBalance,
                 <div className="space-y-6">
                   <h2 
                     className="text-2xl font-bold pt-2"
-                    style={{ fontFamily: 'Orbitron, sans-serif' }}
+                    style={{ fontFamily: "'Saira Condensed', sans-serif" }}
                   >
                     Withdraw Funds
                   </h2>
@@ -189,8 +189,8 @@ export function WithdrawModal({ open, onOpenChange, onSuccess, availableBalance,
                     </Label>
                     <div className="p-4 rounded-xl bg-muted/50 border border-border flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center">
-                          <Building2 className="h-5 w-5 text-violet-500" />
+                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                          <Building2 className="h-5 w-5 text-primary" />
                         </div>
                         <div>
                           <p className="font-medium">Connected Account</p>
@@ -237,8 +237,8 @@ export function WithdrawModal({ open, onOpenChange, onSuccess, availableBalance,
                     disabled={processing || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > availableBalance}
                     className="sheen-effect w-full py-6 text-lg font-bold transition-all duration-300 hover:scale-[1.02]"
                     style={{
-                      fontFamily: 'Orbitron, sans-serif',
-                      background: 'linear-gradient(90deg, #8b5cf6 0%, #06b6d4 100%)',
+                      fontFamily: "'Saira Condensed', sans-serif",
+                      background: 'hsl(var(--primary))',
                       border: 0,
                     }}
                   >

@@ -24,9 +24,13 @@ export default {
         },
         extend: {
             fontFamily: {
-                montserrat: ['Montserrat', 'sans-serif'],
-                display: ['Rajdhani', 'Montserrat', 'sans-serif'],
-                score: ['Rajdhani', 'Montserrat', 'sans-serif'],
+                sans: ['Manrope', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+                montserrat: ['Manrope', 'sans-serif'],
+                inter: ['Manrope', 'sans-serif'],
+                display: ['Saira Condensed', 'Manrope', 'sans-serif'],
+                score: ['Saira Condensed', 'Manrope', 'sans-serif'],
+                rajdhani: ['Saira Condensed', 'Manrope', 'sans-serif'],
+                orbitron: ['Saira Condensed', 'Manrope', 'sans-serif'],
             },
             colors: {
                 border: 'hsl(var(--border))',

@@ -233,13 +233,13 @@ export default function Profile() {
             <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
               <h1 className="break-all text-4xl leading-none md:text-5xl">{player.gamertag || 'Player'}</h1>
               {player.role === 'admin' && <span className="rounded-md bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary-soft">Staff</span>}
-              {player.role === 'referee' && <span className="rounded-md bg-live/10 px-2 py-0.5 text-xs font-semibold text-live">Referee</span>}
+              {player.role === 'referee' && <span className="rounded-md bg-gold/10 px-2 py-0.5 text-xs font-semibold text-gold">Referee</span>}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground md:justify-start">
               <span className="font-score text-base text-foreground">Level {level.level}</span>
               {online ? (
-                <span className="flex items-center gap-1.5 text-live">
-                  <span className="h-2 w-2 rounded-full bg-live" /> Online now
+                <span className="flex items-center gap-1.5 text-success">
+                  <span className="h-2 w-2 rounded-full bg-success" /> Online now
                 </span>
               ) : (
                 !isOwn &&
@@ -328,7 +328,7 @@ export default function Profile() {
               <span>{formatCompactNumber(level.toNext)} XP to level {level.level + 1}</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-gradient-to-r from-primary to-live" style={{ width: `${Math.max(2, level.progress * 100)}%` }} />
+              <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary-soft" style={{ width: `${Math.max(2, level.progress * 100)}%` }} />
             </div>
           </div>
         )}

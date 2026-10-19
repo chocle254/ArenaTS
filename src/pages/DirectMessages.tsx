@@ -1,376 +1,360 @@
-import { format } from 'date-fns';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, MoreVertical, Paperclip, Search, Send, Smile, Swords, User, UserPlus } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Check, CheckCheck, Clock3, MessageSquarePlus, Search, Swords, UserPlus, Users, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Bubble, ChatHeader, ChatShell, Composer, DayDivider, type DeliveryState, formatTime, groupMessages, inboxTime, MessageList, useChatScroll } from '@/components/chat/chat-kit';
 import { SendChallengePanel } from '@/components/SendChallengePanel';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDirectMessages } from '@/contexts/DirectMessageContext';
 import { supabase } from '@/db/supabase';
-import { Profile } from '@/types/database';
+import { isOnline, PUBLIC_PROFILE_COLUMNS } from '@/lib/profile-columns';
+import { cn, formatRelativeTime } from '@/lib/utils';
+import type { DirectMessage, Profile } from '@/types/database';
+
+type Partner = Pick<Profile, 'id' | 'gamertag' | 'avatar_url' | 'last_seen_at'> & Partial<Profile>;
+
+function PartnerAvatar({ p, size = 'h-12 w-12', dot = true }: { p: Partner; size?: string; dot?: boolean }) {
+  return (
+    <span className="relative shrink-0">
+      <Avatar className={size}>
+        <AvatarImage src={p.avatar_url || undefined} alt="" />
+        <AvatarFallback className="bg-secondary font-score text-lg">{p.gamertag?.[0]?.toUpperCase() || '?'}</AvatarFallback>
+      </Avatar>
+      {dot && isOnline(p.last_seen_at) && <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-[2.5px] border-background bg-success" aria-label="Online" />}
+    </span>
+  );
+}
+
+function Ticks({ m }: { m: DirectMessage }) {
+  if (m.id.startsWith('temp-')) return <Clock3 className="h-3.5 w-3.5 shrink-0" aria-label="Sending" />;
+  if (m.read_at) return <CheckCheck className="h-4 w-4 shrink-0 text-[#6fd3ff]" aria-label="Read" />;
+  return <Check className="h-4 w-4 shrink-0" aria-label="Sent" />;
+}
 
 export default function DirectMessages() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const targetUserId = searchParams.get('user');
-  const { 
-    conversations, 
-    activeConversation, 
-    sendMessage, 
-    fetchMessages, 
-    markAsRead, 
-    friends, 
-    loading, 
-    setActiveChatUserId,
-    unreadTotal,
-    pendingRequests 
-  } = useDirectMessages();
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(targetUserId);
-  const [messageText, setMessageText] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
-  const [showChat, setShowChat] = useState(!!targetUserId);
-  const [isSending, setIsSending] = useState(false);
-  const [challengeModalOpen, setChallengeModalOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [params, setParams] = useSearchParams();
+  const selectedId = params.get('user');
+  const { conversations, friends, pendingRequests, loading } = useDirectMessages();
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
-  useEffect(() => {
-    if (targetUserId) {
-      setSelectedUserId(targetUserId);
-      setShowChat(true);
-    }
-  }, [targetUserId]);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobileView(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    if (selectedUserId) {
-      setActiveChatUserId(selectedUserId);
-      fetchMessages(selectedUserId);
-      markAsRead(selectedUserId);
-      if (isMobileView) setShowChat(true);
-    } else {
-      setActiveChatUserId(null);
-    }
-  }, [selectedUserId, fetchMessages, markAsRead, isMobileView, setActiveChatUserId]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [activeConversation]);
-
-  const handleSendMessage = async () => {
-    if (!selectedUserId || !messageText.trim() || isSending) return;
-    try {
-      setIsSending(true);
-      const currentText = messageText;
-      setMessageText(''); // Clear input immediately for better UX
-      await sendMessage(selectedUserId, currentText);
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const filteredConversations = React.useMemo(() => 
-    conversations.filter((conv) =>
-      conv.other_user.gamertag.toLowerCase().includes(searchQuery.toLowerCase())
-    ), [conversations, searchQuery]
+  const open = useCallback(
+    (id: string) => {
+      const next = new URLSearchParams(params);
+      next.set('user', id);
+      // Push so the phone's back button closes the chat, like a messaging app
+      setParams(next);
+    },
+    [params, setParams],
   );
 
-  // Combine conversations and friends for the sidebar list
-  const sidebarList = React.useMemo(() => {
-    const listMap = new Map<string, { profile: Profile; lastMessage?: any; unreadCount: number }>();
-    
-    // Add all friends first
-    friends.forEach(friend => {
-      listMap.set(friend.id, { profile: friend, unreadCount: 0 });
-    });
-    
-    // Add or update with conversation data
-    conversations.forEach(conv => {
-      listMap.set(conv.other_user.id, { 
-        profile: conv.other_user, 
-        lastMessage: conv.last_message, 
-        unreadCount: conv.unread_count 
-      });
-    });
-    
-    return Array.from(listMap.values()).sort((a, b) => {
-      const aOnline = a.profile.last_seen_at && new Date().getTime() - new Date(a.profile.last_seen_at).getTime() < 300000;
-      const bOnline = b.profile.last_seen_at && new Date().getTime() - new Date(b.profile.last_seen_at).getTime() < 300000;
-      
-      if (aOnline && !bOnline) return -1;
-      if (!aOnline && bOnline) return 1;
-      
-      const aTime = a.lastMessage ? new Date(a.lastMessage.created_at).getTime() : 0;
-      const bTime = b.lastMessage ? new Date(b.lastMessage.created_at).getTime() : 0;
-      return bTime - aTime;
-    }).filter(item => 
-      item.profile.gamertag.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [friends, conversations, searchQuery]);
+  const close = useCallback(() => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate('/messages', { replace: true });
+  }, [navigate]);
 
-  const [activeUser, setActiveUser] = useState<Profile | null>(null);
-
-  useEffect(() => {
-    const conv = conversations.find((c) => c.other_user.id === selectedUserId);
-    if (conv) {
-      setActiveUser(conv.other_user);
-    } else if (selectedUserId) {
-      // Fetch profile if not in conversations (new chat)
-      const fetchProfile = async () => {
-        const { data } = await supabase.from('profiles').select('*').eq('id', selectedUserId).maybeSingle();
-        if (data) setActiveUser(data);
-      };
-      fetchProfile();
-    } else {
-      setActiveUser(null);
-    }
-  }, [selectedUserId, conversations]);
+  const q = query.trim().toLowerCase();
+  const chats = useMemo(
+    () =>
+      [...conversations]
+        .sort((a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime())
+        .filter((c) => (!q || c.other_user.gamertag?.toLowerCase().includes(q)) && (filter === 'all' || c.unread_count > 0)),
+    [conversations, q, filter],
+  );
+  const chatIds = useMemo(() => new Set(conversations.map((c) => c.other_user.id)), [conversations]);
+  const newChatFriends = useMemo(
+    () =>
+      friends
+        .filter((f) => !chatIds.has(f.id) && (!q || f.gamertag?.toLowerCase().includes(q)))
+        .sort((a, b) => Number(isOnline(b.last_seen_at)) - Number(isOnline(a.last_seen_at))),
+    [friends, chatIds, q],
+  );
+  const unreadChats = conversations.filter((c) => c.unread_count > 0).length;
 
   return (
-    <div className="flex h-[calc(100vh-80px)] bg-[#080810] overflow-hidden border-t border-white/5">
-      {/* Conversation List */}
-      <div className={`w-full md:w-80 flex flex-col dm-sidebar border-r border-white/5 transition-all ${isMobileView && showChat ? 'hidden' : 'block'}`}>
-        <div className="p-4 border-b border-white/5">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-bold text-white font-rajdhani">Messages</h1>
+    <div className="md:flex md:h-full">
+      {/* Inbox */}
+      <aside className={cn('flex flex-col md:w-[360px] md:shrink-0 md:border-r md:border-border lg:w-[400px]', selectedId && 'hidden md:flex')}>
+        <div className="px-4 pb-2 pt-4 md:pt-5">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl">Chats</h1>
+            <Link to="/world-chat" className="flex h-9 items-center gap-1.5 rounded-full bg-secondary px-3 text-sm font-semibold hover:bg-accent">
+              <Users className="h-4 w-4" /> World chat
+            </Link>
           </div>
-
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#64748b]" />
-            <Input
-              placeholder="Search conversations..."
-              className="pl-10 dm-search-bar h-10 border-none placeholder:text-[#64748b] focus-visible:ring-0"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+          <label className="mt-3 flex h-10 items-center gap-2 rounded-full bg-secondary px-3 text-sm focus-within:ring-2 focus-within:ring-ring">
+            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search"
+              aria-label="Search chats"
+              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
             />
+            {query && (
+              <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="text-muted-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </label>
+          <div className="mt-3 flex gap-2" role="tablist" aria-label="Filter chats">
+            {(
+              [
+                ['all', 'All'],
+                ['unread', unreadChats ? `Unread ${unreadChats}` : 'Unread'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={filter === key}
+                onClick={() => setFilter(key)}
+                className={cn('h-8 rounded-full px-3 text-sm font-semibold', filter === key ? 'bg-primary/20 text-primary-soft' : 'bg-secondary text-muted-foreground')}
+              >
+                {label}
+              </button>
+            ))}
+            {pendingRequests.length > 0 && (
+              <Link to="/friends" className="ml-auto flex h-8 items-center gap-1.5 rounded-full bg-gold/10 px-3 text-sm font-semibold text-gold">
+                <UserPlus className="h-4 w-4" /> {pendingRequests.length}
+              </Link>
+            )}
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
-          <div className="flex flex-col">
-            {/* Friend Requests Shortcut in DM Sidebar */}
-            {pendingRequests.length > 0 && (
-              <button
-                onClick={() => navigate('/friends')}
-                className="w-full p-4 flex items-center gap-3 bg-primary/5 hover:bg-primary/10 transition-colors text-left border-b border-white/5"
-              >
-                <div className="h-11 w-11 rounded-full bg-primary/20 flex items-center justify-center relative">
-                  <UserPlus className="h-6 w-6 text-primary" />
-                  <Badge className="absolute -top-1 -right-1 bg-red-500 text-white border-2 border-[#0f0f1a] animate-pulse">
-                    {pendingRequests.length}
-                  </Badge>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="font-bold text-sm text-primary">New Friend Requests</span>
-                  <p className="text-[10px] text-muted-foreground">{pendingRequests.length} people want to be friends</p>
-                </div>
-              </button>
-            )}
-
-            {sidebarList.length > 0 ? (
-              sidebarList.map((item) => {
-                const isOnline = item.profile.last_seen_at && new Date().getTime() - new Date(item.profile.last_seen_at).getTime() < 300000;
-                return (
-                  <button
-                    key={item.profile.id}
-                    onClick={() => setSelectedUserId(item.profile.id)}
-                    className={`dm-conversation-item flex items-center gap-3 text-left ${
-                      selectedUserId === item.profile.id ? 'active' : ''
-                    }`}
-                  >
-                    <div className="dm-avatar-container shrink-0">
-                      <Avatar className="h-11 w-11 border-none bg-[#1a1a2e]">
-                        <AvatarImage src={item.profile.avatar_url || undefined} />
-                        <AvatarFallback className="bg-[#1a1a2e] text-[#64748b]">
-                          {item.profile.gamertag[0]?.toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className={`dm-status-dot ${isOnline ? 'dm-status-online' : 'dm-status-offline'}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <span className="dm-username truncate">{item.profile.gamertag}</span>
-                        {item.lastMessage && (
-                          <span className="dm-timestamp">
-                            {format(new Date(item.lastMessage.created_at), 'HH:mm')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex justify-between items-center mt-0.5">
-                        <p className="dm-preview-text line-clamp-1 flex-1">
-                          {item.lastMessage ? (
-                            <span className="flex items-center gap-1">
-                              {item.lastMessage.sender_id === user?.id && <span className="text-[10px] font-bold text-[#7c3aed]/70">YOU:</span>}
-                              {item.lastMessage.message}
-                            </span>
-                          ) : (
-                            <span className="italic">No messages yet</span>
-                          )}
-                        </p>
-                        {item.unreadCount > 0 && (
-                          <div className="h-2 w-2 bg-[#7c3aed] rounded-full ml-2 shadow-[0_0_8px_rgba(124,58,237,0.5)]" />
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })
-            ) : (
-              <div className="p-8 text-center text-[#64748b] font-inter text-sm">
-                <p>No connections found</p>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </div>
-
-      {/* Chat Window */}
-      <div className={`flex-1 flex flex-col bg-[#080810] transition-all ${isMobileView && !showChat ? 'hidden' : 'flex'}`}>
-        {selectedUserId && activeUser ? (
-          <>
-            {/* Header */}
-            <div className="dm-chat-header flex items-center justify-between z-10 shrink-0">
-              <div className="flex items-center gap-3">
-                {isMobileView && (
-                  <Button variant="ghost" size="icon" onClick={() => setShowChat(false)} className="text-[#64748b] -ml-2">
-                    <ChevronLeft className="h-5 w-5" />
-                  </Button>
-                )}
-                <div className="relative">
-                  <Avatar className="h-10 w-10 border-none bg-[#1a1a2e]">
-                    <AvatarImage src={activeUser.avatar_url || undefined} />
-                    <AvatarFallback className="bg-[#1a1a2e] text-[#64748b]">
-                      {activeUser.gamertag[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className={`dm-status-dot h-2.5 w-2.5 border-[#0f0f1a] ${
-                    activeUser.last_seen_at && new Date().getTime() - new Date(activeUser.last_seen_at).getTime() < 300000 
-                      ? 'dm-status-online' 
-                      : 'dm-status-offline'
-                  }`} />
-                </div>
-                <div>
-                  <h2 className="dm-header-username leading-none">{activeUser.gamertag}</h2>
-                  <p className={`text-[12px] mt-1 font-medium ${
-                    activeUser.last_seen_at && new Date().getTime() - new Date(activeUser.last_seen_at).getTime() < 300000 
-                      ? 'text-[#22c55e]' 
-                      : 'text-[#64748b]'
-                  }`}>
-                    {activeUser.last_seen_at && new Date().getTime() - new Date(activeUser.last_seen_at).getTime() < 300000 
-                      ? 'Online' 
-                      : 'Offline'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <button 
-                  className="dm-challenge-btn uppercase"
-                  onClick={() => setChallengeModalOpen(true)}
-                >
-                  Challenge
-                </button>
-                <Button variant="ghost" size="icon" className="text-[#64748b] hover:text-white" onClick={() => {}}>
-                  <MoreVertical className="h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <ScrollArea className="flex-1 dm-chat-area">
-              <div ref={scrollRef} className="flex flex-col gap-4 min-h-full p-6">
-                {activeConversation.map((msg, index) => {
-                  const isOwn = msg.sender_id === user?.id;
-                  const showAvatar = !isOwn && (index === 0 || activeConversation[index-1].sender_id !== msg.sender_id);
-                  
+        <div className="flex-1 overflow-y-auto pb-4 md:pb-0">
+          {loading && conversations.length === 0 ? (
+            <InboxSkeleton />
+          ) : (
+            <>
+              <ul>
+                {chats.map((c) => {
+                  const m = c.last_message;
+                  const mine = m.sender_id === user?.id;
+                  const active = selectedId === c.other_user.id;
                   return (
-                    <div key={msg.id} className={`flex w-full ${isOwn ? 'justify-end' : 'justify-start'} items-start gap-3`}>
-                      {!isOwn && (
-                        <div className="w-8 flex-shrink-0">
-                          {showAvatar ? (
-                            <Avatar className="h-8 w-8 border-none bg-[#1a1a2e]">
-                              <AvatarImage src={activeUser.avatar_url || undefined} />
-                              <AvatarFallback>{activeUser.gamertag[0]}</AvatarFallback>
-                            </Avatar>
-                          ) : <div className="w-8" />}
-                        </div>
-                      )}
-                      <div className={`flex flex-col min-w-0 max-w-[75%] ${isOwn ? 'items-end' : 'items-start'} gap-1.5`}>
-                        <div className={isOwn ? 'dm-bubble-sent' : 'dm-bubble-received'}>
-                          {msg.message}
-                        </div>
-                        <p className="dm-timestamp mx-1">
-                          {format(new Date(msg.created_at), 'HH:mm')}
-                        </p>
-                      </div>
-                    </div>
+                    <li key={c.other_user.id}>
+                      <button
+                        type="button"
+                        onClick={() => open(c.other_user.id)}
+                        aria-current={active ? 'true' : undefined}
+                        className={cn('flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors', active ? 'bg-primary/10' : 'hover:bg-white/[0.03] active:bg-white/[0.05]')}
+                      >
+                        <PartnerAvatar p={c.other_user} />
+                        <span className="min-w-0 flex-1 border-b border-border/60 pb-2.5 pt-0.5">
+                          <span className="flex items-baseline gap-2">
+                            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{c.other_user.gamertag}</span>
+                            <span className={cn('shrink-0 text-xs', c.unread_count ? 'font-semibold text-primary-soft' : 'text-muted-foreground')}>{inboxTime(m.created_at)}</span>
+                          </span>
+                          <span className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
+                            {mine && <Ticks m={m} />}
+                            <span className={cn('min-w-0 flex-1 truncate', c.unread_count > 0 && 'text-foreground')}>{m.image_url && !m.message ? 'Photo' : m.message}</span>
+                            {c.unread_count > 0 && (
+                              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-white">{c.unread_count}</span>
+                            )}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
-            </ScrollArea>
+              </ul>
 
-            {/* Input */}
-            <div className="dm-input-container">
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="text-[#64748b] hover:text-[#a855f7] shrink-0" onClick={() => {}}>
-                  <Smile className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="text-[#64748b] hover:text-[#a855f7] shrink-0" onClick={() => {}}>
-                  <Paperclip className="h-5 w-5" />
-                </Button>
-                <Input
-                  placeholder="Type a message..."
-                  className="flex-1 dm-input-field h-11 border-none focus-visible:ring-0 shadow-none placeholder:text-[#64748b]"
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                />
-                <Button 
-                  size="icon" 
-                  className={`dm-send-btn shrink-0 ${(!messageText.trim() || isSending) ? 'opacity-50' : ''}`}
-                  disabled={!messageText.trim() || isSending}
-                  onClick={handleSendMessage}
-                >
-                  <Send className="h-4 w-4 text-white" />
-                </Button>
-              </div>
-            </div>
-          </>
+              {chats.length === 0 && newChatFriends.length === 0 && (
+                <div className="px-6 py-14 text-center">
+                  <MessageSquarePlus className="mx-auto h-10 w-10 text-muted-foreground/50" />
+                  <p className="mt-3 font-semibold">{q ? 'No chats match that name' : filter === 'unread' ? 'You’re all caught up' : 'No chats yet'}</p>
+                  {!q && filter === 'all' && (
+                    <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                      Add friends from World Chat or a player’s profile, then message them here.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {filter === 'all' && newChatFriends.length > 0 && (
+                <>
+                  <p className="px-4 pb-1 pt-4 text-sm font-semibold text-muted-foreground">Start a chat</p>
+                  <ul>
+                    {newChatFriends.map((f) => (
+                      <li key={f.id}>
+                        <button type="button" onClick={() => open(f.id)} className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-white/[0.03]">
+                          <PartnerAvatar p={f} size="h-10 w-10" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold">{f.gamertag}</span>
+                            <span className="block text-xs text-muted-foreground">{isOnline(f.last_seen_at) ? 'Online' : 'Friend'}</span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* Conversation */}
+      <div className={cn('min-w-0 flex-1', !selectedId && 'hidden md:flex md:items-center md:justify-center')}>
+        {selectedId ? (
+          <Conversation key={selectedId} partnerId={selectedId} onBack={close} />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
-            <div className="h-20 w-20 bg-secondary-background rounded-full flex items-center justify-center mb-4">
-              <Send className="h-10 w-10 opacity-20" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">Your Messages</h3>
-            <p className="max-w-xs text-center text-sm mt-2">
-              Select a conversation from the left to start chatting with other players.
-            </p>
+          <div className="chat-wallpaper flex h-full w-full flex-col items-center justify-center p-8 text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
+              <MessageSquarePlus className="h-7 w-7 text-muted-foreground" />
+            </span>
+            <p className="mt-4 text-xl font-semibold">Pick a chat</p>
+            <p className="mt-1 max-w-xs text-sm text-muted-foreground">Message friends, line up a rematch, or send a challenge straight from the chat.</p>
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {activeUser && (
+function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => void }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { conversations, friends, activeConversation, fetchMessages, markAsRead, sendMessage, setActiveChatUserId } = useDirectMessages();
+  const [partner, setPartner] = useState<Partner | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [text, setText] = useState('');
+  const [challengeOpen, setChallengeOpen] = useState(false);
+
+  // Partner profile: from the inbox if we have it, otherwise public columns only
+  useEffect(() => {
+    const known = conversations.find((c) => c.other_user.id === partnerId)?.other_user || friends.find((f) => f.id === partnerId);
+    if (known) {
+      setPartner((prev) => (prev?.id === partnerId ? { ...prev, ...known } : known));
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from('profiles')
+      .select(PUBLIC_PROFILE_COLUMNS)
+      .eq('id', partnerId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) setPartner(data as unknown as Partner);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [partnerId, conversations, friends]);
+
+  useEffect(() => {
+    setActiveChatUserId(partnerId);
+    setLoaded(false);
+    fetchMessages(partnerId).finally(() => setLoaded(true));
+    markAsRead(partnerId);
+    return () => setActiveChatUserId(null);
+  }, [partnerId, fetchMessages, markAsRead, setActiveChatUserId]);
+
+  // Only this partner's messages (the shared list may still hold the previous chat for a moment)
+  const msgs = useMemo(
+    () =>
+      activeConversation
+        .filter((m) => m.sender_id === partnerId || m.receiver_id === partnerId)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+    [activeConversation, partnerId],
+  );
+  const groups = useMemo(() => groupMessages(msgs, (m) => m.sender_id), [msgs]);
+  const scroll = useChatScroll(msgs.length, partnerId);
+
+  const send = () => {
+    const body = text.trim();
+    if (!body) return;
+    setText('');
+    void sendMessage(partnerId, body);
+    requestAnimationFrame(() => scroll.scrollToBottom(false));
+  };
+
+  const delivery = (m: DirectMessage): DeliveryState => (m.id.startsWith('temp-') ? 'sending' : m.read_at ? 'read' : 'sent');
+  const online = isOnline(partner?.last_seen_at);
+  const status = !partner ? '' : online ? 'online' : partner.last_seen_at ? `last seen ${formatRelativeTime(partner.last_seen_at)}` : '';
+
+  return (
+    <>
+      <ChatShell
+        header={
+          <ChatHeader
+            onBack={onBack}
+            avatar={partner ? <PartnerAvatar p={partner} size="h-10 w-10" dot={false} /> : <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-secondary" />}
+            title={partner?.gamertag || ' '}
+            subtitle={status ? <span className={online ? 'text-success' : undefined}>{status}</span> : undefined}
+            onTitleClick={() => navigate(`/profile/${partnerId}`)}
+            actions={
+              <button
+                type="button"
+                onClick={() => setChallengeOpen(true)}
+                disabled={!partner}
+                className="flex h-10 items-center gap-1.5 rounded-full bg-primary/15 px-3 text-sm font-semibold text-primary-soft hover:bg-primary/25 disabled:opacity-50"
+              >
+                <Swords className="h-4 w-4" />
+                <span className="hidden sm:inline">Challenge</span>
+                <span className="sr-only sm:hidden">Challenge {partner?.gamertag}</span>
+              </button>
+            }
+          />
+        }
+        composer={<Composer value={text} onChange={setText} onSend={send} placeholder="Message" />}
+      >
+        <MessageList scroll={scroll}>
+          {!loaded && msgs.length === 0 ? (
+            <div className="space-y-3 py-4" aria-label="Loading messages">
+              {[55, 35, 65].map((w, i) => (
+                <div key={i} className={i === 1 ? 'flex justify-end' : 'flex'}>
+                  <div className="h-10 animate-pulse rounded-2xl bg-secondary" style={{ width: `${w}%` }} />
+                </div>
+              ))}
+            </div>
+          ) : msgs.length === 0 ? (
+            <div className="m-auto max-w-xs py-16 text-center">
+              {partner && <PartnerAvatar p={partner} size="mx-auto h-16 w-16" dot={false} />}
+              <p className="mt-3 font-semibold">Say hi to {partner?.gamertag || 'your friend'}</p>
+              <p className="text-sm text-muted-foreground">Or tap Challenge to put Arena Currency on a 1v1.</p>
+            </div>
+          ) : (
+            msgs.map((m, i) => (
+              <React.Fragment key={m.id}>
+                {groups[i].newDay && <DayDivider date={new Date(m.created_at)} />}
+                <Bubble own={m.sender_id === user?.id} group={groups[i]} time={formatTime(m.created_at)} delivery={delivery(m)}>
+                  {m.message}
+                </Bubble>
+              </React.Fragment>
+            ))
+          )}
+        </MessageList>
+      </ChatShell>
+
+      {partner && (
         <SendChallengePanel
-          open={challengeModalOpen}
-          onOpenChange={setChallengeModalOpen}
-          opponent={{
-            ...activeUser,
-            user_id: activeUser.id
-          }}
+          open={challengeOpen}
+          onOpenChange={setChallengeOpen}
+          opponent={{ user_id: partner.id, gamertag: partner.gamertag || 'Player', avatar_url: partner.avatar_url, wins: partner.wins || 0, losses: partner.losses || 0 }}
         />
       )}
+    </>
+  );
+}
+
+function InboxSkeleton() {
+  return (
+    <div className="space-y-1 px-4 py-2" aria-label="Loading chats">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex items-center gap-3 py-2">
+          <div className="h-12 w-12 animate-pulse rounded-full bg-secondary" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3.5 w-1/3 animate-pulse rounded bg-secondary" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-secondary" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

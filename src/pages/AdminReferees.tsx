@@ -139,7 +139,7 @@ export default function AdminReferees() {
     <div className="container mx-auto px-4 py-8 space-y-8">
       <div className="space-y-1">
         <h1 className="admin-header-title uppercase">Referee Applications</h1>
-        <p className="text-[#64748b] font-inter font-light text-[15px]">Manage user applications to become officials</p>
+        <p className="text-muted-foreground font-inter font-light text-[15px]">Manage user applications to become officials</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 h-[750px]">
@@ -151,7 +151,7 @@ export default function AdminReferees() {
           <ScrollArea className="flex-1">
             <div className="">
               {applications.length === 0 ? (
-                <div className="p-8 text-center text-[#64748b] font-light">No applications yet</div>
+                <div className="p-8 text-center text-muted-foreground font-light">No applications yet</div>
               ) : (
                 applications.map((app) => (
                   <button
@@ -167,7 +167,7 @@ export default function AdminReferees() {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-white truncate">{app.profiles.gamertag}</p>
-                      <p className="text-[11px] text-[#64748b]">{new Date(app.created_at).toLocaleDateString()}</p>
+                      <p className="text-[11px] text-muted-foreground">{new Date(app.created_at).toLocaleDateString()}</p>
                     </div>
                     {app.status === 'pending' ? (
                       <span className="admin-badge-pending">Pending</span>
@@ -195,7 +195,7 @@ export default function AdminReferees() {
                   </Avatar>
                   <div>
                     <h2 className="text-xl font-bold text-white">{selectedApp.profiles.gamertag}</h2>
-                    <p className="text-sm text-[#64748b]">Applying for Referee</p>
+                    <p className="text-sm text-muted-foreground">Applying for Referee</p>
                   </div>
                 </div>
                 {selectedApp.status === 'pending' && (
@@ -230,7 +230,7 @@ export default function AdminReferees() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-[#64748b]">
+            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
               <MessageCircle className="h-20 w-20 opacity-10 mb-6" />
               <p className="font-light text-lg">Select an applicant to view details and chat</p>
             </div>
@@ -240,10 +240,10 @@ export default function AdminReferees() {
 
       {/* Approval Dialog */}
       <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-[#0f0f1a] border-white/10 max-w-[calc(100%-2rem)] md:max-w-lg">
+        <DialogContent className="sm:max-w-[425px] bg-card border-white/10 max-w-[calc(100%-2rem)] md:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-white font-rajdhani text-2xl uppercase tracking-wider">Approve Referee</DialogTitle>
-            <DialogDescription className="text-[#64748b]">
+            <DialogDescription className="text-muted-foreground">
               Select the games this referee will be responsible for.
             </DialogDescription>
           </DialogHeader>
@@ -257,7 +257,7 @@ export default function AdminReferees() {
                     if (checked) setSelectedGames([...selectedGames, game.id]);
                     else setSelectedGames(selectedGames.filter(id => id !== game.id));
                   }}
-                  className="border-white/30 data-[state=checked]:bg-[#7c3aed] data-[state=checked]:border-[#7c3aed]"
+                  className="border-white/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                 />
                 <Label htmlFor={game.id} className="text-sm font-medium text-white/80 cursor-pointer">
                   {game.name}

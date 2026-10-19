@@ -1,5 +1,5 @@
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
-import { Coins, Download, LogOut, Menu, Search, Swords, Trophy, Home, MessageSquare, User } from 'lucide-react';
+import { Coins, Download, Home, LogOut, Menu, MessageSquare, Search, Settings, Swords, Trophy } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -7,14 +7,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,6 +22,8 @@ import { ACCOUNT_NAV, isActivePath, type NavItem, PRIMARY_NAV, SOCIAL_NAV, STAFF
 
 /** Routes that render full-screen without the app chrome. */
 const BARE_ROUTES = ['/', '/sign-in', '/sign-up', '/auth/callback'];
+/** Messaging screens: full height, no page padding (conversations go full-screen on phones). */
+const IMMERSIVE_ROUTES = ['/world-chat', '/messages'];
 /** Public pages that signed-out visitors may see with a minimal header. */
 const PUBLIC_DOC_ROUTES = ['/terms', '/privacy', '/404'];
 
@@ -187,7 +182,7 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
               aria-label="Quick match"
               aria-current={playActive ? 'page' : undefined}
               className={cn(
-                '-mt-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_10px_30px_-8px_hsl(262_83%_55%/0.9)] ring-4 ring-background transition-transform active:scale-95',
+                '-mt-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_10px_24px_-10px_hsl(224_100%_50%/0.9)] ring-4 ring-background transition-transform active:scale-95',
                 playActive && 'ring-primary/40',
               )}
             >
@@ -220,8 +215,13 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
   const { canInstall, install } = useInstallPrompt();
   const staff = STAFF_NAV.filter((i) => i.roles?.includes(profile?.role as 'admin' | 'referee'));
   const level = getLevelInfo(profile);
+  const ac = Number(profile?.arena_currency ?? 0);
 
-  const row = (item: NavItem) => {
+  // The bottom bar already covers Home, Tournaments, Quick Match and Messages
+  const inBottomBar = new Set(['/dashboard', '/tournaments', '/quick-match', '/messages', '/profile', '/wallet']);
+  const tiles = [...PRIMARY_NAV, ...SOCIAL_NAV, ...ACCOUNT_NAV].filter((i) => !inBottomBar.has(i.href));
+
+  const tile = (item: NavItem) => {
     const Icon = item.icon;
     const active = isActivePath(pathname, item.href);
     const count = item.badge ? badges[item.badge] : 0;
@@ -230,46 +230,49 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
         key={item.href}
         to={item.href}
         onClick={() => onOpenChange(false)}
-        className={cn('flex h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium', active ? 'bg-primary/15 text-white' : 'text-foreground/90 active:bg-white/5')}
+        className={cn(
+          'relative flex flex-col items-start gap-3 rounded-2xl border p-3.5 text-sm font-semibold transition-colors',
+          active ? 'border-primary/50 bg-primary/10' : 'border-border bg-card active:bg-secondary',
+        )}
       >
-        <Icon className="h-5 w-5 text-muted-foreground" />
+        <Icon className={cn('h-5 w-5', active ? 'text-primary-soft' : 'text-muted-foreground')} />
         {item.name}
-        <CountBadge count={count} className="ml-auto" />
+        {count > 0 && <CountBadge count={count} className="absolute right-3 top-3" />}
       </Link>
     );
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-[86vw] max-w-sm flex-col gap-0 border-l border-border bg-background p-0">
-        <SheetTitle className="sr-only">Menu</SheetTitle>
-        <SheetDescription className="sr-only">All pages and account options</SheetDescription>
-        <Link
-          to="/profile"
-          onClick={() => onOpenChange(false)}
-          className="flex items-center gap-3 border-b border-border p-5 pr-12"
-        >
-          <Avatar className="h-12 w-12 ring-2 ring-primary/40">
-            <AvatarImage src={profile?.avatar_url || ''} alt="" />
-            <AvatarFallback className="bg-primary/20 font-score text-lg">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-score text-xl leading-tight">{profile?.gamertag || 'Player'}</p>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Level {level.level}</span>
-              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.round(level.progress * 100)}%` }} />
-              </span>
-            </div>
-          </div>
-        </Link>
-        <nav className="flex-1 space-y-5 overflow-y-auto p-3" aria-label="All pages">
-          <div className="space-y-1">{PRIMARY_NAV.map(row)}</div>
-          <div className="space-y-1">{SOCIAL_NAV.map(row)}</div>
-          <div className="space-y-1">{ACCOUNT_NAV.map(row)}</div>
-          {staff.length > 0 && <div className="space-y-1">{staff.map(row)}</div>}
+      <SheetContent side="bottom" className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-3xl border-t border-border bg-background p-0">
+        <SheetTitle className="sr-only">More</SheetTitle>
+        <SheetDescription className="sr-only">Your account and the rest of Arena</SheetDescription>
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-muted" />
+        {/* Top padding leaves room for the sheet's close button */}
+        <div className="grid grid-cols-2 gap-2 p-4 pb-2 pt-12">
+          <Link to="/profile" onClick={() => onOpenChange(false)} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={profile?.avatar_url || ''} alt="" />
+              <AvatarFallback className="bg-secondary font-score">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
+            </Avatar>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold">{profile?.gamertag || 'Player'}</span>
+              <span className="block text-xs text-muted-foreground">Level {level.level}</span>
+            </span>
+          </Link>
+          <Link to="/wallet" onClick={() => onOpenChange(false)} className="flex items-center gap-3 rounded-2xl border border-gold/25 bg-gold/[0.06] p-3">
+            <Coins className="h-5 w-5 shrink-0 text-gold" />
+            <span className="min-w-0">
+              <span className="block font-score text-lg font-bold leading-tight text-gold">{formatArenaAmount(ac)} AC</span>
+              <span className="block text-xs text-muted-foreground">Wallet</span>
+            </span>
+          </Link>
+        </div>
+        <nav className="grid grid-cols-3 gap-2 px-4 py-2" aria-label="More pages">
+          {tiles.map(tile)}
+          {staff.map(tile)}
         </nav>
-        <div className="space-y-2 border-t border-border p-4" style={{ paddingBottom: 'calc(1rem + var(--safe-bottom))' }}>
+        <div className="flex items-center gap-2 px-4 pb-2 pt-2" style={{ paddingBottom: 'calc(1rem + var(--safe-bottom))' }}>
           {canInstall && (
             <button
               type="button"
@@ -277,10 +280,10 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
                 const ok = await install();
                 if (ok) toast.success('Arena is on your home screen');
               }}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary-soft"
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary-soft"
             >
               <Download className="h-4 w-4" />
-              Install the Arena app
+              Install app
             </button>
           )}
           <button
@@ -289,15 +292,15 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
               onOpenChange(false);
               onSignOut();
             }}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold text-muted-foreground"
+            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold text-muted-foreground"
           >
             <LogOut className="h-4 w-4" />
             Sign out
           </button>
-          <div className="flex justify-center gap-4 pt-1 text-xs text-muted-foreground">
-            <Link to="/privacy" onClick={() => onOpenChange(false)}>Privacy</Link>
-            <Link to="/terms" onClick={() => onOpenChange(false)}>Terms</Link>
-          </div>
+        </div>
+        <div className="flex justify-center gap-4 pb-4 text-xs text-muted-foreground" style={{ paddingBottom: 'calc(1rem + var(--safe-bottom))' }}>
+          <Link to="/privacy" onClick={() => onOpenChange(false)}>Privacy</Link>
+          <Link to="/terms" onClick={() => onOpenChange(false)}>Terms</Link>
         </div>
       </SheetContent>
     </Sheet>
@@ -372,36 +375,31 @@ function TopBar({ onSearch, onSignOut }: { onSearch: () => void; onSignOut: () =
                 </span>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel className="space-y-1.5">
-                <span className="block truncate">{profile?.gamertag || 'Player'}</span>
-                <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
-                  Level {level.level}
-                  <span className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
-                    <span className="block h-full bg-primary" style={{ width: `${Math.round(level.progress * 100)}%` }} />
+            <DropdownMenuContent align="end" className="w-64 p-1.5">
+              <DropdownMenuItem onSelect={() => navigate('/profile')} className="gap-3 rounded-lg p-2">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={profile?.avatar_url || ''} alt="" />
+                  <AvatarFallback className="bg-secondary font-score">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold">{profile?.gamertag || 'Player'}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Level {level.level}, {level.toNext.toLocaleString()} XP to go
                   </span>
-                  {level.toNext.toLocaleString()} XP
                 </span>
-              </DropdownMenuLabel>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => navigate('/profile')}><User className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
-              {ACCOUNT_NAV.filter((i) => i.href !== '/profile').map((item) => {
-                const Icon = item.icon;
-                return (
-                  <DropdownMenuItem key={item.href} onSelect={() => navigate(item.href)}>
-                    <Icon className="mr-2 h-4 w-4" />
-                    {item.name}
-                  </DropdownMenuItem>
-                );
-              })}
+              <DropdownMenuItem onSelect={() => navigate('/settings')} className="rounded-lg">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
               {canInstall && (
-                <DropdownMenuItem onSelect={() => void install()}>
+                <DropdownMenuItem onSelect={() => void install()} className="rounded-lg">
                   <Download className="mr-2 h-4 w-4" />
                   Install app
                 </DropdownMenuItem>
               )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={onSignOut} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem onSelect={onSignOut} className="rounded-lg text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign out
               </DropdownMenuItem>
@@ -492,6 +490,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   }, [signOut, navigate]);
 
   const path = location.pathname;
+  const immersive = IMMERSIVE_ROUTES.includes(path);
   if (BARE_ROUTES.includes(path)) return <>{children}</>;
   if (!user) {
     // Signed-out visitors only reach public pages (RouteGuard redirects the rest)
@@ -505,16 +504,22 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <TopBar onSearch={() => setSearchOpen(true)} onSignOut={handleSignOut} />
         <main
           id="main"
-          className="mx-auto w-full max-w-[1400px] px-4 pb-28 pt-5 md:px-6 md:pb-12 md:pt-6 xl:px-8"
+          className={cn(
+            'mx-auto w-full',
+            immersive ? 'pb-20 md:h-[calc(100dvh-4rem)] md:pb-0' : 'max-w-[1400px] px-4 pb-28 pt-5 md:px-6 md:pb-12 md:pt-6 xl:px-8',
+          )}
         >
           <ErrorBoundary compact resetKey={path}>
             {/* Enter-only transition: a keyed wrapper fades each new page in.
                 (An exit animation would briefly render the next route inside
-                the old wrapper and mount it twice.) */}
+                the old wrapper and mount it twice.) Messaging screens fade
+                without movement: a transform would break their full-screen
+                fixed layout on phones. */}
             <motion.div
               key={path}
-              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
+              className={immersive ? 'md:h-full' : undefined}
+              initial={reduceMotion ? false : immersive ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              animate={immersive ? { opacity: 1 } : { opacity: 1, y: 0 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
             >
               {children}

@@ -5,54 +5,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ARENA ROYAL design tokens
-   Colour roles are strict: violet = action, gold = money & prizes,
-   cyan = live / online, rose = danger. */
+/* ARENA "FLOODLIGHT" design tokens
+   Colour roles are strict: blue = action, gold = money & prizes,
+   red = live / on air, green = success. Neutrals are cool graphite,
+   never tinted purple. */
 
 @layer base {
   :root {
     --radius: 0.75rem;
 
-    --background: 262 52% 6%;      /* #0B0716 night */
-    --foreground: 250 40% 97%;
-    --card: 256 42% 11%;           /* #151027 surface */
-    --card-foreground: 250 40% 97%;
-    --popover: 256 42% 11%;
-    --popover-foreground: 250 40% 97%;
+    --background: 225 30% 5%;      /* #090B10 graphite night */
+    --foreground: 220 25% 96%;
+    --card: 224 22% 9%;            /* #12151C surface */
+    --card-foreground: 220 25% 96%;
+    --popover: 224 22% 10%;
+    --popover-foreground: 220 25% 96%;
 
-    --primary: 262 83% 62%;        /* royal violet */
+    --primary: 224 100% 62%;       /* #3D6EFF floodlight blue */
     --primary-foreground: 0 0% 100%;
-    --primary-soft: 258 100% 80%;  /* violet for text on dark */
+    --primary-soft: 222 100% 80%;  /* blue for text on dark */
 
-    --secondary: 254 40% 15%;      /* #1E1736 raised */
-    --secondary-foreground: 250 40% 97%;
+    --secondary: 223 18% 13%;      /* #1B1F28 raised */
+    --secondary-foreground: 220 25% 96%;
 
-    --muted: 255 28% 17%;
-    --muted-foreground: 252 16% 70%;
+    --muted: 223 16% 15%;
+    --muted-foreground: 220 12% 65%;
 
-    --accent: 254 40% 18%;
-    --accent-foreground: 250 40% 97%;
+    --accent: 223 18% 16%;
+    --accent-foreground: 220 25% 96%;
 
-    --success: 152 69% 45%;
+    --success: 150 64% 44%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 349 100% 62%;   /* #FF4D6D */
+    --destructive: 4 86% 62%;      /* #F0564A */
     --destructive-foreground: 0 0% 100%;
 
-    --live: 191 100% 61%;          /* #38E1FF */
+    --live: 352 100% 60%;          /* #FF334F on air */
     --gold: 43 89% 64%;            /* #F5C451 */
 
-    --border: 255 32% 20%;
-    --input: 255 32% 22%;
-    --ring: 262 83% 66%;
+    --border: 223 15% 19%;
+    --input: 223 15% 21%;
+    --ring: 224 100% 66%;
 
-    --chart-1: 262 83% 66%;
+    --chart-1: 224 100% 66%;
     --chart-2: 43 89% 64%;
-    --chart-3: 191 100% 61%;
-    --chart-4: 152 69% 45%;
-    --chart-5: 349 100% 62%;
+    --chart-3: 352 100% 64%;
+    --chart-4: 150 64% 44%;
+    --chart-5: 190 80% 55%;
 
     --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
   }
 }
 
@@ -88,11 +90,10 @@
   body {
     @apply text-foreground;
     background-color: hsl(var(--background));
-    background-image:
-      radial-gradient(1200px 600px at 85% -10%, hsl(262 83% 40% / 0.22), transparent 60%),
-      radial-gradient(900px 500px at -10% 110%, hsl(191 100% 45% / 0.08), transparent 60%);
+    background-image: radial-gradient(1100px 520px at 50% -260px, hsl(224 100% 62% / 0.09), transparent 70%);
     background-attachment: fixed;
-    font-family: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background-repeat: no-repeat;
+    font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-feature-settings: 'rlig' 1, 'calt' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -101,14 +102,14 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Rajdhani', 'Montserrat', sans-serif;
+    font-family: 'Saira Condensed', 'Manrope', sans-serif;
     font-weight: 700;
     letter-spacing: -0.01em;
     line-height: 1.1;
   }
 
   .font-display {
-    font-family: 'Rajdhani', 'Montserrat', sans-serif !important;
+    font-family: 'Saira Condensed', 'Manrope', sans-serif !important;
   }
 
   .font-mono {
@@ -117,7 +118,7 @@
 
   /* Numbers read like a scoreboard */
   .font-score {
-    font-family: 'Rajdhani', 'Montserrat', sans-serif;
+    font-family: 'Saira Condensed', 'Manrope', sans-serif;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
@@ -141,7 +142,7 @@
 @layer components {
   /* Netflix-style card with minimal borders */
   .netflix-card {
-    background: rgba(30, 10, 50, 0.7);
+    background: hsl(var(--card) / 0.8);
     backdrop-filter: blur(10px);
     border-radius: 0.375rem;
     overflow: hidden;
@@ -155,14 +156,14 @@
   
   /* Glassmorphism styles */
   .glassmorphism-sidebar {
-    background: hsl(262 52% 5% / 0.82);
+    background: hsl(var(--background) / 0.86);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid hsl(var(--border) / 0.7);
   }
   
   .glassmorphism-topbar {
-    background: hsl(262 52% 6% / 0.78);
+    background: hsl(var(--background) / 0.82);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -195,13 +196,13 @@
     .interactive-lift:hover {
       transform: translateY(-2px);
       border-color: hsl(var(--primary) / 0.5);
-      box-shadow: 0 12px 30px -12px hsl(262 83% 50% / 0.45);
+      box-shadow: 0 12px 30px -14px hsl(0 0% 0% / 0.6);
     }
   }
   
   /* Minimal card styling */
   .card {
-    background: rgba(30, 10, 50, 0.7);
+    background: hsl(var(--card) / 0.8);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.5rem;
@@ -209,7 +210,7 @@
   }
   
   .card:hover {
-    background: rgba(40, 15, 60, 0.8);
+    background: hsl(var(--secondary) / 0.85);
     border-color: rgba(255, 255, 255, 0.2);
   }
   
@@ -266,11 +267,11 @@
   /* Primary gradient for popping effect */
   .gradient-primary {
     background: linear-gradient(135deg, #1e3a8a 0%, #5b21b6 50%, #1e3a8a 100%);
-    box-shadow: 0 4px 20px rgba(30, 58, 138, 0.4), 0 0 40px rgba(91, 33, 182, 0.3);
+    box-shadow: 0 4px 20px hsl(0 0% 0% / 0.4);
   }
   
   .gradient-primary-text {
-    background: linear-gradient(135deg, hsl(258 100% 82%) 0%, hsl(262 83% 70%) 100%);
+    background: linear-gradient(135deg, hsl(var(--primary-soft)) 0%, hsl(var(--primary)) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -353,198 +354,52 @@
 
   /* Orbitron font utility */
   .font-orbitron {
-    font-family: 'Orbitron', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
   }
 
-  /* ========================================
-     LANDING PAGE STYLES
-     ======================================== */
+  
 
   /* Background Effects */
-  .landing-page {
-    background-color: #080810;
-    min-height: 100vh;
-    position: relative;
-    overflow-x: hidden;
-  }
+  
 
-  .landing-video-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
-    overflow: hidden;
-    background-color: #080810;
-    background-image: url("https://miaoda-site-img.s3cdn.medo.dev/images/KLing_999f33c2-f6ec-4963-9583-9bbb30b064ee.jpg");
-    background-size: cover;
-    background-position: center;
-  }
+  
 
-  .landing-video-bg {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    min-width: 100%;
-    min-height: 100%;
-    width: auto;
-    height: auto;
-    transform: translate(-50%, -50%);
-    object-fit: cover;
-    opacity: 0.5;
-    filter: brightness(0.4) contrast(1.1) saturate(0.8);
-  }
+  
 
-  .landing-video-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(circle at center, transparent 0%, rgba(8, 8, 16, 0.4) 100%);
-    z-index: 1;
-  }
+  
 
-  .landing-bg-grid {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: 
-      linear-gradient(rgba(124, 58, 237, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(124, 58, 237, 0.04) 1px, transparent 1px);
-    background-size: 60px 60px;
-    z-index: 0;
-    pointer-events: none;
-  }
+  
 
-  .landing-orb {
-    position: fixed;
-    border-radius: 50%;
-    z-index: 0;
-    pointer-events: none;
-    animation: float-orb 8s ease-in-out infinite;
-  }
+  
 
-  .landing-orb-1 {
-    width: 500px;
-    height: 500px;
-    top: -100px;
-    left: -100px;
-    background: radial-gradient(circle, rgba(124, 58, 237, 0.15), transparent);
-    filter: blur(120px);
-  }
+  
 
-  .landing-orb-2 {
-    width: 400px;
-    height: 400px;
-    top: 30%;
-    right: -80px;
-    background: radial-gradient(circle, rgba(59, 130, 246, 0.12), transparent);
-    filter: blur(120px);
-    animation-delay: 3s;
-  }
+  
 
-  .landing-orb-3 {
-    width: 300px;
-    height: 300px;
-    bottom: 10%;
-    left: 20%;
-    background: radial-gradient(circle, rgba(6, 182, 212, 0.1), transparent);
-    filter: blur(120px);
-    animation-delay: 5s;
-  }
-
-  @keyframes float-orb {
-    0%, 100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(30px);
-    }
-  }
-
-  .landing-content {
-    position: relative;
-    z-index: 1;
-  }
+  
 
   /* Navigation */
-  .landing-nav {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    background: rgba(8, 8, 16, 0.7);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    z-index: 100;
-  }
+  
 
-  .landing-nav-inner {
-    max-width: 100%;
-    padding: 20px 60px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+  
 
-  .landing-logo {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 28px;
-    letter-spacing: 4px;
-    background: linear-gradient(90deg, #fff, #a855f7);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+  
 
-  .landing-logo-img {
-    height: 44px;
-    width: auto;
-    object-fit: contain;
-  }
+  
 
-  .landing-nav-links {
-    display: flex;
-    gap: 40px;
-  }
+  
 
-  .landing-nav-links a {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: #64748b;
-    text-decoration: none;
-    transition: color 0.3s;
-  }
+  
 
-  .landing-nav-links a:hover {
-    color: #fff;
-  }
+  
 
-  .landing-nav-buttons {
-    display: flex;
-    gap: 12px;
-  }
+  
 
-  .landing-btn-outline {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #e2e8f0;
-    padding: 10px 24px;
-    border-radius: 8px;
-    font-weight: 500;
-    transition: all 0.3s;
-  }
+  
 
   /* Direct Messages Redesign */
   .dm-sidebar {
-    background-color: #0f0f1a;
+    background-color: hsl(var(--card));
   }
 
   .dm-conversation-item {
@@ -554,8 +409,8 @@
   }
 
   .dm-conversation-item.active {
-    background-color: rgba(124,58,237,0.12);
-    border-left: 3px solid #7c3aed;
+    background-color: hsl(var(--primary) / 0.12);
+    border-left: 3px solid hsl(var(--primary));
   }
 
   .dm-avatar-container {
@@ -571,7 +426,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    border: 1.5px solid #0f0f1a;
+    border: 1.5px solid hsl(var(--card));
   }
 
   .dm-status-online {
@@ -583,21 +438,21 @@
   }
 
   .dm-username {
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
     font-size: 15px;
     font-weight: 700;
     color: white;
   }
 
   .dm-header-username {
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
     font-size: 17px;
     font-weight: 700;
     color: white;
   }
 
   .dm-preview-text {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 13px;
     color: #64748b;
     font-weight: 300;
@@ -617,20 +472,20 @@
   }
 
   .dm-search-bar:focus {
-    border-color: rgba(124,58,237,0.5);
-    box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+    border-color: hsl(var(--primary) / 0.5);
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
     background: rgba(255,255,255,0.08);
   }
 
   .dm-chat-header {
-    background: rgba(15,15,26,0.95);
+    background: hsl(var(--card) / 0.95);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(255,255,255,0.08);
     padding: 16px 24px;
   }
 
   .dm-chat-area {
-    background: linear-gradient(180deg, #080810 0%, #0d0d1a 100%);
+    background: linear-gradient(180deg, hsl(var(--background)) 0%, #0d0d1a 100%);
   }
 
   .dm-chat-area [data-radix-scroll-area-viewport] > div {
@@ -640,7 +495,7 @@
   }
 
   .dm-challenge-btn {
-    background: linear-gradient(135deg, #7c3aed, #3b82f6);
+    background: linear-gradient(135deg, hsl(var(--primary)), #3b82f6);
     color: white;
     padding: 8px 20px;
     border-radius: 8px;
@@ -663,7 +518,7 @@
     max-width: 100%;
     width: fit-content;
     color: #e2e8f0;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 14px;
     font-weight: 400;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
@@ -673,14 +528,14 @@
   }
 
   .dm-bubble-sent {
-    background: linear-gradient(135deg, rgba(124,58,237,0.4), rgba(59,130,246,0.3));
-    border: 1px solid rgba(124,58,237,0.35);
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.4), rgba(59,130,246,0.3));
+    border: 1px solid hsl(var(--primary) / 0.35);
     border-radius: 16px 0px 16px 16px;
     padding: 12px 16px;
     max-width: 100%;
     width: fit-content;
     color: white;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 14px;
     font-weight: 400;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
@@ -690,7 +545,7 @@
   }
 
   .dm-input-container {
-    background: rgba(15,15,26,0.95);
+    background: hsl(var(--card) / 0.95);
     backdrop-filter: blur(10px);
     border-top: 1px solid rgba(255,255,255,0.08);
     padding: 16px 24px;
@@ -702,25 +557,25 @@
     border-radius: 12px;
     padding: 12px 20px;
     color: white;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 14px;
   }
 
   .dm-input-field:focus {
-    border-color: rgba(124,58,237,0.5);
-    box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+    border-color: hsl(var(--primary) / 0.5);
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
   }
 
   .font-rajdhani {
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
   }
 
   .font-inter {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Manrope', sans-serif;
   }
 
   .dm-send-btn {
-    background: linear-gradient(135deg, #7c3aed, #3b82f6);
+    background: linear-gradient(135deg, hsl(var(--primary)), #3b82f6);
     border-radius: 10px;
     padding: 10px 14px;
     transition: all 0.2s ease;
@@ -736,7 +591,7 @@
 
   /* Referee Control Center Redesign */
   .referee-header-title {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-family: 'Saira Condensed', sans-serif; font-weight: 700;
     font-size: 40px;
     letter-spacing: 3px;
     color: white;
@@ -751,13 +606,13 @@
   }
 
   .referee-search-bar:focus {
-    border-color: rgba(124,58,237,0.5);
-    box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+    border-color: hsl(var(--primary) / 0.5);
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
     background: rgba(255,255,255,0.08);
   }
 
   .referee-tab {
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
     font-size: 14px;
     font-weight: 600;
     letter-spacing: 1px;
@@ -770,8 +625,8 @@
 
   .referee-tab[data-state="active"] {
     color: white !important;
-    border-bottom: 2px solid #7c3aed !important;
-    background: rgba(124,58,237,0.08) !important;
+    border-bottom: 2px solid hsl(var(--primary)) !important;
+    background: hsl(var(--primary) / 0.08) !important;
   }
 
   .referee-tabs-list {
@@ -860,7 +715,7 @@
 
   .game-tag {
     background: rgba(255,255,255,0.08);
-    color: #a855f7;
+    color: hsl(var(--primary));
     padding: 4px 10px;
     border-radius: 100px;
     font-size: 11px;
@@ -870,7 +725,7 @@
   }
 
   .match-tournament-name {
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
     font-size: 18px;
     font-weight: 700;
     color: white;
@@ -878,7 +733,7 @@
   }
 
   .match-id-text {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 12px;
     color: #64748b;
     font-weight: 300;
@@ -886,8 +741,8 @@
 
   .view-match-btn {
     background: transparent;
-    border: 1px solid rgba(124,58,237,0.4);
-    color: #a855f7;
+    border: 1px solid hsl(var(--primary) / 0.4);
+    color: hsl(var(--primary));
     padding: 6px 14px;
     border-radius: 6px;
     font-size: 12px;
@@ -896,15 +751,15 @@
   }
 
   .view-match-btn:hover {
-    background: rgba(124,58,237,0.15);
+    background: hsl(var(--primary) / 0.15);
   }
 
   /* Admin Control Center Redesign */
   .admin-header-title {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-family: 'Saira Condensed', sans-serif; font-weight: 700;
     font-size: 44px;
     letter-spacing: 3px;
-    background: linear-gradient(to right, #ffffff, #a855f7);
+    background: linear-gradient(to right, #ffffff, hsl(var(--primary)));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -912,11 +767,11 @@
   }
 
   .admin-btn-primary {
-    background: linear-gradient(135deg, #7c3aed, #3b82f6);
+    background: linear-gradient(135deg, hsl(var(--primary)), #3b82f6);
     color: white;
     padding: 10px 20px;
     border-radius: 8px;
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 1px;
@@ -931,7 +786,7 @@
     color: white;
     padding: 10px 20px;
     border-radius: 8px;
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 1px;
@@ -940,8 +795,8 @@
   }
 
   .admin-btn-secondary:hover {
-    border-color: #a855f7;
-    background: rgba(124,58,237,0.1);
+    border-color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
   }
 
   /* Stat Cards */
@@ -975,12 +830,12 @@
   }
 
   .admin-stat-card:hover {
-    border-color: rgba(124,58,237,0.3);
+    border-color: hsl(var(--primary) / 0.3);
     transform: translateY(-2px);
   }
 
   .admin-stat-label {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 2px;
@@ -993,7 +848,7 @@
   }
 
   .admin-stat-value {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-family: 'Saira Condensed', sans-serif; font-weight: 700;
     font-size: 36px;
     letter-spacing: 2px;
     color: white;
@@ -1002,7 +857,7 @@
   }
 
   .admin-stat-sub {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 11px;
     color: #64748b;
   }
@@ -1017,7 +872,7 @@
 
   .admin-table-header {
     background: rgba(255,255,255,0.04) !important;
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 2px;
@@ -1031,7 +886,7 @@
   }
 
   .admin-table-row:hover {
-    background: rgba(124,58,237,0.05) !important;
+    background: hsl(var(--primary) / 0.05) !important;
   }
 
   /* Badges */
@@ -1045,9 +900,9 @@
   }
 
   .admin-badge-admin {
-    background: rgba(124,58,237,0.15);
-    color: #a855f7;
-    border: 1px solid rgba(124,58,237,0.3);
+    background: hsl(var(--primary) / 0.15);
+    color: hsl(var(--primary));
+    border: 1px solid hsl(var(--primary) / 0.3);
     padding: 3px 10px;
     border-radius: 100px;
     font-size: 11px;
@@ -1099,7 +954,7 @@
   }
 
   .referee-application-chat-title {
-    font-family: 'Rajdhani', sans-serif;
+    font-family: 'Saira Condensed', sans-serif;
     font-size: 12px;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -1109,1003 +964,218 @@
     margin-bottom: 16px;
   }
 
-  .landing-btn-outline:hover {
-    border-color: #a855f7;
-    color: #a855f7;
-  }
+  
 
-  .landing-btn-gradient {
-    background: linear-gradient(135deg, #7c3aed, #3b82f6);
-    color: white;
-    padding: 10px 24px;
-    border-radius: 8px;
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-decoration: none;
-    transition: all 0.3s;
-    display: inline-block;
-  }
+  
 
-  .landing-btn-gradient:hover {
-    background: linear-gradient(135deg, #3b82f6, #7c3aed);
-  }
+  
 
   /* Hero Section */
-  .landing-hero {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: 120px 60px 80px;
-    position: relative;
-  }
+  
 
-  .landing-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(124, 58, 237, 0.15);
-    border: 1px solid rgba(124, 58, 237, 0.3);
-    border-radius: 100px;
-    padding: 8px 20px;
-    margin-bottom: 32px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #a855f7;
-  }
+  
 
-  .landing-pulse-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #a855f7;
-    animation: pulse-landing 2s ease-in-out infinite;
-  }
+  
 
-  .landing-pulse-red {
-    background: #ef4444;
-  }
-
-  @keyframes pulse-landing {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.5;
-      transform: scale(0.8);
-    }
-  }
-
-  .landing-hero-title {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: clamp(48px, 7vw, 84px);
-    line-height: 1.0;
-    letter-spacing: 4px;
-    margin-bottom: 16px;
-  }
-
-  .landing-gradient-white {
-    background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0.6));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .landing-gradient-purple {
-    background: linear-gradient(90deg, #a855f7, #06b6d4);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .landing-hero-subtitle {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 20px;
-    font-weight: 400;
-    color: #64748b;
-    max-width: 560px;
-    margin: 0 auto 48px;
-    line-height: 1.6;
-  }
-
-  .landing-highlight {
-    color: white;
-    font-weight: 600;
-  }
-
-  .landing-hero-buttons {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .landing-btn-cta {
-    background: linear-gradient(135deg, #7c3aed, #3b82f6);
-    color: white;
-    padding: 16px 40px;
-    border-radius: 10px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-decoration: none;
-    box-shadow: 0 0 40px rgba(124, 58, 237, 0.3);
-    transition: all 0.3s;
-    display: inline-block;
-  }
-
-  .landing-btn-cta:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 60px rgba(124, 58, 237, 0.5);
-  }
-
-  .landing-btn-explore {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #e2e8f0;
-    padding: 16px 40px;
-    border-radius: 10px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-decoration: none;
-    transition: all 0.3s;
-    display: inline-block;
-  }
-
-  .landing-btn-explore:hover {
-    border-color: #a855f7;
-    color: #a855f7;
-  }
-
-  .landing-stats {
-    display: flex;
-    gap: 60px;
-    align-items: center;
-    justify-content: center;
-    margin-top: 80px;
-    flex-wrap: wrap;
-  }
-
-  .landing-stat {
-    text-align: center;
-  }
-
-  .landing-stat-number {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 42px;
-    background: linear-gradient(180deg, #fff, #a855f7);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .landing-stat-label {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #64748b;
-    margin-top: 4px;
-  }
-
-  .landing-stat-divider {
-    width: 1px;
-    height: 40px;
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .landing-scroll-indicator {
-    position: absolute;
-    bottom: 40px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .landing-scroll-text {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 11px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #64748b;
-  }
-
-  .landing-scroll-line {
-    width: 1px;
-    height: 30px;
-    background: linear-gradient(180deg, #a855f7, transparent);
-    animation: scroll-pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes scroll-pulse {
-    0%, 100% {
-      height: 30px;
-      opacity: 0.3;
-    }
-    50% {
-      height: 50px;
-      opacity: 1;
-    }
-  }
+  
 
   /* Sections */
-  .landing-section {
-    padding: 100px 60px;
-  }
+  
 
-  .landing-section-alt {
-    background: rgba(255, 255, 255, 0.01);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
+  
 
-  .landing-section-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
+  
 
-  .landing-section-tag {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: #a855f7;
-    margin-bottom: 16px;
-  }
+  
 
-  .landing-section-title {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: clamp(36px, 5vw, 56px);
-    letter-spacing: 3px;
-    color: white;
-    margin-bottom: 20px;
-  }
+  
 
-  .landing-section-desc {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 17px;
-    font-weight: 300;
-    color: #64748b;
-    max-width: 560px;
-    line-height: 1.7;
-  }
+  
 
   /* Features Grid */
-  .landing-features-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    margin-top: 60px;
-  }
+  
 
-  .landing-feature-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 32px;
-    backdrop-filter: blur(10px);
-    transition: all 0.3s;
-    position: relative;
-    overflow: hidden;
-  }
+  
 
-  .landing-feature-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #a855f7, transparent);
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
+  
 
-  .landing-feature-card:hover {
-    border-color: rgba(124, 58, 237, 0.3);
-    background: rgba(124, 58, 237, 0.06);
-    transform: translateY(-4px);
-  }
+  
 
-  .landing-feature-card:hover::before {
-    opacity: 1;
-  }
+  
 
-  .landing-feature-featured {
-    grid-column: span 2;
-    background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(59, 130, 246, 0.08));
-    border-color: rgba(124, 58, 237, 0.25);
-  }
+  
 
-  .landing-feature-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    background: rgba(124, 58, 237, 0.15);
-    border: 1px solid rgba(124, 58, 237, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    margin-bottom: 20px;
-  }
+  
 
-  .landing-feature-title {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: white;
-    margin-bottom: 10px;
-  }
+  
 
-  .landing-feature-desc {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 300;
-    color: #64748b;
-    line-height: 1.7;
-  }
+  
 
-  .landing-feature-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 16px;
-  }
+  
 
-  .landing-tag {
-    padding: 4px 12px;
-    background: rgba(124, 58, 237, 0.15);
-    border: 1px solid rgba(124, 58, 237, 0.2);
-    border-radius: 100px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    color: #a855f7;
-  }
+  
 
   /* Steps */
-  .landing-steps {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 24px;
-    margin-top: 60px;
-    position: relative;
-  }
+  
 
-  .landing-steps-line {
-    position: absolute;
-    top: 28px;
-    left: 10%;
-    right: 10%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #7c3aed, #3b82f6, transparent);
-    z-index: 0;
-  }
+  
 
-  .landing-step {
-    text-align: center;
-    padding: 24px 16px;
-    position: relative;
-    z-index: 1;
-  }
+  
 
-  .landing-step-number {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #7c3aed, #3b82f6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 22px;
-    color: white;
-    margin: 0 auto 20px;
-  }
+  
 
-  .landing-step-title {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: white;
-    margin-bottom: 10px;
-  }
+  
 
-  .landing-step-desc {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    font-weight: 300;
-    color: #64748b;
-    line-height: 1.7;
-  }
+  
 
   /* Bracket Showcase */
-  .landing-bracket-box {
-    background: #13131f;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 24px;
-    padding: 48px;
-    margin-top: 60px;
-    background-image: linear-gradient(135deg, rgba(124, 58, 237, 0.05), transparent 50%, rgba(59, 130, 246, 0.05));
-  }
+  
 
-  .landing-live-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 100px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: #ef4444;
-    text-transform: uppercase;
-    margin-bottom: 12px;
-  }
+  
 
-  .landing-bracket-title {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 32px;
-    letter-spacing: 3px;
-    color: white;
-  }
+  
 
-  .landing-bracket-subtitle {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    color: #64748b;
-    margin-bottom: 40px;
-  }
+  
 
-  .landing-bracket-visual {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow-x: auto;
-    gap: 0;
-  }
+  
 
-  .landing-bracket-round {
-    min-width: 140px;
-  }
+  
 
-  .landing-bracket-round-label {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #64748b;
-    margin-bottom: 8px;
-    text-align: center;
-  }
+  
 
-  .landing-bracket-matches {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
+  
 
-  .landing-match-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    width: 130px;
-    overflow: hidden;
-  }
+  
 
-  .landing-match-player {
-    padding: 8px 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    color: #e2e8f0;
-  }
+  
 
-  .landing-match-winner {
-    background: rgba(124, 58, 237, 0.15);
-    color: #a855f7;
-  }
+  
 
-  .landing-match-divider {
-    height: 1px;
-    background: rgba(255, 255, 255, 0.08);
-  }
+  
 
-  .landing-match-score {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 16px;
-  }
+  
 
-  .landing-match-in-progress {
-    border-color: rgba(245, 158, 11, 0.4);
-  }
+  
 
-  .landing-match-in-progress .landing-match-player {
-    color: #f59e0b;
-  }
+  
 
-  .landing-match-pending {
-    opacity: 0.5;
-    border-color: rgba(124, 58, 237, 0.3);
-  }
+  
 
-  .landing-bracket-connector {
-    width: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  
 
-  .landing-connector-line {
-    width: 100%;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(124, 58, 237, 0.4));
-  }
+  
 
-  .landing-winner-card {
-    background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(59, 130, 246, 0.15));
-    border: 1px solid rgba(124, 58, 237, 0.4);
-    border-radius: 12px;
-    padding: 20px 24px;
-    width: 140px;
-    text-align: center;
-  }
+  
 
-  .landing-winner-crown {
-    font-size: 24px;
-    margin-bottom: 8px;
-  }
+  
 
-  .landing-winner-name {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    color: #a855f7;
-  }
+  
 
-  .landing-winner-status {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 11px;
-    color: #64748b;
-    letter-spacing: 1px;
-  }
+  
 
   /* Dispute System */
-  .landing-dispute-box {
-    background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(59, 130, 246, 0.05));
-    border: 1px solid rgba(124, 58, 237, 0.15);
-    border-radius: 24px;
-    padding: 60px;
-    margin-top: 60px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 60px;
-    align-items: center;
-  }
+  
 
-  .landing-dispute-title {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 28px;
-    letter-spacing: 2px;
-    color: white;
-    margin-bottom: 12px;
-  }
+  
 
-  .landing-dispute-desc {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 300;
-    color: #64748b;
-    line-height: 1.7;
-    margin-bottom: 28px;
-  }
+  
 
-  .landing-dispute-stages {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
+  
 
-  .landing-stage-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    transition: all 0.3s;
-  }
+  
 
-  .landing-stage-card:hover {
-    border-color: rgba(124, 58, 237, 0.3);
-    background: rgba(124, 58, 237, 0.06);
-  }
+  
 
-  .landing-stage-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
+  
 
-  .landing-stage-green {
-    background: #22c55e;
-    box-shadow: 0 0 12px #22c55e;
-  }
+  
 
-  .landing-stage-amber {
-    background: #f59e0b;
-    box-shadow: 0 0 12px #f59e0b;
-  }
+  
 
-  .landing-stage-purple {
-    background: #a855f7;
-    box-shadow: 0 0 12px #a855f7;
-  }
+  
 
-  .landing-stage-blue {
-    background: #3b82f6;
-    box-shadow: 0 0 12px #3b82f6;
-  }
+  
 
-  .landing-stage-info {
-    flex: 1;
-  }
+  
 
-  .landing-stage-name {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    color: white;
-  }
+  
 
-  .landing-stage-desc {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 12px;
-    color: #64748b;
-  }
+  
 
-  .landing-stage-number {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 20px;
-    color: #64748b;
-  }
+  
 
-  .landing-dispute-right {
-    text-align: center;
-  }
+  
 
-  .landing-big-stat {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 80px;
-    letter-spacing: 4px;
-    line-height: 1;
-    background: linear-gradient(180deg, #a855f7, #06b6d4);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+  
 
-  .landing-big-stat-label {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 14px;
-    color: #64748b;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    margin-bottom: 32px;
-  }
+  
 
-  .landing-info-box {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 24px;
-  }
+  
 
-  .landing-info-small {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 12px;
-    color: #64748b;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-  }
+  
 
-  .landing-info-main {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    color: white;
-  }
+  
 
   /* Economy */
-  .landing-economy-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    margin-top: 60px;
-  }
+  
 
-  .landing-economy-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 28px;
-    text-align: center;
-    backdrop-filter: blur(10px);
-    transition: all 0.3s;
-  }
+  
 
-  .landing-economy-card:hover {
-    border-color: rgba(124, 58, 237, 0.3);
-    transform: translateY(-4px);
-  }
+  
 
-  .landing-economy-icon {
-    font-size: 32px;
-    margin-bottom: 16px;
-  }
+  
 
-  .landing-economy-title {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    color: white;
-    margin-bottom: 8px;
-  }
+  
 
-  .landing-economy-desc {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    font-weight: 300;
-    color: #64748b;
-    line-height: 1.6;
-  }
+  
 
   /* Final CTA */
-  .landing-cta-section {
-    position: relative;
-  }
+  
 
-  .landing-cta-glow {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 600px;
-    height: 300px;
-    background: radial-gradient(ellipse, rgba(124, 58, 237, 0.15), transparent 70%);
-    pointer-events: none;
-  }
+  
 
-  .landing-cta-inner {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 120px 60px;
-    text-align: center;
-    position: relative;
-  }
+  
 
-  .landing-cta-title {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: clamp(48px, 7vw, 80px);
-    letter-spacing: 4px;
-    line-height: 1;
-    color: white;
-    margin-bottom: 20px;
-  }
+  
 
-  .landing-cta-desc {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 18px;
-    font-weight: 300;
-    color: #64748b;
-    line-height: 1.7;
-    margin-bottom: 48px;
-  }
+  
 
-  .landing-cta-buttons {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
+  
 
-  .landing-btn-cta-large {
-    background: linear-gradient(135deg, #7c3aed, #3b82f6);
-    color: white;
-    padding: 18px 48px;
-    border-radius: 12px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-decoration: none;
-    box-shadow: 0 0 40px rgba(124, 58, 237, 0.3);
-    transition: all 0.3s;
-    display: inline-block;
-  }
+  
 
-  .landing-btn-cta-large:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 60px rgba(124, 58, 237, 0.5);
-  }
+  
 
-  .landing-btn-explore-large {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #e2e8f0;
-    padding: 18px 48px;
-    border-radius: 12px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-decoration: none;
-    transition: all 0.3s;
-    display: inline-block;
-  }
+  
 
-  .landing-btn-explore-large:hover {
-    border-color: #a855f7;
-    color: #a855f7;
-  }
+  
 
   /* Footer */
-  .landing-footer {
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 40px 60px;
-  }
+  
 
-  .landing-footer-inner {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+  
 
-  .landing-footer-logo {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 22px;
-    letter-spacing: 4px;
-    background: linear-gradient(90deg, #fff, #a855f7);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+  
 
-  .landing-footer-logo-img {
-    height: 36px;
-    width: auto;
-    object-fit: contain;
-  }
+  
 
-  .landing-footer-text {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    color: #64748b;
-  }
+  
 
   /* Animations */
-  .fade-in-up {
-    opacity: 0;
-    transform: translateY(24px);
-    animation: fadeInUp 0.8s ease forwards;
-  }
-
-  @keyframes fadeInUp {
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .scroll-reveal {
-    opacity: 0;
-    transform: translateY(30px);
-    transition: all 0.7s ease;
-  }
-
-  .scroll-reveal.reveal-visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  
 
   /* Responsive */
-  @media (max-width: 768px) {
-    .landing-nav-links {
-      display: none;
-    }
-
-    .landing-nav-inner {
-      padding: 20px 24px;
-    }
-
-    .landing-hero {
-      padding: 120px 24px 80px;
-    }
-
-    .landing-section {
-      padding: 80px 24px;
-    }
-
-    .landing-features-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .landing-feature-featured {
-      grid-column: span 1;
-    }
-
-    .landing-steps {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .landing-steps-line {
-      display: none;
-    }
-
-    .landing-dispute-box {
-      grid-template-columns: 1fr;
-      padding: 40px 24px;
-    }
-
-    .landing-economy-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .landing-stats {
-      gap: 30px;
-    }
-
-    .landing-cta-inner {
-      padding: 80px 24px;
-    }
-
-    .landing-footer-inner {
-      flex-direction: column;
-      gap: 16px;
-      text-align: center;
-    }
-
-    .landing-bracket-visual {
-      justify-content: flex-start;
-    }
-  }
+  
 }
 
-/* The scroll hint collides with the hero stats on phones and short screens */
-@media (max-width: 640px), (max-height: 760px) {
-  .landing-scroll-indicator {
-    display: none;
-  }
+/* Chat wallpaper: faint controller-button glyphs, like a messaging app's doodle background */
+.chat-wallpaper {
+  background-color: hsl(var(--background));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.045' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 14 L32 30 L12 30 Z'/%3E%3Ccircle cx='96' cy='26' r='9'/%3E%3Cpath d='M58 66 l14 14 M72 66 l-14 14'/%3E%3Crect x='104' y='84' width='16' height='16' rx='2'/%3E%3Ccircle cx='24' cy='104' r='7'/%3E%3Cpath d='M70 112 L78 126 L62 126 Z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }

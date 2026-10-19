@@ -28,7 +28,7 @@ export default function Achievements() {
       <section className="surface-raised relative overflow-hidden p-6 md:p-8">
         <div
           className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full"
-          style={{ background: 'radial-gradient(circle, hsl(262 83% 60% / 0.35), transparent 70%)' }}
+          style={{ background: 'radial-gradient(circle, hsl(224 100% 60% / 0.22), transparent 70%)' }}
         />
         <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
           <LevelRing level={level.level} progress={level.progress} size={128} stroke={8}>
