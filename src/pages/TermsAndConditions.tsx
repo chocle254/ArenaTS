@@ -140,35 +140,35 @@ const TermsAndConditions = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] font-montserrat text-[#111827]">
+    <div className="min-h-screen bg-background font-montserrat text-foreground">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#E5E7EB]">
+      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-sm font-medium hover:text-[#6B7280] transition-colors">
+          <Link to="/" className="flex items-center gap-2 text-sm font-medium hover:text-muted-foreground transition-colors">
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Home</span>
           </Link>
-          <span className="text-xs text-[#6B7280] font-medium tracking-wider uppercase">Legal Documentation</span>
+          <span className="text-xs text-muted-foreground font-medium tracking-wider uppercase">Legal Documentation</span>
         </div>
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-20">
         <header className="mb-20 text-center">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-balance">Terms & Conditions</h1>
-          <p className="text-[#6B7280] text-sm">Last Updated: {lastUpdated}</p>
+          <p className="text-muted-foreground text-sm">Last Updated: {lastUpdated}</p>
         </header>
 
         <div className="space-y-24">
           {sections.map((section) => (
             <section key={section.id} id={section.id} className="scroll-mt-32">
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-10 h-10 rounded-full bg-white border border-[#E5E7EB] flex items-center justify-center text-[#111827]">
+                <div className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center text-foreground">
                   {section.icon}
                 </div>
                 <h2 className="text-xl font-bold tracking-tight">{section.title}</h2>
               </div>
               <div className="pl-0 md:pl-14">
-                <div className="text-[#6B7280] leading-relaxed whitespace-pre-line text-lg text-pretty">
+                <div className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg text-pretty">
                   {section.content}
                 </div>
               </div>
@@ -176,25 +176,25 @@ const TermsAndConditions = () => {
           ))}
         </div>
 
-        <footer className="mt-32 pt-16 border-t border-[#E5E7EB]">
-          <div className="bg-white rounded-2xl p-6 md:p-12 border border-[#E5E7EB] text-center">
+        <footer className="mt-32 pt-16 border-t border-border">
+          <div className="bg-card rounded-2xl p-6 md:p-12 border border-border text-center">
             <h3 className="text-2xl font-bold mb-4">Questions about our terms?</h3>
-            <p className="text-[#6B7280] mb-8 max-w-md mx-auto text-pretty">
+            <p className="text-muted-foreground mb-8 max-w-md mx-auto text-pretty">
               Our compliance team is here to help clarify any legal or regulatory questions you may have.
             </p>
             <Button 
               variant="outline" 
-              className="h-12 px-8 border-[#E5E7EB] hover:bg-[#F8F9FB] rounded-full text-sm font-semibold tracking-wide uppercase transition-all"
+              className="h-12 px-8 border-border hover:bg-muted rounded-full text-sm font-semibold tracking-wide uppercase transition-all"
               onClick={() => window.location.href = 'mailto:legal@arena.gg'}
             >
               Contact Compliance
             </Button>
-            <div className="mt-8 flex justify-center gap-8 text-xs font-medium text-[#6B7280]">
-              <Link to="/privacy" className="hover:text-[#111827] transition-colors underline underline-offset-4">Privacy Policy</Link>
-              <a href="#" className="hover:text-[#111827] transition-colors underline underline-offset-4">Cookie Settings</a>
+            <div className="mt-8 flex justify-center gap-8 text-xs font-medium text-muted-foreground">
+              <Link to="/privacy" className="hover:text-foreground transition-colors underline underline-offset-4">Privacy Policy</Link>
+              <a href="#" className="hover:text-foreground transition-colors underline underline-offset-4">Cookie Settings</a>
             </div>
           </div>
-          <p className="text-center text-xs text-[#6B7280] mt-12">
+          <p className="text-center text-xs text-muted-foreground mt-12">
             &copy; 2026 Nebula Dark LLC. All rights reserved. Registered in Delaware, USA.
           </p>
         </footer>

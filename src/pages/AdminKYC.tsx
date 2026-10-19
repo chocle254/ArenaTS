@@ -269,10 +269,10 @@ export default function AdminKYC() {
 
           <TabsContent value={activeTab} className="mt-8">
             <Card className="admin-card border-border">
-              <CardHeader className="flex flex-col md:flex-row md:items-center gap-4 pb-4">
+              <CardHeader className="flex flex-col lg:flex-row lg:items-center gap-4 pb-4">
                 <CardTitle className="text-lg text-white">Submissions</CardTitle>
-                <div className="flex flex-1 flex-col md:flex-row gap-3 md:justify-end">
-                  <div className="relative w-full md:w-72">
+                <div className="flex flex-1 flex-col lg:flex-row gap-3 lg:justify-end">
+                  <div className="relative w-full lg:w-72">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search gamertag, email, username..."
@@ -285,7 +285,7 @@ export default function AdminKYC() {
                     value={statusFilter}
                     onValueChange={(value) => setStatusFilter(value as KYCStatus | 'all')}
                   >
-                    <SelectTrigger className="w-full md:w-44 bg-background border-border">
+                    <SelectTrigger className="w-full lg:w-44 bg-background border-border">
                       <SelectValue placeholder="Filter status" />
                     </SelectTrigger>
                     <SelectContent>

@@ -1,10 +1,10 @@
-import { motion } from 'framer-motion';
-import { ArrowLeft, Play, Plus, Users } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, CalendarClock, Plus } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { EmptyState, SectionHeader } from '@/components/arena/Rail';
+import { TournamentCard, TournamentCardSkeleton } from '@/components/arena/TournamentCard';
 import { ConsentModal } from '@/components/ConsentModal';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,9 +27,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
-import { formatCurrency } from '@/lib/format-number';
-import { formatTimeUntil } from '@/lib/utils';
+import { useJoinTournament } from '@/hooks/use-join-tournament';
+import { formatArenaCurrency } from '@/lib/arena-currency';
 import type { GameMode, GameType, Tournament } from '@/types/database';
 import { GAME_INFO, GAME_MODES, MODE_TEAM_SIZES } from '@/types/database';
 
@@ -47,546 +46,156 @@ const GAME_BACKGROUNDS: Record<GameType, string> = {
   pubg_mobile: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_8982654b-2303-4200-b240-4e91852a6a2c.jpg'
 };
 
-// Mode-specific images for tournament cards
-const MODE_IMAGES: Record<string, string> = {
-  'search': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_6f8f9a60-61c8-432d-a961-11ecfd5abdb2.jpg',
-  'destroy': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_6f8f9a60-61c8-432d-a961-11ecfd5abdb2.jpg',
-  's&d': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_6f8f9a60-61c8-432d-a961-11ecfd5abdb2.jpg',
-  'snd': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_6f8f9a60-61c8-432d-a961-11ecfd5abdb2.jpg',
-  'team': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_d6a67b24-d1f7-4d0b-a3a0-a6052960af1d.jpg',
-  'deathmatch': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_d6a67b24-d1f7-4d0b-a3a0-a6052960af1d.jpg',
-  'tdm': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_d6a67b24-d1f7-4d0b-a3a0-a6052960af1d.jpg',
-  'battle': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_19f4fb87-72b7-4ba6-a49a-b8f9cfbde158.jpg',
-  'royale': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_19f4fb87-72b7-4ba6-a49a-b8f9cfbde158.jpg',
-  'br': 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_19f4fb87-72b7-4ba6-a49a-b8f9cfbde158.jpg'
-};
-
-function getModeImage(tournamentName: string, gameType: GameType): string {
-  const nameLower = tournamentName.toLowerCase();
-  
-  // Check for mode keywords in tournament name
-  for (const [keyword, image] of Object.entries(MODE_IMAGES)) {
-    if (nameLower.includes(keyword)) {
-      return image;
-    }
-  }
-  
-  // Fallback to game banner
-  return GAME_INFO[gameType].banner;
-}
-
 export default function GamePage() {
   const { gameId } = useParams<{ gameId: string }>();
   const { user } = useAuth();
-  const [openTournaments, setOpenTournaments] = useState<Tournament[]>([]);
-  const [liveTournaments, setLiveTournaments] = useState<Tournament[]>([]);
-  const [upcomingTournaments, setUpcomingTournaments] = useState<Tournament[]>([]);
-  const [pastTournaments, setPastTournaments] = useState<Tournament[]>([]);
+  const { startJoin, joiningId, consent, setConsent } = useJoinTournament();
+  const [open, setOpen] = useState<Tournament[]>([]);
+  const [live, setLive] = useState<Tournament[]>([]);
+  const [past, setPast] = useState<Tournament[]>([]);
+  const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-
-  // Refs for horizontal scroll containers
-  const openScrollRef = useRef<HTMLDivElement>(null);
-  const liveScrollRef = useRef<HTMLDivElement>(null);
-  const upcomingScrollRef = useRef<HTMLDivElement>(null);
-  const pastScrollRef = useRef<HTMLDivElement>(null);
 
   const game = gameId as GameType;
   const gameInfo = GAME_INFO[game];
   const backgroundImage = GAME_BACKGROUNDS[game];
   const gameModes = GAME_MODES[game];
 
-  // Setup wheel scroll for horizontal scrolling
-  useEffect(() => {
-    const refs = [openScrollRef, liveScrollRef, upcomingScrollRef, pastScrollRef];
-    const handlers: Array<(e: WheelEvent) => void> = [];
-
-    refs.forEach((ref) => {
-      if (!ref.current) return;
-
-      const container = ref.current;
-      const handleWheel = (e: WheelEvent) => {
-        // Always hijack vertical scroll and convert to horizontal
-        e.preventDefault();
-        container.scrollLeft += e.deltaY;
-      };
-
-      container.addEventListener('wheel', handleWheel, { passive: false });
-      handlers.push(handleWheel);
-    });
-
-    return () => {
-      refs.forEach((ref, index) => {
-        if (ref.current && handlers[index]) {
-          ref.current.removeEventListener('wheel', handlers[index]);
-        }
-      });
-    };
-  }, []);
-
-  useEffect(() => {
-    fetchTournaments();
-  }, [gameId]);
-
-  const fetchTournaments = async () => {
-    setLoading(true);
+  const fetchTournaments = useCallback(async () => {
+    if (!GAME_INFO[game]) return;
     try {
-      // First, update tournament statuses
-      await supabase.rpc('check_and_update_tournament_status');
-
-      const now = new Date().toISOString();
-
-      // Fetch open tournaments (accepting registrations and not started yet)
-      const { data: open } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('game', gameId)
-        .eq('status', 'open')
-        .gt('start_time', now)
-        .order('start_time', { ascending: true });
-
-      setOpenTournaments(open || []);
-
-      // Fetch live tournaments (currently active OR open but reached start time)
-      const { data: activeLive } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('game', gameId)
-        .eq('status', 'active')
-        .order('start_time', { ascending: false });
-      
-      const { data: openStartedLive } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('game', gameId)
-        .eq('status', 'open')
-        .lte('start_time', now)
-        .order('start_time', { ascending: false });
-
-      setLiveTournaments([...(activeLive || []), ...(openStartedLive || [])]);
-
-      // Fetch upcoming tournaments (same as open for registration but maybe used elsewhere)
-      setUpcomingTournaments(open || []);
-
-      // Fetch past tournaments (completed or cancelled)
-      const { data: past } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('game', gameId)
-        .in('status', ['completed', 'cancelled'])
-        .order('start_time', { ascending: false })
-        .limit(20);
-
-      setPastTournaments(past || []);
+      // Update statuses first; ignore failures so the page still loads
+      await supabase.rpc('check_and_update_tournament_status').then(() => undefined, () => undefined);
+      const nowIso = new Date().toISOString();
+      const [openRes, liveRes, pastRes, mine] = await Promise.all([
+        supabase.from('tournaments').select('*').eq('game', game).eq('status', 'open').gt('start_time', nowIso).order('start_time', { ascending: true }),
+        supabase.from('tournaments').select('*').eq('game', game).in('status', ['active', 'open']).lte('start_time', nowIso).order('start_time', { ascending: false }),
+        supabase.from('tournaments').select('*').eq('game', game).in('status', ['completed', 'cancelled']).order('start_time', { ascending: false }).limit(12),
+        user ? supabase.from('tournament_participants').select('tournament_id').eq('user_id', user.id) : Promise.resolve({ data: [] as { tournament_id: string }[] }),
+      ]);
+      setOpen((openRes.data || []) as Tournament[]);
+      setLive(((liveRes.data || []) as Tournament[]).filter((t) => t.status === 'active' || Date.now() - new Date(t.start_time).getTime() < 3 * 3_600_000));
+      setPast((pastRes.data || []) as Tournament[]);
+      setJoinedIds(new Set((mine.data || []).map((p) => p.tournament_id)));
     } catch (error) {
       console.error('Error fetching tournaments:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [game, user?.id]);
 
-  if (loading) {
+  useEffect(() => {
+    setLoading(true);
+    fetchTournaments();
+  }, [fetchTournaments]);
+
+  // Refresh after a join attempt completes
+  const prevJoining = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (prevJoining.current && !joiningId) fetchTournaments();
+    prevJoining.current = joiningId;
+  }, [joiningId, fetchTournaments]);
+
+  if (!gameInfo) {
     return (
-      <div className="min-h-screen" style={{ 
-        background: `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.9)), url(${backgroundImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}>
-        <div className="container mx-auto px-4 py-8">
-          <div className="h-64 bg-muted/20 animate-pulse rounded-lg" />
-        </div>
-      </div>
+      <EmptyState
+        className="mx-auto max-w-lg"
+        title="We don't host that game yet"
+        description="Pick one of the supported games to see its tournaments."
+        action={
+          <Button asChild>
+            <Link to="/tournaments">Browse all tournaments</Link>
+          </Button>
+        }
+      />
     );
   }
 
-  const hasAnyTournaments = openTournaments.length > 0 || liveTournaments.length > 0 || upcomingTournaments.length > 0 || pastTournaments.length > 0;
+  const activeCount = open.length + live.length;
 
-  return (
-    <div 
-      className="min-h-screen overflow-x-hidden"
-      style={{ 
-        background: `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.9)), url(${backgroundImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      <div className="container mx-auto px-4 md:px-12 py-8 space-y-12 max-w-full">
-        {/* Header */}
-        <div className="space-y-6">
-          <Link to="/dashboard">
-            <Button variant="ghost" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </Button>
-          </Link>
-
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <img
-                src={gameInfo.logo}
-                alt={gameInfo.name}
-                className="h-16 md:h-24 w-auto object-contain"
-              />
-              <div className="flex-1">
-                <h1 className="text-4xl md:text-6xl font-bold">{gameInfo.name}</h1>
-                <p className="text-muted-foreground mt-2">
-                  {hasAnyTournaments 
-                    ? `${openTournaments.length + liveTournaments.length + upcomingTournaments.length} active tournaments`
-                    : 'No tournaments available'}
-                </p>
-                
-                {/* Create Tournament Button - Mobile: Below game name */}
-                <div className="md:hidden mt-4">
-                  <CreateTournamentDialog 
-                    game={game} 
-                    gameModes={gameModes}
-                    open={createDialogOpen}
-                    onOpenChange={setCreateDialogOpen}
-                    onSuccess={fetchTournaments}
-                    isMobile
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Create Tournament Button - Desktop: Right side */}
-            <div className="hidden md:block">
-              <CreateTournamentDialog 
-                game={game} 
-                gameModes={gameModes}
-                open={createDialogOpen}
-                onOpenChange={setCreateDialogOpen}
-                onSuccess={fetchTournaments}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Open for Registration Tournaments */}
-        {openTournaments.length > 0 && (
-          <div className="space-y-4">
-            <h2 className="text-2xl md:text-3xl font-bold">Open for Registration</h2>
-            <div className="flex md:grid overflow-x-auto md:overflow-x-visible gap-6 md:grid-cols-3 pb-4 md:pb-0 scrollbar-hide">
-              {openTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Live Tournaments */}
-        {liveTournaments.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="live-indicator" />
-              <h2 className="text-2xl md:text-3xl font-bold">LIVE NOW</h2>
-            </div>
-            <div className="flex md:grid overflow-x-auto md:overflow-x-visible gap-6 md:grid-cols-3 pb-4 md:pb-0 scrollbar-hide">
-              {liveTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Upcoming Tournaments */}
-        {upcomingTournaments.length > 0 && (
-          <div className="space-y-4">
-            <h2 className="text-2xl md:text-3xl font-bold">Upcoming Tournaments</h2>
-            <div className="flex md:grid overflow-x-auto md:overflow-x-visible gap-6 md:grid-cols-3 pb-4 md:pb-0 scrollbar-hide">
-              {upcomingTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Past Tournaments */}
-        {pastTournaments.length > 0 && (
-          <div className="space-y-4">
-            <h2 className="text-2xl md:text-3xl font-bold">Past Tournaments</h2>
-            <div className="flex md:grid overflow-x-auto md:overflow-x-visible gap-6 md:grid-cols-3 pb-4 md:pb-0 scrollbar-hide">
-              {pastTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* No tournaments message */}
-        {!hasAnyTournaments && (
-          <div className="text-center py-16">
-            <h3 className="text-2xl font-bold mb-2">No tournaments found</h3>
-            <p className="text-muted-foreground">
-              Check back soon for new {gameInfo.name} tournaments
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+  const card = (t: Tournament) => (
+    <TournamentCard key={t.id} tournament={t} joined={joinedIds.has(t.id)} joining={joiningId === t.id} onJoin={startJoin} />
   );
-}
-
-function TournamentCard({ tournament }: { tournament: Tournament }) {
-  const { user, profile, refreshProfile } = useAuth();
-  const navigate = useNavigate();
-  const [isJoined, setIsJoined] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
-  const [consentOpen, setConsentOpen] = useState(false);
-  const [consentConfig, setConsentConfig] = useState<{
-    title: string;
-    description: string;
-    amount: number;
-    onConfirm: () => void;
-  } | null>(null);
-
-  const isLive = tournament.status === 'active';
-  const isOpen = tournament.status === 'open';
-  const cardImage = getModeImage(tournament.name, tournament.game as GameType);
-  const gameInfo = GAME_INFO[tournament.game as GameType];
-
-  useEffect(() => {
-    checkIfJoined();
-  }, [user, tournament.id]);
-
-  const checkIfJoined = async () => {
-    if (!user) return;
-    
-    const { data } = await supabase
-      .from('tournament_participants')
-      .select('id')
-      .eq('tournament_id', tournament.id)
-      .eq('user_id', user.id)
-      .single();
-    
-    setIsJoined(!!data);
-  };
-
-  const executeJoin = async (entryFee: number) => {
-    setIsJoining(true);
-    try {
-      if (entryFee > 0) {
-        // Fetch latest balance for a fast client-side check.
-        // The actual deduction + transaction record happens once, in the
-        // tr_tournament_join_fee trigger (AFTER INSERT on tournament_participants)
-        // — do not deduct here too, or players get charged twice.
-        const { data: latestProfile } = await supabase
-          .from('profiles')
-          .select('arena_currency')
-          .eq('id', user!.id)
-          .single();
-
-        const currentBalance = latestProfile?.arena_currency || 0;
-
-        if (currentBalance < entryFee) {
-          throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(entryFee)} to join.`);
-        }
-      }
-
-      // Get gamertag from profile or generate default
-      const gamertag = profile?.gamertag || user!.email?.split('@')[0] || `Player${Math.floor(Math.random() * 10000)}`;
-
-      const { error } = await supabase
-        .from('tournament_participants')
-        .insert({
-          tournament_id: tournament.id,
-          user_id: user!.id,
-          gamertag: gamertag,
-          checked_in: false,
-          is_standby: tournament.current_players >= tournament.max_players,
-          amount_paid: entryFee
-        });
-
-      if (error) throw error;
-
-      await supabase
-        .from('tournaments')
-        .update({ current_players: tournament.current_players + 1 })
-        .eq('id', tournament.id);
-
-      await refreshProfile();
-      setIsJoined(true);
-      setConsentOpen(false);
-      toast.success('Successfully joined tournament!');
-    } catch (error: any) {
-      console.error('Error joining tournament:', error);
-      toast.error(error.message || 'Failed to join tournament');
-    } finally {
-      setIsJoining(false);
-    }
-  };
-
-  const handleJoin = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!user || isJoined || isJoining) return;
-
-    // If it's a team tournament, we should redirect to details page for the team register dialog
-    if (tournament.team_size > 1) {
-      navigate(`/tournaments/${tournament.id}`);
-      return;
-    }
-
-    const entryFee = tournament.entry_fee || 0;
-    
-    if (entryFee > 0) {
-      const userBalance = profile?.arena_currency || 0;
-      if (userBalance < entryFee) {
-        toast.error(`Insufficient Arena Currency. You need ${formatArenaCurrency(entryFee)} to join.`);
-        return;
-      }
-
-      setConsentConfig({
-        title: `Join Tournament: ${tournament.name}`,
-        description: `You are about to join this tournament. An entry fee will be deducted from your Arena Currency balance.`,
-        amount: entryFee,
-        onConfirm: () => executeJoin(entryFee)
-      });
-      setConsentOpen(true);
-    } else {
-      executeJoin(0);
-    }
-  };
 
   return (
-    <Link to={`/tournaments/${tournament.id}`} className="flex-shrink-0 w-56 md:w-auto">
-      <motion.div
-        whileHover={{ y: -4 }}
-        transition={{ duration: 0.3 }}
-      >
-        <div 
-          className="relative overflow-hidden rounded-lg border-2 border-violet-500/50 shadow-lg shadow-violet-500/20 hover:shadow-violet-500/40 transition-all duration-300"
-          style={{ height: '450px' }}
-        >
-          {/* Top Half - Game Image with Gradient Overlay */}
-          <div className="relative h-1/2 overflow-hidden group">
-            <img
-              src={cardImage}
-              alt={tournament.name}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            />
-            {/* Gradient Overlay */}
-            <div 
-              className="absolute inset-0" 
-              style={{
-                background: 'linear-gradient(to bottom, transparent 0%, #050810 100%)'
-              }}
-            />
-            
-            {/* Floating Elements on Image */}
-            <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
-              {/* Game Name Tag */}
-              <Badge className="bg-black/60 backdrop-blur-sm text-white border-0 text-sm font-medium">
-                {gameInfo.name}
-              </Badge>
-              
-              {/* LIVE Badge */}
-              {isLive && (
-                <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                  <div className="w-2.5 h-2.5 bg-red-500 rounded-full pulse-dot" />
-                  <span className="text-white text-sm font-semibold">LIVE</span>
-                </div>
-              )}
-              
-              {/* Open Badge */}
-              {isOpen && !isLive && (
-                <Badge className="bg-green-500/90 text-white border-0 text-sm">
-                  Open
-                </Badge>
-              )}
-            </div>
-
-            {/* Tournament Name at Bottom of Image */}
-            <div className="absolute bottom-4 left-4 right-4">
-              <h3 className="font-orbitron font-bold text-white text-lg leading-tight line-clamp-2">
-                {tournament.name}
-              </h3>
-            </div>
-          </div>
-
-          {/* Bottom Half - Glass Panel */}
-          <div 
-            className="h-1/2 p-5 flex flex-col justify-between"
-            style={{ backgroundColor: 'rgba(124, 58, 237, 0.12)' }}
-          >
-            {/* Prize Pool and Entry Fee */}
-            <div className="flex items-center justify-between mb-4">
+    <div className="space-y-10">
+      <section className="relative -mx-4 -mt-5 overflow-hidden md:-mx-6 md:-mt-6 md:rounded-b-3xl xl:-mx-8">
+        <img src={backgroundImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/30" />
+        <div className="relative space-y-6 px-4 pb-8 pt-6 md:px-6 xl:px-8">
+          <Link to="/tournaments" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> All tournaments
+          </Link>
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-center gap-4">
+              <img src={gameInfo.logo} alt="" className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/15 md:h-20 md:w-20" />
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Prize Pool</p>
-                <p className="font-mono font-bold text-3xl" style={{ color: '#FFD700' }}>
-                  {formatArenaCurrency(tournament.prize_pool)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground mb-1">Entry Fee</p>
-                <p className="font-mono font-semibold text-xl text-violet-400">
-                  {formatArenaCurrency(tournament.entry_fee)}
+                <h1 className="text-5xl leading-none md:text-6xl">{gameInfo.name}</h1>
+                <p className="mt-1 text-muted-foreground">
+                  {loading ? 'Loading tournaments…' : activeCount > 0 ? `${activeCount} active tournament${activeCount === 1 ? '' : 's'}` : 'No active tournaments yet'}
                 </p>
               </div>
             </div>
-
-            {/* Divider */}
-            <div className="h-px bg-white/10 mb-4" />
-
-            {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-3 mb-4 text-center">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Players</p>
-                <p className="text-base font-semibold text-white">
-                  {formatCompactNumber(tournament.current_players)}/{formatCompactNumber(tournament.max_players)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Starts In</p>
-                <p className="text-base font-semibold text-white">
-                  {formatTimeUntil(tournament.start_time)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Mode</p>
-                <p className="text-base font-semibold text-white truncate">
-                  {tournament.format}
-                </p>
-              </div>
-            </div>
-
-            {/* JOIN Button */}
-            {isOpen && !isJoined && user && (
-              <button
-                onClick={handleJoin}
-                disabled={isJoining}
-                className="sheen-effect w-full py-3 rounded-lg font-semibold text-white transition-all duration-300 hover:scale-[1.02]"
-                style={{
-                  background: 'linear-gradient(90deg, #8b5cf6 0%, #06b6d4 100%)'
-                }}
-              >
-                {isJoining ? 'JOINING...' : 'JOIN TOURNAMENT'}
-              </button>
-            )}
-            
-            {isJoined && (
-              <div className="w-full py-3 rounded-lg bg-primary/20 text-primary text-center font-semibold">
-                JOINED
-              </div>
-            )}
+            <CreateTournamentDialog game={game} gameModes={gameModes} open={createDialogOpen} onOpenChange={setCreateDialogOpen} onSuccess={fetchTournaments} />
           </div>
         </div>
-      </motion.div>
+      </section>
 
-      {consentConfig && (
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <TournamentCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <>
+          {live.length > 0 && (
+            <section className="space-y-4">
+              <SectionHeader title="Live now" icon={<LiveBadge size="sm" className="ml-1" />} />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{live.map(card)}</div>
+            </section>
+          )}
+
+          <section className="space-y-4">
+            <SectionHeader title="Open for registration" />
+            {open.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{open.map(card)}</div>
+            ) : (
+              <EmptyState
+                icon={<CalendarClock className="h-5 w-5" />}
+                title={`No open ${gameInfo.shortName} tournaments`}
+                description="Host one and share the link with your squad."
+                action={
+                  <Button onClick={() => setCreateDialogOpen(true)}>
+                    <Plus /> Create tournament
+                  </Button>
+                }
+              />
+            )}
+          </section>
+
+          {past.length > 0 && (
+            <section className="space-y-4">
+              <SectionHeader title="Recently finished" />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{past.map(card)}</div>
+            </section>
+          )}
+        </>
+      )}
+
+      {consent && (
         <ConsentModal
-          open={consentOpen}
-          onOpenChange={setConsentOpen}
-          title={consentConfig.title}
-          description={consentConfig.description}
-          amount={consentConfig.amount}
-          onConfirm={consentConfig.onConfirm}
+          open={!!consent}
+          onOpenChange={(o) => !o && setConsent(null)}
+          title={consent.title}
+          description={consent.description}
+          amount={consent.amount}
+          onConfirm={consent.onConfirm}
+          loading={!!joiningId}
         />
       )}
-    </Link>
+    </div>
   );
 }
 
@@ -697,7 +306,7 @@ function CreateTournamentDialog({
 
       // Re-verify balance locally for UX, but actual deduction is handled by database trigger
       if (deduction > 0 && currentBalance < deduction) {
-        throw new Error(`Insufficient Arena Currency. You need ${deduction} to create this tournament.`);
+        throw new Error(`You need ${formatArenaCurrency(deduction)} to fund this prize pool.`);
       }
 
       const { error } = await supabase
@@ -721,36 +330,50 @@ function CreateTournamentDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user || !profile) {
-      toast.error('You must be logged in to create a tournament');
+      toast.error('Sign in to create a tournament');
       return;
     }
 
-    // Set deduction and show modal
-    const prizePoolValue = parseFloat(formData.prizePool) || 0;
-    
+    // Validate everything the form can't enforce on its own
+    const name = formData.name.trim();
+    const prizePoolValue = parseFloat(formData.prizePool);
+    const entryFeeValue = parseFloat(formData.entryFee || '0');
+    const maxPlayersValue = parseInt(formData.maxPlayers, 10);
+    const minParticipantsValue = parseInt(formData.minParticipants, 10) || 2;
+    const start = new Date(formData.startTime);
+    const split =
+      (parseFloat(formData.prize1st) || 0) +
+      (numWinners >= '2' ? parseFloat(formData.prize2nd) || 0 : 0) +
+      (numWinners === '3' ? parseFloat(formData.prize3rd) || 0 : 0);
+
+    if (name.length < 3) return void toast.error('Give the tournament a name (at least 3 characters)');
+    if (!formData.gameMode) return void toast.error('Choose a game mode');
+    if (!Number.isFinite(prizePoolValue) || prizePoolValue < 0) return void toast.error('Enter a prize pool of 0 or more');
+    if (!Number.isFinite(entryFeeValue) || entryFeeValue < 0) return void toast.error('Entry fee cannot be negative');
+    if (!Number.isFinite(maxPlayersValue) || maxPlayersValue < teamSize * 2) return void toast.error(`Allow at least ${teamSize * 2} players`);
+    if (maxPlayersValue % teamSize !== 0) return void toast.error(`Max players must be a multiple of the team size (${teamSize})`);
+    const minPlayersTotal = isTeamBased ? minParticipantsValue * teamSize : minParticipantsValue;
+    if (minPlayersTotal > maxPlayersValue) return void toast.error('Minimum participants cannot exceed max players');
+    if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 5 * 60_000) return void toast.error('Pick a start time at least 5 minutes from now');
+    if (Math.abs(split - 100) > 0.01) return void toast.error(`Prize split must add up to 100% (it's ${split}%)`);
+
     // Creator always pays the whole prize pool upfront.
     const deduction = prizePoolValue;
-    
-    // Check Arena Currency balance
     if (arenaCurrency < deduction) {
-      toast.error(`Insufficient Arena Currency. You need ${deduction} to create this tournament.`);
+      toast.error(`You need ${formatArenaCurrency(deduction)} to fund this prize pool`);
       return;
     }
-    
+
     setArenaDeduction(deduction);
     setConsentOpen(true);
   };
 
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button 
-          size={isMobile ? "default" : "lg"} 
-          className="gap-2 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 hover:from-blue-700 hover:via-purple-700 hover:to-blue-700 border-0"
-        >
+        <Button size={isMobile ? 'default' : 'lg'} className="gap-2">
           <Plus className={isMobile ? "h-4 w-4" : "h-5 w-5"} />
           Create Tournament
         </Button>
@@ -1010,7 +633,7 @@ function CreateTournamentDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 hover:from-blue-700 hover:via-purple-700 hover:to-blue-700 border-0 disabled:opacity-50">
+            <Button type="submit" disabled={loading} className="disabled:opacity-50">
               {loading ? 'Creating...' : 'Create Tournament'}
             </Button>
           </div>

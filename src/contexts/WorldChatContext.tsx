@@ -33,21 +33,22 @@ interface WorldChatContextType {
 const WorldChatContext = createContext<WorldChatContextType | undefined>(undefined);
 
 export function WorldChatProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const userId = user?.id;
+  const myGamertagRef = React.useRef<string | null>(null);
+  myGamertagRef.current = profile?.gamertag ?? null;
   const [messages, setMessages] = useState<WorldChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [lastReadTimestamp, setLastReadTimestamp] = useState<string | null>(null);
 
   const loadMessages = useCallback(async () => {
-    if (!user) {
-      console.log('[WorldChat] No user authenticated, skipping message load');
+    if (!userId) {
       setMessages([]);
       setLoading(false);
       return;
     }
 
-    console.log('[WorldChat] Loading messages for user:', user.id);
     setLoading(true);
 
     try {
@@ -79,7 +80,6 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
 
-      console.log('[WorldChat] Fetched messages count:', data?.length || 0);
 
       const transformedData = (data || [])
         .slice()
@@ -91,14 +91,18 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
             : (msg.profiles as any) || { gamertag: 'Unknown User', avatar_url: null, wins: 0, losses: 0 }
         })) as WorldChatMessage[];
 
-      console.log('[WorldChat] Transformed messages count:', transformedData.length);
       setMessages(transformedData);
 
       // Calculate unread count
-      const storedTimestamp = localStorage.getItem('world-chat-last-read');
+      let storedTimestamp: string | null = null;
+      try {
+        storedTimestamp = localStorage.getItem('world-chat-last-read');
+      } catch {
+        /* storage unavailable */
+      }
       if (storedTimestamp) {
         const unread = transformedData.filter(
-          msg => msg.user_id !== user.id && new Date(msg.created_at) > new Date(storedTimestamp)
+          msg => msg.user_id !== userId && new Date(msg.created_at) > new Date(storedTimestamp)
         ).length;
         setUnreadCount(unread);
         setLastReadTimestamp(storedTimestamp);
@@ -108,19 +112,14 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user) {
-      console.log('[WorldChat] useEffect: No user, skipping setup');
-      return;
-    }
+    if (!userId) return;
 
-    console.log('[WorldChat] useEffect: Setting up for user:', user.id);
     loadMessages();
 
     // Subscribe to real-time updates
-    console.log('[WorldChat] Setting up real-time subscription');
     const channel = supabase
       .channel('world-chat-global')
       .on(
@@ -131,8 +130,6 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
           table: 'world_chat_messages'
         },
         async (payload) => {
-          console.log('[WorldChat] Real-time INSERT received:', payload.new.id);
-          
           // Fetch the user profile for the new message
           const { data: profile } = await supabase
             .from('profiles')
@@ -159,10 +156,11 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
             }
           } as WorldChatMessage;
 
-          setMessages((prev) => [...prev, newMessage]);
+          // Cap the in-memory list so long sessions don't grow without bound
+          setMessages((prev) => (prev.some((m) => m.id === newMessage.id) ? prev : [...prev, newMessage].slice(-300)));
 
           // Increment unread count if message is from another user
-          if (payload.new.user_id !== user.id) {
+          if (payload.new.user_id !== userId) {
             setUnreadCount((prev) => prev + 1);
           }
 
@@ -171,53 +169,33 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
           const mentionRegex = /@(\w+)/g;
           const mentions = message.match(mentionRegex);
           
-          if (mentions) {
-            // Get current user's gamertag
-            const { data: currentProfile } = await supabase
-              .from('profiles')
-              .select('gamertag')
-              .eq('id', user.id)
-              .single();
-
-            if (currentProfile) {
-              const isMentioned = mentions.some(
-                mention => mention.toLowerCase() === `@${currentProfile.gamertag.toLowerCase()}`
-              );
-
-              if (isMentioned) {
-                // Create notification for mention
-                const senderProfile = profile || { gamertag: 'Someone' };
-                await supabase
-                  .from('notifications')
-                  .insert({
-                    user_id: user.id,
-                    type: 'mention',
-                    title: '💬 You were mentioned',
-                    message: `${senderProfile.gamertag} mentioned you in World Chat`,
-                    link: '/world-chat'
-                  });
-              }
+          const myTag = myGamertagRef.current?.toLowerCase();
+          if (mentions && myTag && payload.new.user_id !== userId) {
+            const isMentioned = mentions.some((mention) => mention.toLowerCase() === `@${myTag}`);
+            if (isMentioned) {
+              const senderProfile = profile || { gamertag: 'Someone' };
+              await supabase.from('notifications').insert({
+                user_id: userId,
+                type: 'mention',
+                title: '💬 You were mentioned',
+                message: `${senderProfile.gamertag} mentioned you in World Chat`,
+                link: '/world-chat'
+              });
             }
           }
         }
       )
-      .subscribe((status) => {
-        console.log('[WorldChat] Subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
-      console.log('[WorldChat] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [user, loadMessages]);
+  }, [userId, loadMessages]);
 
   const sendMessage = useCallback(async (message: string) => {
     if (!user || !message.trim()) {
-      console.log('[WorldChat] Cannot send message - no user or empty message');
       return;
     }
-
-    console.log('[WorldChat] Sending message:', message.substring(0, 50));
 
     const { error } = await supabase
       .from('world_chat_messages')
@@ -231,12 +209,15 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
 
-    console.log('[WorldChat] Message sent successfully');
   }, [user]);
 
   const markAsRead = useCallback(() => {
     const now = new Date().toISOString();
-    localStorage.setItem('world-chat-last-read', now);
+    try {
+      localStorage.setItem('world-chat-last-read', now);
+    } catch {
+      /* storage unavailable */
+    }
     setLastReadTimestamp(now);
     setUnreadCount(0);
   }, []);

@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   ArrowLeft, 
   Bell,
+  Share2,
   BellOff, 
   Calendar, 
   CheckCircle,
@@ -13,7 +14,7 @@ import {
   XCircle
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ConsentModal } from '@/components/ConsentModal';
 import { RefereeApplicationChat } from '@/components/RefereeApplicationChat';
@@ -42,6 +43,7 @@ import { supabase } from '@/db/supabase';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
 import { formatCurrency } from '@/lib/format-number';
 import { formatTimeUntil } from '@/lib/utils';
+import { shareLink, whatsappShareUrl } from '@/lib/share';
 import type { Profile, Tournament } from '@/types/database';
 import { GAME_INFO, GAME_MODES } from '@/types/database';
 
@@ -62,6 +64,23 @@ interface TournamentParticipant {
   created_at: string;
   profiles: Profile;
 }
+
+/** Final-round match id, matching TournamentBracket's `r{round}-m{index}` ids.
+ *  Uses confirmed entrants only (standby players don't get bracket slots),
+ *  counting teams instead of players in team tournaments. */
+function finalMatchIdFor(participants: Array<{ is_standby?: boolean; team_id?: string | null }>, teamSize: number): string {
+  const confirmed = participants.filter((p) => !p.is_standby);
+  const entrants = teamSize > 1 ? new Set(confirmed.map((p) => p.team_id).filter(Boolean)).size : confirmed.length;
+  const rounds = Math.max(1, Math.ceil(Math.log2(Math.max(2, entrants))));
+  return `r${rounds}-m0`;
+}
+
+const ordinal = (place: string) => {
+  if (!/^\d+$/.test(place)) return place;
+  const n = Number(place);
+  const suffix = n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th';
+  return `${n}${suffix}`;
+};
 
 interface JoinTeamDialogProps {
   tournament: Tournament;
@@ -158,6 +177,7 @@ function JoinTeamDialog({ tournament, open, onOpenChange, onSuccess, loading }: 
 
 export default function TournamentDetail() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, profile, refreshProfile } = useAuth();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [participants, setParticipants] = useState<TournamentParticipant[]>([]);
@@ -193,8 +213,9 @@ export default function TournamentDetail() {
 
   const fetchTournamentData = React.useCallback(async () => {
     try {
-      // Fire status update in the background — don't block data fetching
-      supabase.rpc('check_and_update_tournament_status');
+      // Fire status update in the background — don't block data fetching.
+      // (.then() is required: an un-awaited query builder is never sent.)
+      supabase.rpc('check_and_update_tournament_status').then(() => undefined, () => undefined);
 
       // Fetch tournament + participants + user data all in parallel
       const [
@@ -257,8 +278,7 @@ export default function TournamentDetail() {
 
       // Check for tournament winner (final match result)
       if (tournamentData.status === 'completed' || tournamentData.status === 'active' || tournamentData.status === 'live') {
-        const numRounds = Math.ceil(Math.log2(participantsData?.length || 1));
-        const finalMatchId = `r${numRounds}-m0`;
+        const finalMatchId = finalMatchIdFor(participantsData || [], tournamentData.team_size || 1);
 
         const { data: finalMatch } = await supabase
           .from('match_results')
@@ -269,9 +289,8 @@ export default function TournamentDetail() {
           .maybeSingle();
 
         if (finalMatch?.winner_id) {
-          const winner = participantsData?.find(p => p.user_id === finalMatch.winner_id);
+          const winner = participantsData?.find(p => p.user_id === finalMatch.winner_id || (p.team_id && p.team_id === finalMatch.winner_id));
           if (winner) {
-            console.log('Tournament winner detected:', winner.profiles.gamertag);
             setTournamentWinner(winner);
             setTimeout(() => {
               setShowWinnerSpotlight(true);
@@ -361,6 +380,15 @@ export default function TournamentDetail() {
     }
   };
 
+  // Realtime handlers read the latest participants through refs (the
+  // subscription is created once, so plain state would be stale/empty).
+  const participantsRef = React.useRef<TournamentParticipant[]>([]);
+  participantsRef.current = participants;
+  const teamSizeRef = React.useRef(1);
+  teamSizeRef.current = tournament?.team_size || 1;
+  const winnerShownRef = React.useRef(false);
+  winnerShownRef.current = !!tournamentWinner;
+
   const subscribeToUpdates = () => {
     const participantsChannel = supabase
       .channel(`tournament-${id}`)
@@ -407,20 +435,14 @@ export default function TournamentDetail() {
         },
         async (payload) => {
           const newResult = payload.new as any;
-          
-          console.log('Match result updated:', newResult.match_id, 'status:', newResult.status, 'winner:', newResult.winner_id);
-          
+          const current = participantsRef.current;
+
           // Check if this is the final match being confirmed
-          if (newResult.status === 'confirmed' && newResult.winner_id && participants.length > 0) {
-            const numRounds = Math.ceil(Math.log2(participants.length));
-            const finalMatchId = `r${numRounds}-m0`;
-            
-            console.log('Checking if final match:', newResult.match_id, 'vs', finalMatchId);
-            
+          if (newResult.status === 'confirmed' && newResult.winner_id && current.length > 0) {
+            const finalMatchId = finalMatchIdFor(current, teamSizeRef.current);
             if (newResult.match_id === finalMatchId) {
-              const winner = participants.find(p => p.user_id === newResult.winner_id);
-              console.log('Final match winner found:', winner?.profiles.gamertag);
-              if (winner && !tournamentWinner) {
+              const winner = current.find(p => p.user_id === newResult.winner_id || (p.team_id && p.team_id === newResult.winner_id));
+              if (winner && !winnerShownRef.current) {
                 setTournamentWinner(winner);
                 setTimeout(() => {
                   setShowWinnerSpotlight(true);
@@ -763,10 +785,31 @@ export default function TournamentDetail() {
     }
   };
 
+  // Cards link here with ?join=1 when joining needs this page (team form or
+  // missing in-game ID). Start the join flow once the data has loaded.
+  const autoJoinHandled = React.useRef(false);
+  useEffect(() => {
+    if (loading || !tournament || autoJoinHandled.current) return;
+    if (searchParams.get('join') !== '1') return;
+    autoJoinHandled.current = true;
+    const next = new URLSearchParams(searchParams);
+    next.delete('join');
+    setSearchParams(next, { replace: true });
+    if (canJoin) handleJoinTournament();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, tournament?.id, canJoin]);
+
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="h-96 bg-muted/20 animate-pulse rounded-lg" />
+      <div className="space-y-6" aria-busy="true">
+        <div className="h-10 w-40 animate-pulse rounded-lg bg-muted" />
+        <div className="h-14 w-3/4 animate-pulse rounded-lg bg-muted" />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-28 animate-pulse rounded-2xl bg-muted/70" />
+          ))}
+        </div>
+        <div className="h-80 animate-pulse rounded-2xl bg-muted/50" />
       </div>
     );
   }
@@ -790,6 +833,10 @@ export default function TournamentDetail() {
   }
 
   const gameInfo = GAME_INFO[tournament.game];
+  const distribution = (tournament.prize_distribution || {}) as Record<string, number>;
+  const firstPlaceShare = Number(distribution['1st'] ?? distribution['1'] ?? 0.5) || 0.5;
+  const shareText = `${isParticipant ? "I'm playing in" : 'Join me in'} ${tournament.name} on Arena — ${formatArenaCurrency(tournament.prize_pool)} prize pool.`;
+  const shareUrl = `${window.location.origin}/tournaments/${tournament.id}`;
   const startTime = new Date(tournament.start_time);
   const now = new Date();
   const timeUntilStart = startTime.getTime() - now.getTime();
@@ -860,55 +907,64 @@ export default function TournamentDetail() {
           onOpenChange={setShowWinnerSpotlight}
           winner={{
             user_id: tournamentWinner.user_id,
-            gamertag: tournamentWinner.profiles.gamertag,
-            avatar_url: tournamentWinner.profiles.avatar_url
+            gamertag: tournamentWinner.profiles?.gamertag,
+            avatar_url: tournamentWinner.profiles?.avatar_url
           }}
           tournamentId={tournament.id}
           tournamentName={tournament.name}
-          prizeAmount={tournament.prize_pool * ((tournament.prize_distribution as any)['1st'] || 0.5)}
+          prizeAmount={tournament.prize_pool * firstPlaceShare}
           game={tournament.game}
-          totalPlayers={tournament.max_players}
-          duration="2h 34m"
+          totalPlayers={confirmedParticipants.length || tournament.max_players}
         />
       )}
       
-      <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl overflow-x-hidden">
+      <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <div className="space-y-4">
-          <Link to={`/game/${tournament.game}`}>
-            <Button variant="ghost" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to {gameInfo.name}
-            </Button>
+          <Link to={`/game/${tournament.game}`} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+            {gameInfo.name} tournaments
           </Link>
 
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div className="space-y-3">
+          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0 space-y-3">
               <div className="flex items-center gap-3">
-                <img src={gameInfo.logo} alt={gameInfo.name} className="h-16 w-auto" />
-                <Badge 
-                  variant={tournament.status === 'open' ? 'default' : (tournament.status === 'cancelled' ? 'destructive' : 'secondary')}
-                  className={tournament.status === 'open' ? 'bg-gradient-to-r from-blue-600 via-violet-600 to-blue-600 border-0 shadow-lg shadow-blue-500/50' : (tournament.status === 'cancelled' ? 'bg-destructive/80' : '')}
+                <img src={gameInfo.logo} alt="" className="h-12 w-12 rounded-xl object-cover ring-1 ring-white/10" />
+                <Badge
+                  variant={tournament.status === 'cancelled' ? 'destructive' : 'secondary'}
+                  className={tournament.status === 'open' ? 'border-0 bg-primary/20 text-primary-soft' : tournament.status === 'active' ? 'border-0 bg-live/15 text-live' : ''}
                 >
-                  {tournament.status.toUpperCase()}
+                  {tournament.status === 'open' ? (isBeforeStart ? 'Registration open' : 'Starting') : tournament.status === 'active' ? 'Live' : tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
                 </Badge>
+                {(tournament.team_size || 1) > 1 && <Badge variant="outline">{tournament.team_size}v{tournament.team_size}</Badge>}
               </div>
-              <h1 className="text-3xl md:text-5xl font-bold tracking-tight">{tournament.name}</h1>
-              {tournament.description && (
-                <p className="text-muted-foreground text-lg max-w-2xl">{tournament.description}</p>
-              )}
+              <h1 className="text-4xl leading-[0.95] md:text-6xl">{tournament.name}</h1>
+              {tournament.description && <p className="max-w-2xl text-muted-foreground md:text-lg">{tournament.description}</p>}
             </div>
 
-            {canJoin && !isPastTournament && (
-              <Button 
-                size="lg" 
-                onClick={() => handleJoinTournament()}
-                disabled={joining}
-                className="w-full md:w-auto bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 hover:from-blue-700 hover:via-purple-700 hover:to-blue-700 border-0"
-              >
-                {joining ? 'Joining...' : (joinAsStandby ? 'Join as Standby' : 'Join Tournament')}
-              </Button>
-            )}
+            <div className="flex w-full shrink-0 flex-col gap-2 md:w-auto md:items-end">
+            <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+              {canJoin && !isPastTournament && (
+                <Button
+                  size="lg"
+                  onClick={() => handleJoinTournament()}
+                  disabled={joining || checkingGameId}
+                  className="hidden w-full md:inline-flex md:w-auto"
+                >
+                  {joining ? 'Joining…' : joinAsStandby ? 'Join as standby' : (tournament.entry_fee || 0) > 0 ? `Join · ${formatArenaCurrency(tournament.entry_fee)}` : 'Join free'}
+                </Button>
+              )}
+              <div className="flex gap-2">
+                <Button size="lg" variant="outline" className="flex-1 md:flex-none" onClick={() => shareLink({ title: tournament.name, text: shareText, url: shareUrl })}>
+                  <Share2 /> Share
+                </Button>
+                <Button size="lg" variant="outline" className="flex-1 md:flex-none" asChild>
+                  <a href={whatsappShareUrl(shareText, shareUrl)} target="_blank" rel="noopener noreferrer">
+                    WhatsApp
+                  </a>
+                </Button>
+              </div>
+            </div>
 
             {(isPastTournament || tournament.status === 'cancelled') && (
               <Badge variant={tournament.status === 'cancelled' ? 'destructive' : 'secondary'} className="text-sm font-light px-4 py-2">
@@ -945,7 +1001,7 @@ export default function TournamentDetail() {
             )}
             {user && !isPastTournament && tournament.status !== 'cancelled' && (
               <Button 
-                size="lg" 
+                size="sm" 
                 onClick={async () => {
                   if (hasAppliedForReferee) {
                     setRefereeChatOpen(true);
@@ -966,71 +1022,52 @@ export default function TournamentDetail() {
                     }
                   }
                 }}
-                variant="secondary"
-                className="w-full md:w-auto gap-2"
+                variant="ghost"
+                className="gap-2 text-muted-foreground"
               >
                 <Users className="h-4 w-4" />
-                {hasAppliedForReferee ? 'View Referee Application' : 'Apply to be Referee'}
+                {hasAppliedForReferee ? 'View referee application' : 'Apply to referee'}
               </Button>
             )}
+            </div>
           </div>
         </div>
 
-        {/* Quick Stats - Gradient Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-indigo-500/20 via-indigo-600/10 to-transparent border border-indigo-500/20 backdrop-blur-sm">
-            <Trophy className="h-8 w-8 mb-3" style={{ color: '#4f46e5' }} />
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Prize Pool</p>
-              <p 
-                className="text-3xl font-black font-mono tracking-tight"
-                style={{
-                  color: '#4f46e5',
-                  filter: 'drop-shadow(0 1px 3px rgba(79, 70, 229, 0.4))',
-                }}
-              >
-                {formatArenaCurrency(tournament.prize_pool)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-2 font-light">
-                10% platform fee applies
-              </p>
-            </div>
+        {/* Key numbers */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="surface-raised p-4 md:p-5">
+            <Trophy className="mb-3 h-5 w-5 text-gold" />
+            <p className="text-xs text-muted-foreground">Prize pool</p>
+            <p className="font-score text-3xl leading-tight text-gold md:text-4xl">{formatArenaCurrency(tournament.prize_pool)}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">10% platform fee applies</p>
           </div>
-
-          <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-green-500/20 via-green-600/10 to-transparent border border-green-500/20 backdrop-blur-sm">
-            <DollarSign className="h-8 w-8 text-green-400 mb-3" />
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Entry Fee</p>
-              <p className="text-2xl font-bold font-mono">
-                {formatArenaCurrency(tournament.entry_fee)}
-              </p>
-            </div>
+          <div className="surface p-4 md:p-5">
+            <DollarSign className="mb-3 h-5 w-5 text-primary-soft" />
+            <p className="text-xs text-muted-foreground">Entry fee</p>
+            <p className="font-score text-3xl leading-tight md:text-4xl">{(tournament.entry_fee || 0) > 0 ? formatArenaCurrency(tournament.entry_fee) : 'Free'}</p>
+            {(tournament.team_size || 1) > 1 && <p className="mt-1 text-[11px] text-muted-foreground">per player</p>}
           </div>
-
-          <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-blue-500/20 via-blue-600/10 to-transparent border border-blue-500/20 backdrop-blur-sm">
-            <Users className="h-8 w-8 text-blue-400 mb-3" />
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Players</p>
-              <p className="text-2xl font-bold">
-                {formatCompactNumber(confirmedParticipants.length)}/{formatCompactNumber(tournament.max_players)}
-                {participants.length > confirmedParticipants.length && (
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
-                    (+{formatCompactNumber(participants.length - confirmedParticipants.length)} standby)
-                  </span>
-                )}
-              </p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-tighter">
-                Min. {formatCompactNumber(tournament.min_participants || 5)} required
-              </p>
-            </div>
+          <div className="surface p-4 md:p-5">
+            <Users className="mb-3 h-5 w-5 text-primary-soft" />
+            <p className="text-xs text-muted-foreground">Players</p>
+            <p className="font-score text-3xl leading-tight md:text-4xl">
+              {formatCompactNumber(confirmedParticipants.length)}
+              <span className="text-lg text-muted-foreground">/{formatCompactNumber(tournament.max_players)}</span>
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {participants.length > confirmedParticipants.length
+                ? `+${formatCompactNumber(participants.length - confirmedParticipants.length)} standby · `
+                : ''}
+              min {formatCompactNumber(tournament.min_participants || 2)} to start
+            </p>
           </div>
-
-          <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-purple-500/20 via-purple-600/10 to-transparent border border-purple-500/20 backdrop-blur-sm">
-            <Calendar className="h-8 w-8 text-purple-400 mb-3" />
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Starts In</p>
-              <CountdownTimer targetDate={startTime} status={tournament.status} />
-            </div>
+          <div className="surface p-4 md:p-5">
+            <Calendar className="mb-3 h-5 w-5 text-primary-soft" />
+            <p className="text-xs text-muted-foreground">{isBeforeStart ? 'Starts in' : 'Status'}</p>
+            <CountdownTimer targetDate={startTime} status={tournament.status} className="text-3xl leading-tight md:text-4xl" />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {startTime.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </p>
           </div>
         </div>
 
@@ -1039,7 +1076,7 @@ export default function TournamentDetail() {
           {/* Left Column - Tournament Info */}
           <div className="lg:col-span-2 space-y-6">
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-gradient-to-r from-blue-950/30 via-violet-950/30 to-blue-950/30 border border-blue-500/20">
+              <TabsList className="grid w-full grid-cols-3 border border-border bg-card/70">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="rules">Rules</TabsTrigger>
                 <TabsTrigger value="bracket">Bracket</TabsTrigger>
@@ -1047,7 +1084,7 @@ export default function TournamentDetail() {
 
               <TabsContent value="overview" className="space-y-6 mt-6">
                 {/* Tournament Details */}
-                <Card className="border border-blue-500/20 bg-gradient-to-br from-blue-950/20 via-background to-violet-950/20">
+                <Card className="surface">
                   <CardHeader>
                     <CardTitle className="text-2xl">Tournament Details</CardTitle>
                   </CardHeader>
@@ -1080,19 +1117,21 @@ export default function TournamentDetail() {
                     <div className="space-y-4">
                       <p className="text-sm text-muted-foreground uppercase tracking-wider">Prize Distribution</p>
                       <div className="space-y-3">
-                        {Object.entries(tournament.prize_distribution).map(([place, percentage]) => {
-                          const grossAmount = tournament.prize_pool * (percentage as number);
+                        {Object.entries(distribution).map(([place, rawShare]) => {
+                          // Shares are stored as fractions (0.5); tolerate whole percentages (50)
+                          const percentage = Number(rawShare) > 1 ? Number(rawShare) / 100 : Number(rawShare);
+                          const grossAmount = tournament.prize_pool * percentage;
                           const platformFee = grossAmount * 0.10;
                           const netAmount = grossAmount - platformFee;
                           
                           return (
                             <div key={place} className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
-                              <span className="font-semibold text-lg">{place} Place</span>
+                              <span className="font-semibold text-lg">{ordinal(place)} place</span>
                               <div className="text-right">
                                 <div className="text-gold font-mono font-bold text-lg">
                                   {formatArenaCurrency(netAmount)}
                                   <span className="text-sm text-muted-foreground ml-2">
-                                    ({(percentage as number * 100)}%)
+                                    ({Math.round(percentage * 100)}%)
                                   </span>
                                 </div>
                                 <div className="text-xs text-muted-foreground font-light">
@@ -1109,7 +1148,7 @@ export default function TournamentDetail() {
               </TabsContent>
 
               <TabsContent value="rules" className="mt-6">
-                <Card className="border border-violet-500/20 bg-gradient-to-br from-violet-950/20 via-background to-blue-950/20">
+                <Card className="surface">
                   <CardHeader>
                     <CardTitle className="text-2xl">Tournament Rules</CardTitle>
                   </CardHeader>
@@ -1184,7 +1223,7 @@ export default function TournamentDetail() {
 
               <TabsContent value="bracket" className="mt-6">
                 {tournament.status === 'open' && new Date(tournament.start_time) > new Date() ? (
-                  <Card className="border border-blue-500/20 bg-gradient-to-br from-blue-950/20 via-background to-violet-950/20">
+                  <Card className="surface">
                     <CardContent className="py-16">
                       <div className="text-center space-y-6">
                         <div className="flex justify-center">
@@ -1215,7 +1254,7 @@ export default function TournamentDetail() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <Card className="border border-blue-500/20 bg-gradient-to-br from-blue-950/20 via-background to-violet-950/20">
+                  <Card className="surface">
                     <CardHeader>
                       <CardTitle className="text-2xl">Tournament Bracket</CardTitle>
                     </CardHeader>
@@ -1242,7 +1281,7 @@ export default function TournamentDetail() {
           <div className="space-y-6">
             {/* Reminders Section */}
             {user && tournament.status !== 'completed' && (
-              <Card className="border border-blue-500/20 bg-gradient-to-br from-blue-950/20 via-background to-violet-950/20">
+              <Card className="surface">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl font-light">
                     <Bell className="h-5 w-5" />
@@ -1292,7 +1331,7 @@ export default function TournamentDetail() {
               </Card>
             )}
 
-            <Card className="border border-violet-500/20 bg-gradient-to-br from-violet-950/20 via-background to-blue-950/20">
+            <Card className="surface">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between text-xl">
                   <span>Participants</span>
@@ -1318,20 +1357,20 @@ export default function TournamentDetail() {
                               <Trophy className="h-5 w-5 text-foreground" />
                             </div>
                             <Avatar className="h-14 w-14 ring-1 ring-border">
-                              <AvatarImage src={tournamentWinner.profiles.avatar_url || ''} />
+                              <AvatarImage src={tournamentWinner.profiles?.avatar_url || ''} />
                               <AvatarFallback className="bg-muted text-foreground font-light">
-                                {tournamentWinner.profiles.gamertag?.[0]?.toUpperCase() || 'W'}
+                                {tournamentWinner.profiles?.gamertag?.[0]?.toUpperCase() || 'W'}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-3 mb-1">
                                 <p className="font-light text-xl text-foreground">
-                                  {tournamentWinner.profiles.gamertag || 'Champion'}
+                                  {tournamentWinner.profiles?.gamertag || 'Champion'}
                                 </p>
                                 <Badge variant="outline" className="font-light text-xs">Winner</Badge>
                               </div>
                               <p className="text-sm font-light text-muted-foreground">
-                                Prize: A${(tournament.prize_pool * ((tournament.prize_distribution as any)['1st'] || 0.5)).toFixed(2)}
+                                Prize: {formatArenaCurrency(tournament.prize_pool * firstPlaceShare)}
                               </p>
                             </div>
                           </div>
@@ -1351,15 +1390,15 @@ export default function TournamentDetail() {
                               <span className="gradient-primary-text">{tournamentWinner ? index + 2 : index + 1}</span>
                             </div>
                             <Avatar className="h-10 w-10">
-                              <AvatarImage src={participant.profiles.avatar_url || ''} />
+                              <AvatarImage src={participant.profiles?.avatar_url || ''} />
                               <AvatarFallback>
-                                {participant.profiles.gamertag?.[0]?.toUpperCase() || 'P'}
+                                {participant.profiles?.gamertag?.[0]?.toUpperCase() || 'P'}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="font-semibold truncate">
-                                  {participant.profiles.gamertag || 'Anonymous'}
+                                  {participant.profiles?.gamertag || 'Anonymous'}
                                 </p>
                                 {participant.is_standby && (
                                   <Badge variant="outline" className="h-4 text-[10px] px-1 font-light border-blue-500/30 text-blue-400">
@@ -1405,11 +1444,11 @@ export default function TournamentDetail() {
                                     {group.members.map(m => (
                                       <div key={m.id} className="flex items-center gap-2 text-sm p-1 rounded hover:bg-white/5 transition-colors">
                                         <Avatar className="h-6 w-6">
-                                          <AvatarImage src={m.profiles.avatar_url || ''} />
-                                          <AvatarFallback className="text-[10px]">{m.profiles.gamertag?.[0]?.toUpperCase()}</AvatarFallback>
+                                          <AvatarImage src={m.profiles?.avatar_url || ''} />
+                                          <AvatarFallback className="text-[10px]">{m.profiles?.gamertag?.[0]?.toUpperCase()}</AvatarFallback>
                                         </Avatar>
-                                        <span className="truncate flex-1 font-light">{m.profiles.gamertag}</span>
-                                        {m.user_id === teams[teamId].captain_id && <Badge variant="secondary" className="text-[8px] h-4 px-1">Captain</Badge>}
+                                        <span className="truncate flex-1 font-light">{m.profiles?.gamertag}</span>
+                                        {m.user_id === teams[teamId]?.captain_id && <Badge variant="secondary" className="text-[8px] h-4 px-1">Captain</Badge>}
                                       </div>
                                     ))}
                                   </div>
@@ -1440,8 +1479,8 @@ export default function TournamentDetail() {
                     <Users className="h-16 w-16 mx-auto" style={{ color: '#3b82f6', filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 0.6))' }} />
                     <h4 className="font-semibold text-lg">Tournament Full!</h4>
                     <p className="text-sm text-muted-foreground">
-                      Main spots are filled, but you can still join as a **Standby Player**. 
-                      If someone doesn't check in, you'll be automatically assigned to their match!
+                      Main spots are filled, but you can still join as a <span className="font-semibold text-foreground">standby player</span>.
+                      If someone doesn't check in, you'll be slotted into their match automatically.
                     </p>
                   </div>
                 </CardContent>
@@ -1450,6 +1489,23 @@ export default function TournamentDetail() {
           </div>
         </div>
       </div>
+      {canJoin && !isPastTournament && <div className="h-20 md:hidden" aria-hidden />}
+
+      {/* Sticky join bar on phones, above the bottom navigation */}
+      {canJoin && !isPastTournament && (
+        <div className="fixed inset-x-0 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-xl md:hidden" style={{ bottom: 'calc(4rem + var(--safe-bottom))' }}>
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">{joinAsStandby ? 'Standby spot' : 'Entry'}</p>
+              <p className="font-score text-xl leading-none">{(tournament.entry_fee || 0) > 0 ? formatArenaCurrency(tournament.entry_fee) : 'Free'}</p>
+            </div>
+            <Button size="lg" onClick={() => handleJoinTournament()} disabled={joining || checkingGameId} className="min-w-40">
+              {joining ? 'Joining…' : (tournament.team_size || 1) > 1 ? 'Register team' : joinAsStandby ? 'Join standby' : 'Join tournament'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Dialog open={refereeChatOpen} onOpenChange={setRefereeChatOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 border-none bg-transparent">
           {refereeApplicationId && user && (

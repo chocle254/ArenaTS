@@ -10,19 +10,19 @@ import { WorldChatProvider } from '@/contexts/WorldChatContext';
 export function AllProviders({ children }: { children: React.ReactNode }) {
   return (
     <HelmetProvider>
-      <TooltipProvider>
-        <AuthProvider>
-          <WorldChatProvider>
-            <DirectMessageProvider>
-              <ChallengeProvider>
-                <Router>
-                  {children}
-                </Router>
-              </ChallengeProvider>
-            </DirectMessageProvider>
-          </WorldChatProvider>
-        </AuthProvider>
-      </TooltipProvider>
+      {/* Router wraps every provider so anything they render (e.g. the incoming
+          challenge modal) can link and navigate. */}
+      <Router>
+        <TooltipProvider>
+          <AuthProvider>
+            <WorldChatProvider>
+              <DirectMessageProvider>
+                <ChallengeProvider>{children}</ChallengeProvider>
+              </DirectMessageProvider>
+            </WorldChatProvider>
+          </AuthProvider>
+        </TooltipProvider>
+      </Router>
     </HelmetProvider>
   );
 }

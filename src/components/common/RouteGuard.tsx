@@ -36,14 +36,18 @@ export function RouteGuard({ children }: RouteGuardProps) {
     const isPublic = matchPublicRoute(location.pathname, PUBLIC_ROUTES);
 
     if (!user && !isPublic) {
-      navigate('/', { state: { from: location.pathname }, replace: true });
+      // Send signed-out visitors to sign in, then back to where they were going
+      // (e.g. a tournament link shared on WhatsApp).
+      const next = `${location.pathname}${location.search}`;
+      navigate(next === '/dashboard' ? '/sign-in' : `/sign-in?next=${encodeURIComponent(next)}`, { replace: true });
     }
-  }, [user, loading, location.pathname, navigate]);
+  }, [user, loading, location.pathname, location.search, navigate]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
+        <img src="/images/crest-128.webp" alt="" className="h-16 w-16 animate-pulse" width={64} height={64} />
+        <span className="sr-only">Loading Arena</span>
       </div>
     );
   }

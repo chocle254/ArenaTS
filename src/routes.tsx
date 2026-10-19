@@ -1,12 +1,14 @@
-import { lazy } from 'react';
 import type { ReactNode } from 'react';
+import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry';
 
 // Lazy-loaded pages: each page's code is only downloaded when the user
-// actually navigates to that route, instead of all being bundled into
-// one large chunk loaded on first visit.
+// actually navigates to that route. lazyWithRetry recovers from stale chunks
+// after a new deploy instead of showing a blank screen.
 const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
 const AdminKYC = lazy(() => import('@/pages/AdminKYC'));
 const AdminReferees = lazy(() => import('@/pages/AdminReferees'));
+const Achievements = lazy(() => import('@/pages/Achievements'));
+const AuthCallback = lazy(() => import('@/pages/AuthCallback'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const DirectMessages = lazy(() => import('@/pages/DirectMessages'));
 const ExchangeRates = lazy(() => import('@/pages/ExchangeRates'));
@@ -138,6 +140,12 @@ export const routes: RouteConfig[] = [
     public: false,
   },
   {
+    name: 'Achievements',
+    path: '/achievements',
+    element: <Achievements />,
+    public: false,
+  },
+  {
     name: 'Notifications',
     path: '/notifications',
     element: <NotificationsPage />,
@@ -190,6 +198,12 @@ export const routes: RouteConfig[] = [
     path: '/payment-success',
     element: <PaymentSuccess />,
     public: false,
+  },
+  {
+    name: 'Signing in',
+    path: '/auth/callback',
+    element: <AuthCallback />,
+    public: true,
   },
   {
     name: 'Not Found',

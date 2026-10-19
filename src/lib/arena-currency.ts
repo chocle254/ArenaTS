@@ -8,15 +8,25 @@ export function formatCompactNumber(number: number): string {
 }
 
 /**
- * Format Arena Currency with A$ prefix and compact notation for large amounts
- * 1$ = 100 AC
+ * Format Arena Currency as "1,250 AC" / "12.4K AC" (100 AC = $1).
+ * Previously rendered as "A$1250", which read as Australian dollars and
+ * didn't match the "AC" used on the wallet packs.
  */
 export function formatArenaCurrency(amount: number): string {
-  const roundedAmount = Math.floor(amount);
-  if (roundedAmount < 1000) {
-    return `A$${roundedAmount}`;
+  const safe = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+  const roundedAmount = Math.floor(safe);
+  if (Math.abs(roundedAmount) < 1000) {
+    return `${roundedAmount.toLocaleString()} AC`;
   }
-  return `A$${formatLargeNumber(roundedAmount)}`;
+  return `${roundedAmount < 0 ? '-' : ''}${formatLargeNumber(Math.abs(roundedAmount))} AC`;
+}
+
+/** Number part only, for places that render the AC unit separately (e.g. with a coin icon). */
+export function formatArenaAmount(amount: number): string {
+  const safe = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+  const roundedAmount = Math.floor(safe);
+  if (Math.abs(roundedAmount) < 1000) return roundedAmount.toLocaleString();
+  return `${roundedAmount < 0 ? '-' : ''}${formatLargeNumber(Math.abs(roundedAmount))}`;
 }
 
 /**
@@ -52,4 +62,16 @@ export function calculateFinalPrizePool(
   const finalPool = totalPool - platformFee;
   
   return { totalPool, platformFee, finalPool };
+}
+
+/**
+ * Lifetime cash winnings (profiles.total_earnings). Payout functions credit this
+ * alongside the withdrawable USD balance, so it is shown in dollars.
+ */
+export function formatEarnings(amount: number | null | undefined): string {
+  const value = Number(amount) || 0;
+  if (Math.abs(value) >= 10_000) {
+    return `$${new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}`;
+  }
+  return `$${value.toLocaleString('en-US', { minimumFractionDigits: value % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 }

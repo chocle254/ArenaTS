@@ -105,7 +105,7 @@ export default function Landing() {
           </div>
           <div className="landing-stats fade-in-up" style={{ animationDelay: '0.4s' }}>
             <div className="landing-stat">
-              <div className="landing-stat-number">12+</div>
+              <div className="landing-stat-number">10+</div>
               <div className="landing-stat-label">GAMES</div>
             </div>
             <div className="landing-stat-divider" />
@@ -115,8 +115,8 @@ export default function Landing() {
             </div>
             <div className="landing-stat-divider" />
             <div className="landing-stat">
-              <div className="landing-stat-number">A$</div>
-              <div className="landing-stat-label">REAL REWARDS</div>
+              <div className="landing-stat-number">CASH</div>
+              <div className="landing-stat-label">PRIZE PAYOUTS</div>
             </div>
             <div className="landing-stat-divider" />
             <div className="landing-stat">

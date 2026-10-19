@@ -1,10 +1,7 @@
-
+import { Coins, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatArenaCurrency } from '@/lib/arena-currency';
 
 interface ConsentModalProps {
@@ -19,6 +16,7 @@ interface ConsentModalProps {
   loading?: boolean;
 }
 
+/** Confirms an Arena Currency charge and shows the balance before and after. */
 export function ConsentModal({
   open,
   onOpenChange,
@@ -26,71 +24,55 @@ export function ConsentModal({
   description,
   amount,
   onConfirm,
-  confirmText = 'Agree & Continue',
-  cancelText = 'Decline',
+  confirmText,
+  cancelText = 'Cancel',
   loading = false,
 }: ConsentModalProps) {
+  const { profile } = useAuth();
+  const balance = Number(profile?.arena_currency ?? 0);
+  const after = balance - amount;
+  const label = confirmText || `Pay ${formatArenaCurrency(amount)}`;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 overflow-hidden border-none bg-transparent shadow-none">
-        <Card className="w-full backdrop-blur-card border-border relative overflow-hidden">
-          {/* Gradient Background - matching SignIn styling */}
-          <div 
-            className="absolute inset-0 opacity-15 pointer-events-none"
-            style={{
-              background: 'linear-gradient(to right, #2563eb 0%, #9333ea 50%, #2563eb 100%)'
-            }}
-          />
-          
-          <div className="relative z-10">
-            <CardHeader className="space-y-2 pb-6">
-              <CardTitle className="text-3xl font-display text-center gradient-text">
-                CONFIRMATION
-              </CardTitle>
-              <CardDescription className="text-center text-muted-foreground">
-                Please confirm the deduction of Arena Currency
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="px-8 space-y-6">
-              <div className="text-center space-y-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-light text-muted-foreground uppercase tracking-widest">Action</p>
-                  <p className="text-xl font-medium text-foreground">{title}</p>
-                </div>
-                
-                <p className="text-sm text-muted-foreground font-light leading-relaxed">
-                  {description}
-                </p>
-                
-                <div className="py-4 px-6 rounded-2xl bg-primary/5 border border-primary/10 inline-block mx-auto">
-                  <p className="text-xs font-medium text-primary uppercase tracking-widest mb-1">Amount to deduct</p>
-                  <p className="text-4xl font-bold font-mono text-primary">
-                    {formatArenaCurrency(amount)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-            
-            <CardFooter className="flex flex-col gap-3 px-8 pb-8 mt-4">
-              <Button 
-                onClick={onConfirm} 
-                className="w-full h-12 text-lg font-semibold sheen-effect"
-                disabled={loading}
-              >
-                {loading ? 'Processing...' : confirmText}
-              </Button>
-              <Button 
-                variant="ghost" 
-                onClick={() => onOpenChange(false)}
-                className="w-full hover:bg-white/5 text-muted-foreground"
-                disabled={loading}
-              >
-                {cancelText}
-              </Button>
-            </CardFooter>
+    <Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
+      <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
+        <div className="space-y-5 p-6 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gold/15">
+              <Coins className="h-5 w-5 text-gold" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="text-xl leading-tight">{title}</DialogTitle>
+              <DialogDescription className="mt-1 text-sm">{description}</DialogDescription>
+            </div>
           </div>
-        </Card>
+
+          <dl className="space-y-2 rounded-xl border border-border bg-background/40 p-4 text-sm">
+            <div className="flex items-center justify-between">
+              <dt className="text-muted-foreground">Your balance</dt>
+              <dd className="font-score text-base">{formatArenaCurrency(balance)}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-muted-foreground">Charge</dt>
+              <dd className="font-score text-base text-gold">−{formatArenaCurrency(amount)}</dd>
+            </div>
+            <div className="h-px bg-border" />
+            <div className="flex items-center justify-between">
+              <dt className="font-semibold">After</dt>
+              <dd className={`font-score text-lg ${after < 0 ? 'text-destructive' : ''}`}>{formatArenaCurrency(after)}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t border-border bg-background/30 p-4 sm:flex-row sm:justify-end">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
+            {cancelText}
+          </Button>
+          <Button onClick={onConfirm} disabled={loading || after < 0} className="sm:min-w-40">
+            {loading && <Loader2 className="animate-spin" />}
+            {loading ? 'Processing…' : label}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

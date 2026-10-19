@@ -25,6 +25,8 @@ export default {
         extend: {
             fontFamily: {
                 montserrat: ['Montserrat', 'sans-serif'],
+                display: ['Rajdhani', 'Montserrat', 'sans-serif'],
+                score: ['Rajdhani', 'Montserrat', 'sans-serif'],
             },
             colors: {
                 border: 'hsl(var(--border))',
@@ -65,6 +67,8 @@ export default {
                     foreground: 'hsl(var(--success-foreground))'
                 },
                 gold: 'hsl(var(--gold))',
+                live: 'hsl(var(--live))',
+                'primary-soft': 'hsl(var(--primary-soft))',
                 chart: {
                     '1': 'hsl(var(--chart-1))',
                     '2': 'hsl(var(--chart-2))',
@@ -105,6 +109,9 @@ export default {
                         transform: 'translateY(0)'
                     }
                 },
+                shimmer: {
+                    '100%': { transform: 'translateX(100%)' }
+                },
                 'slide-in': {
                     from: {
                         opacity: '0',
@@ -120,7 +127,8 @@ export default {
                 'accordion-down': 'accordion-down 0.2s ease-out',
                 'accordion-up': 'accordion-up 0.2s ease-out',
                 'fade-in': 'fade-in 0.5s ease-out',
-                'slide-in': 'slide-in 0.5s ease-out'
+                'slide-in': 'slide-in 0.5s ease-out',
+                shimmer: 'shimmer 1.6s infinite'
             }
         }
     },

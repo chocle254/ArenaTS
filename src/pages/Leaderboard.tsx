@@ -1,276 +1,210 @@
-import { motion } from 'framer-motion';
-import { Award, Medal, Star, TrendingUp, Trophy } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Crown, Trophy } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { EmptyState } from '@/components/arena/Rail';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
+import { formatCompactNumber, formatEarnings } from '@/lib/arena-currency';
+import { getLevelInfo } from '@/lib/progression';
+import { cn } from '@/lib/utils';
 import type { Profile } from '@/types/database';
 
-interface LeaderboardPlayer extends Profile {
-  rank: number;
+type Board = 'earnings' | 'wins' | 'streak';
+
+const BOARDS: { key: Board; label: string; column: string; describe: string }[] = [
+  { key: 'earnings', label: 'Top earners', column: 'total_earnings', describe: 'Lifetime prize money won on Arena.' },
+  { key: 'wins', label: 'Most wins', column: 'wins', describe: 'Total match wins across quick matches and tournaments.' },
+  { key: 'streak', label: 'Hot streaks', column: 'current_streak', describe: 'Players on the longest active win streak.' },
+];
+
+const COLUMNS = 'id, gamertag, avatar_url, role, wins, losses, total_earnings, current_streak, tournaments_played';
+
+type Row = Pick<Profile, 'id' | 'gamertag' | 'avatar_url' | 'role' | 'wins' | 'losses' | 'total_earnings' | 'current_streak' | 'tournaments_played'>;
+
+function metric(board: Board, p: Row): { value: string; className?: string } {
+  if (board === 'earnings') return { value: formatEarnings(p.total_earnings), className: 'text-gold' };
+  if (board === 'wins') return { value: `${formatCompactNumber(p.wins || 0)} W` };
+  return { value: `${p.current_streak || 0} 🔥` };
 }
 
+const PODIUM = {
+  1: { ring: 'ring-gold', bar: 'from-gold/60 to-gold/5', h: 'h-28 md:h-36', label: 'text-gold' },
+  2: { ring: 'ring-slate-300', bar: 'from-slate-300/40 to-slate-300/5', h: 'h-20 md:h-24', label: 'text-slate-200' },
+  3: { ring: 'ring-amber-600', bar: 'from-amber-600/50 to-amber-600/5', h: 'h-14 md:h-16', label: 'text-amber-500' },
+} as const;
+
 export default function Leaderboard() {
-  const [players, setPlayers] = useState<LeaderboardPlayer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, profile } = useAuth();
+  const reduceMotion = useReducedMotion();
+  const [board, setBoard] = useState<Board>('earnings');
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [myRank, setMyRank] = useState<number | null>(null);
+
+  const config = BOARDS.find((b) => b.key === board)!;
 
   useEffect(() => {
-    fetchLeaderboard();
-  }, []);
+    let cancelled = false;
+    setRows(null);
+    setMyRank(null);
+    supabase
+      .from('profiles')
+      .select(COLUMNS)
+      .order(config.column, { ascending: false, nullsFirst: false })
+      .order('wins', { ascending: false, nullsFirst: false })
+      .limit(50)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) console.error('Error fetching leaderboard:', error);
+        setRows(((data as Row[]) || []).filter((r) => board !== 'streak' || (r.current_streak || 0) > 0));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [board, config.column]);
 
-  const fetchLeaderboard = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('total_earnings', { ascending: false })
-        .limit(50);
+  // Where the signed-in player stands when they're outside the top 50
+  useEffect(() => {
+    if (!rows || !user || !profile || rows.some((r) => r.id === user.id)) return;
+    const mine = Number((profile as unknown as Record<string, unknown>)[config.column]) || 0;
+    if (mine <= 0) return;
+    let cancelled = false;
+    supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .gt(config.column, mine)
+      .then(({ count }) => {
+        if (!cancelled && typeof count === 'number') setMyRank(count + 1);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rows, user, profile, config.column]);
 
-      if (error) throw error;
-
-      const rankedPlayers = (data || []).map((player, index) => ({
-        ...player,
-        rank: index + 1
-      }));
-
-      setPlayers(rankedPlayers);
-    } catch (error) {
-      console.error('Error fetching leaderboard:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="container mx-auto p-4 md:p-8 space-y-8 max-w-5xl">
-        <Skeleton className="h-12 w-64 bg-muted" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-48 w-full bg-muted" />
-          ))}
-        </div>
-        {[...Array(10)].map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full mb-3 bg-muted" />
-        ))}
-      </div>
-    );
-  }
-
-  const top3 = players.slice(0, 3);
-  const remainingPlayers = players.slice(3);
+  const podium = useMemo(() => (rows || []).slice(0, 3), [rows]);
+  const rest = useMemo(() => (rows || []).slice(3), [rows]);
 
   return (
-    <div className="container mx-auto p-4 md:p-8 space-y-12 max-w-5xl animate-in fade-in duration-700">
-      <div className="text-center space-y-2">
-        <Badge variant="outline" className="px-4 py-1 text-primary border-primary/20 bg-primary/5 uppercase tracking-widest text-[10px] font-bold">
-          The Hall of Fame
-        </Badge>
-        <h1 className="text-4xl md:text-5xl font-display font-bold tracking-tight">
-          Leaderboard
-        </h1>
-        <p className="text-muted-foreground max-w-lg mx-auto text-sm md:text-base">
-          Recognizing the elite competitors who dominate the arena.
-        </p>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl">Leaderboard</h1>
+          <p className="text-muted-foreground">{config.describe}</p>
+        </div>
       </div>
 
-      {/* Podium Section */}
-      {top3.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end relative py-8">
-          {/* Rank 2 (Silver) - Rendered first on desktop, second on mobile */}
-          {top3[1] && (
-            <div className="order-2 md:order-1 h-full flex flex-col justify-end">
-              <PodiumCard player={top3[1]} rank={2} />
-            </div>
-          )}
-          
-          {/* Rank 1 (Gold) - Center */}
-          {top3[0] && (
-            <div className="order-1 md:order-2 h-full">
-              <PodiumCard player={top3[0]} rank={1} isMain />
-            </div>
-          )}
-          
-          {/* Rank 3 (Bronze) - Last */}
-          {top3[2] && (
-            <div className="order-3 h-full flex flex-col justify-end">
-              <PodiumCard player={top3[2]} rank={3} />
-            </div>
-          )}
-        </div>
-      )}
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-card/60 p-1 scrollbar-hide sm:w-fit" role="tablist" aria-label="Leaderboard">
+        {BOARDS.map((b) => (
+          <button
+            key={b.key}
+            type="button"
+            role="tab"
+            aria-selected={board === b.key}
+            onClick={() => setBoard(b.key)}
+            className={cn(
+              'flex-1 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:flex-none',
+              board === b.key ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Remaining Players List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-6 py-2 border-b border-border/50">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Rank & Player</span>
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground hidden md:inline">Stats</span>
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Earnings</span>
-        </div>
-        
+      {rows === null ? (
         <div className="space-y-3">
-          {remainingPlayers.map((player) => (
-            <LeaderboardRow key={player.id} player={player} />
+          <Skeleton className="h-56 w-full rounded-2xl" />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
-          
-          {players.length === 0 && (
-            <div className="glassmorphism-card py-20 text-center">
-              <Trophy className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-30" />
-              <p className="text-muted-foreground font-medium">No competitors have entered the arena yet.</p>
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState icon={<Trophy className="h-5 w-5" />} title="Nobody here yet" description="Win a match to put your name on the board." />
+      ) : (
+        <>
+          {/* Podium: 2 · 1 · 3 */}
+          <section className="surface overflow-hidden px-3 pt-6 md:px-8" aria-label="Top three">
+            <div className="grid grid-cols-3 items-end gap-2 md:gap-6">
+              {[podium[1], podium[0], podium[2]].map((p, i) => {
+                if (!p) return <div key={`empty-${i}`} />;
+                const rank = (i === 1 ? 1 : i === 0 ? 2 : 3) as 1 | 2 | 3;
+                const style = PODIUM[rank];
+                const m = metric(board, p);
+                return (
+                  <motion.div
+                    key={p.id}
+                    initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: rank === 1 ? 0.25 : rank === 2 ? 0.1 : 0.4, type: 'spring', damping: 20 }}
+                    className="flex min-w-0 flex-col items-center"
+                  >
+                    <Link to={`/profile/${p.id}`} className="group flex min-w-0 max-w-full flex-col items-center text-center">
+                      {rank === 1 && <Crown className="mb-1 h-6 w-6 text-gold" aria-hidden />}
+                      <Avatar className={cn('ring-2 ring-offset-2 ring-offset-card', style.ring, rank === 1 ? 'h-20 w-20 md:h-24 md:w-24' : 'h-14 w-14 md:h-20 md:w-20')}>
+                        <AvatarImage src={p.avatar_url || undefined} alt="" />
+                        <AvatarFallback className="font-score text-xl">{p.gamertag?.[0]?.toUpperCase() || '?'}</AvatarFallback>
+                      </Avatar>
+                      <span className="mt-2 w-full truncate font-score text-base font-bold group-hover:text-primary-soft md:text-xl">{p.gamertag || 'Player'}</span>
+                      <span className={cn('font-score text-lg font-bold md:text-2xl', m.className)}>{m.value}</span>
+                    </Link>
+                    <div className={cn('mt-3 flex w-full items-start justify-center rounded-t-xl bg-gradient-to-b pt-2', style.bar, style.h)}>
+                      <span className={cn('font-score text-3xl font-bold md:text-4xl', style.label)}>{rank}</span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </section>
+
+          {rest.length > 0 && (
+            <ol className="space-y-2" start={4}>
+              {rest.map((p, idx) => (
+                <LeaderRow key={p.id} rank={idx + 4} player={p} board={board} isMe={p.id === user?.id} />
+              ))}
+            </ol>
+          )}
+
+          {myRank && profile && (
+            <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-4">
+              <LeaderRow rank={myRank} player={profile as unknown as Row} board={board} isMe />
             </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
 
-function PodiumCard({ player, rank, isMain = false }: { player: LeaderboardPlayer; rank: number; isMain?: boolean }) {
-  const getRankColor = (rank: number) => {
-    switch (rank) {
-      case 1: return 'from-yellow-400 via-gold to-yellow-600';
-      case 2: return 'from-slate-300 via-slate-400 to-slate-500';
-      case 3: return 'from-amber-600 via-amber-700 to-amber-800';
-      default: return 'from-muted to-muted-foreground';
-    }
-  };
-
-  const getRankIcon = (rank: number) => {
-    switch (rank) {
-      case 1: return <Trophy className="h-8 w-8 text-yellow-900" />;
-      case 2: return <Medal className="h-6 w-6 text-slate-900" />;
-      case 3: return <Award className="h-6 w-6 text-amber-900" />;
-      default: return null;
-    }
-  };
-
+function LeaderRow({ rank, player, board, isMe }: { rank: number; player: Row; board: Board; isMe?: boolean }) {
+  const m = metric(board, player);
+  const level = getLevelInfo(player).level;
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: rank * 0.1, duration: 0.8, type: 'spring' }}
-      className={`relative group ${isMain ? 'md:-translate-y-8 z-20' : 'z-10'}`}
-    >
-      {/* Decorative Light Behind */}
-      {isMain && (
-        <div className="absolute inset-0 bg-primary/10 blur-[80px] -z-10 rounded-full scale-150" />
-      )}
-
-      <Card className={`glassmorphism-card border-none p-0 overflow-hidden text-center transition-all duration-500 hover:scale-[1.02] ${
-        isMain ? 'ring-2 ring-gold/30 shadow-[0_0_30px_rgba(212,175,55,0.1)]' : 'ring-1 ring-border/50'
-      }`}>
-        {/* Header Background */}
-        <div className={`h-2 w-full bg-gradient-to-r ${getRankColor(rank)}`} />
-        
-        <CardContent className="p-6 pt-8 space-y-4">
-          <div className="relative mx-auto w-fit">
-            <div className={`absolute -top-4 -right-4 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${getRankColor(rank)} shadow-lg`}>
-              {getRankIcon(rank)}
-            </div>
-            <Avatar className={`mx-auto ring-offset-4 ring-offset-background transition-transform duration-500 group-hover:scale-105 ${
-              isMain ? 'h-24 w-24 ring-4 ring-gold' : 'h-20 w-20 ring-2 ring-slate-400/50'
-            }`}>
-              <AvatarImage src={player.avatar_url || ''} alt={player.gamertag || 'Player'} />
-              <AvatarFallback className="text-2xl font-bold bg-muted">
-                {player.gamertag?.[0]?.toUpperCase() || 'P'}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-
-          <div className="space-y-1">
-            <h3 className={`font-display font-bold tracking-tight px-2 leading-tight ${isMain ? 'text-2xl' : 'text-xl'}`}>
-              {player.gamertag || 'Anonymous'}
-            </h3>
-            <div className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-              <Star className="h-3 w-3 fill-current" />
-              <span>Rank #{player.rank}</span>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-border/20 grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Wins</p>
-              <p className="text-lg font-bold font-display">{formatCompactNumber(player.wins || 0)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Win Rate</p>
-              <p className="text-lg font-bold font-display">{player.win_rate?.toFixed(0) || '0'}%</p>
-            </div>
-          </div>
-
-          <div className={`mt-4 py-2 px-4 rounded-lg flex items-center justify-center gap-2 ${
-            isMain ? 'bg-gold/10 text-gold' : 'bg-primary/5 text-primary'
-          }`}>
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Earned</span>
-            <span className="font-mono font-bold text-lg">{formatArenaCurrency(player.total_earnings || 0)}</span>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
-
-function LeaderboardRow({ player }: { player: LeaderboardPlayer }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="glassmorphism-card p-4 flex items-center justify-between gap-4 group hover:bg-white/5 transition-all duration-300"
-    >
-      <div className="flex items-center gap-4 flex-1 min-w-0">
-        <div className="w-8 flex-shrink-0 text-center">
-          <span className="text-lg font-display font-bold text-muted-foreground/40 group-hover:text-primary transition-colors">
-            #{player.rank}
-          </span>
-        </div>
-
-        <Avatar className="h-10 w-10 flex-shrink-0 border border-border group-hover:border-primary/50 transition-colors">
-          <AvatarImage src={player.avatar_url || ''} alt={player.gamertag || 'Player'} />
-          <AvatarFallback className="bg-muted text-xs">
-            {player.gamertag?.[0]?.toUpperCase() || 'P'}
-          </AvatarFallback>
+    <li className="list-none">
+      <Link
+        to={`/profile/${player.id}`}
+        className={cn(
+          'flex items-center gap-3 rounded-xl border p-3 transition-colors',
+          isMe ? 'border-primary/60 bg-primary/15 backdrop-blur' : 'border-border bg-card/70 hover:border-primary/40',
+        )}
+      >
+        <span className="w-8 shrink-0 text-center font-score text-lg font-bold text-muted-foreground">{rank}</span>
+        <Avatar className="h-10 w-10 shrink-0">
+          <AvatarImage src={player.avatar_url || undefined} alt="" />
+          <AvatarFallback className="font-score">{player.gamertag?.[0]?.toUpperCase() || '?'}</AvatarFallback>
         </Avatar>
-
-        <div className="flex-1 min-w-0 pr-4">
-          <div className="font-display font-bold text-base md:text-lg text-foreground group-hover:text-primary transition-colors leading-tight break-words">
-            {player.gamertag || 'Anonymous Player'}
-          </div>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge variant="outline" className="text-[8px] h-4 uppercase border-border/50 text-muted-foreground font-bold tracking-tighter">
-              Level {Math.floor((player.wins || 0) / 10) + 1}
-            </Badge>
-            {player.role === 'admin' && (
-              <Badge variant="secondary" className="text-[8px] h-4 uppercase font-bold tracking-tighter">
-                Admin
-              </Badge>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="hidden md:flex items-center gap-12 flex-shrink-0 mr-12 text-center">
-        <div>
-          <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-tighter mb-0.5">Wins</p>
-          <p className="font-display font-bold text-sm">{formatCompactNumber(player.wins || 0)}</p>
-        </div>
-        <div>
-          <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-tighter mb-0.5">Rate</p>
-          <p className="font-display font-bold text-sm flex items-center gap-1">
-            <TrendingUp className="h-3 w-3 text-green-500" />
-            {player.win_rate?.toFixed(1) || '0.0'}%
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">
+            {player.gamertag || 'Player'}
+            {isMe && <span className="ml-2 text-xs font-normal text-primary-soft">You</span>}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            Level {level}, {formatCompactNumber(player.wins || 0)}W {formatCompactNumber(player.losses || 0)}L
           </p>
         </div>
-      </div>
-
-      <div className="text-right flex-shrink-0 bg-primary/5 group-hover:bg-primary/10 px-4 py-2 rounded-lg transition-colors min-w-[100px]">
-        <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-tighter mb-0.5">Earnings</p>
-        <p className="text-primary font-mono font-bold text-base md:text-lg">
-          {formatArenaCurrency(player.total_earnings || 0)}
-        </p>
-      </div>
-    </motion.div>
+        <span className={cn('shrink-0 font-score text-lg font-bold', m.className)}>{m.value}</span>
+      </Link>
+    </li>
   );
 }

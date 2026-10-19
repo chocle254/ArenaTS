@@ -15,7 +15,7 @@ export default function Friends() {
   return (
     <div className="container max-w-5xl py-8 space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-display font-bold gradient-text">Social Center</h1>
+        <h1 className="text-4xl">Friends</h1>
         <p className="text-muted-foreground">Manage your connections and coordinate with fellow competitors</p>
       </div>
 

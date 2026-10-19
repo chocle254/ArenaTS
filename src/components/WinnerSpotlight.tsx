@@ -1,302 +1,167 @@
-import { Share2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { Crown, Share2, X } from 'lucide-react';
+import { useEffect, useMemo } from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/db/supabase';
+import { formatArenaCurrency } from '@/lib/arena-currency';
+import { shareLink, whatsappShareUrl } from '@/lib/share';
+import { GAME_INFO, type GameType } from '@/types/database';
 
 interface WinnerSpotlightProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   winner: {
     user_id: string;
-    gamertag: string | null;
-    avatar_url: string | null;
+    gamertag: string | null | undefined;
+    avatar_url: string | null | undefined;
   };
   tournamentId: string;
   tournamentName: string;
+  /** First-place prize in Arena Currency */
   prizeAmount: number;
   game?: string;
   totalPlayers?: number;
-  duration?: string;
 }
 
-export function WinnerSpotlight({ 
-  open, 
-  onOpenChange, 
-  winner, 
-  tournamentId, 
-  tournamentName,
-  prizeAmount,
-  game = 'Valorant',
-  totalPlayers = 16,
-  duration = '2h 34m'
-}: WinnerSpotlightProps) {
-  const [confettiShown, setConfettiShown] = useState(false);
+const CONFETTI_COLORS = ['#F5C451', '#8B5CF6', '#38E1FF', '#FFFFFF'];
+
+export function WinnerSpotlight({ open, onOpenChange, winner, tournamentId, tournamentName, prizeAmount, game, totalPlayers }: WinnerSpotlightProps) {
+  const reduceMotion = useReducedMotion();
+  const name = winner.gamertag || 'Champion';
+  const gameName = game ? (GAME_INFO[game as GameType]?.name ?? game) : null;
+  const prize = Number.isFinite(prizeAmount) ? prizeAmount : 0;
+  const url = `${window.location.origin}/tournaments/${tournamentId}`;
+  const shareText = `🏆 ${name} won ${tournamentName} on Arena${prize > 0 ? ` and took ${formatArenaCurrency(prize)}` : ''}!`;
+
+  // Stable confetti layout per open (no re-randomising on every render)
+  const confetti = useMemo(
+    () =>
+      Array.from({ length: 36 }, (_, i) => ({
+        left: (i * 37) % 100,
+        delay: (i % 12) * 0.12,
+        duration: 2.4 + ((i * 7) % 10) / 10,
+        rotate: (i * 47) % 360,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        wide: i % 3 === 0,
+      })),
+    [],
+  );
 
   useEffect(() => {
-    if (open && !confettiShown) {
-      setConfettiShown(true);
-    }
-    
-    if (!open && confettiShown) {
-      setConfettiShown(false);
-    }
-  }, [open, confettiShown]);
-
-  const handleShare = () => {
-    const shareUrl = `${window.location.origin}/tournaments/${tournamentId}`;
-    const shareText = `🏆 ${winner.gamertag || 'Champion'} won ${tournamentName} and earned $${prizeAmount.toFixed(2)}!`;
-    
-    navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-    toast.success('Link copied — share your win!');
-  };
-
-  if (!open) return null;
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onOpenChange(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onOpenChange]);
 
   return (
-    <>
-      {/* Full dark overlay */}
-      <div 
-        className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-        onClick={() => onOpenChange(false)}
-      >
-        {/* Close button */}
-        <button
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           onClick={() => onOpenChange(false)}
-          className="absolute top-4 right-4 text-white/60 hover:text-white transition-colors z-10"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="winner-title"
         >
-          <X className="h-6 w-6" />
-        </button>
-
-        {/* Modal card */}
-        <div 
-          className="relative w-full max-w-md overflow-hidden rounded-2xl"
-          style={{ background: '#0D0A1A' }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Gradient orbs */}
-          <div 
-            className="absolute top-0 left-0 w-48 h-48 rounded-full opacity-30"
-            style={{
-              background: 'radial-gradient(circle, rgba(139, 92, 246, 0.4) 0%, transparent 70%)',
-              filter: 'blur(60px)'
-            }}
-          />
-          <div 
-            className="absolute bottom-0 right-0 w-48 h-48 rounded-full opacity-30"
-            style={{
-              background: 'radial-gradient(circle, rgba(34, 211, 238, 0.4) 0%, transparent 70%)',
-              filter: 'blur(60px)'
-            }}
-          />
-
-          {/* Animated confetti */}
-          {confettiShown && (
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              {[...Array(30)].map((_, i) => (
-                <div
-                  key={i}
-                  className="confetti-dot"
-                  style={{
-                    position: 'absolute',
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: ['#F5C842', '#8B5CF6', '#22D3EE'][i % 3],
-                    left: `${Math.random() * 100}%`,
-                    top: '-10px',
-                    animation: `confetti-fall ${3 + Math.random() * 2}s linear infinite`,
-                    animationDelay: `${Math.random() * 2}s`,
-                    opacity: 0.8
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Content */}
-          <div className="relative z-10 p-8">
-            {/* Header */}
-            <div className="flex items-start justify-between mb-8">
-              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: 700, color: 'white' }}>
-                ARENA
+          <motion.div
+            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-gold/30 bg-card shadow-[0_0_80px_-20px_hsl(var(--gold)/0.5)]"
+            initial={reduceMotion ? { opacity: 0 } : { scale: 0.85, y: 30, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 220 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {!reduceMotion && (
+              <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+                {confetti.map((c, i) => (
+                  <motion.span
+                    key={i}
+                    className="absolute top-0 block rounded-sm"
+                    style={{ left: `${c.left}%`, width: c.wide ? 8 : 5, height: c.wide ? 4 : 9, background: c.color }}
+                    initial={{ y: -20, rotate: c.rotate, opacity: 0 }}
+                    animate={{ y: 560, rotate: c.rotate + 540, opacity: [0, 1, 1, 0] }}
+                    transition={{ duration: c.duration, delay: c.delay, ease: 'easeIn', repeat: 1 }}
+                  />
+                ))}
               </div>
-              <div className="floating-trophy text-4xl">
-                🏆
-              </div>
-            </div>
+            )}
+            <div className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-gold/25 blur-3xl" aria-hidden />
 
-            {/* Tournament Winner Label */}
-            <div 
-              className="mb-3"
-              style={{
-                fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '11px',
-                fontWeight: 600,
-                letterSpacing: '0.1em',
-                color: '#22D3EE',
-                textTransform: 'uppercase'
-              }}
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="absolute right-3 top-3 z-10 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Close"
             >
-              TOURNAMENT WINNER
-            </div>
+              <X className="h-5 w-5" />
+            </button>
 
-            {/* Winner Username */}
-            <h1 
-              className="mb-2 winner-glow"
-              style={{
-                fontFamily: 'Orbitron, sans-serif',
-                fontSize: '32px',
-                fontWeight: 700,
-                color: 'white',
-                textShadow: '0 0 20px rgba(139, 92, 246, 0.6)'
-              }}
-            >
-              {winner.gamertag || 'Champion'}
-            </h1>
-
-            {/* Tournament name and round */}
-            <p className="text-sm text-white/50 mb-6">
-              {tournamentName} • Finals
-            </p>
-
-            {/* Prize and Stats Container */}
-            <div className="flex gap-4 mb-6">
-              {/* Prize Box */}
-              <div 
-                className="flex-1 p-4 rounded-xl"
-                style={{
-                  background: 'rgba(245, 200, 66, 0.08)',
-                  border: '1px solid rgba(245, 200, 66, 0.25)'
-                }}
+            <div className="relative flex flex-col items-center px-6 pb-6 pt-10 text-center">
+              <motion.div
+                initial={reduceMotion ? false : { y: -16, opacity: 0, rotate: -12 }}
+                animate={{ y: 0, opacity: 1, rotate: 0 }}
+                transition={{ delay: 0.25, type: 'spring', damping: 10 }}
               >
-                <div 
-                  className="text-[10px] font-semibold tracking-wider mb-2"
-                  style={{ color: '#F5C842', textTransform: 'uppercase' }}
-                >
-                  PRIZE WON
-                </div>
-                <div 
-                  className="prize-glow"
-                  style={{
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: '28px',
-                    fontWeight: 700,
-                    color: '#F5C842'
-                  }}
-                >
-                  ${prizeAmount.toFixed(2)}
-                </div>
-              </div>
+                <Crown className="h-10 w-10 text-gold drop-shadow-[0_0_12px_hsl(var(--gold)/0.7)]" />
+              </motion.div>
+              <Avatar className="mt-2 h-24 w-24 ring-4 ring-gold ring-offset-4 ring-offset-card">
+                <AvatarImage src={winner.avatar_url || undefined} alt="" />
+                <AvatarFallback className="font-score text-4xl">{name[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
 
-              {/* Stats */}
-              <div className="flex flex-col gap-3 justify-center">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                  <span className="text-xs text-white/50">Game</span>
-                  <span className="text-xs text-white ml-auto">{game}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                  <span className="text-xs text-white/50">Players</span>
-                  <span className="text-xs text-white ml-auto">{totalPlayers}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span className="text-xs text-white/50">Duration</span>
-                  <span className="text-xs text-white ml-auto">{duration}</span>
-                </div>
+              <p className="mt-5 text-sm font-semibold text-gold">Champion</p>
+              <h2 id="winner-title" className="mt-1 break-all text-4xl leading-none">
+                {name}
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">{tournamentName}</p>
+
+              {prize > 0 && (
+                <motion.div
+                  className="mt-6 w-full rounded-2xl border border-gold/30 bg-gold/10 px-4 py-4"
+                  initial={reduceMotion ? false : { scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.45, type: 'spring', damping: 14 }}
+                >
+                  <p className="text-xs text-gold/80">First-place prize</p>
+                  <p className="font-score text-4xl font-bold text-gold">{formatArenaCurrency(prize)}</p>
+                </motion.div>
+              )}
+
+              {(gameName || totalPlayers) && (
+                <dl className="mt-4 grid w-full grid-cols-2 gap-2 text-left">
+                  {gameName && (
+                    <div className="rounded-xl border border-border bg-background/40 p-3">
+                      <dt className="text-xs text-muted-foreground">Game</dt>
+                      <dd className="truncate text-sm font-semibold">{gameName}</dd>
+                    </div>
+                  )}
+                  {totalPlayers ? (
+                    <div className="rounded-xl border border-border bg-background/40 p-3">
+                      <dt className="text-xs text-muted-foreground">Field</dt>
+                      <dd className="font-score text-lg font-bold leading-tight">{totalPlayers} players</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              )}
+
+              <div className="mt-6 flex w-full gap-2">
+                <Button className="flex-1" onClick={() => shareLink({ title: `${name} won ${tournamentName}`, text: shareText, url })}>
+                  <Share2 /> Share
+                </Button>
+                <Button asChild variant="outline" className="flex-1">
+                  <a href={whatsappShareUrl(shareText, url)} target="_blank" rel="noopener noreferrer">
+                    WhatsApp
+                  </a>
+                </Button>
               </div>
             </div>
-
-            {/* Divider */}
-            <div className="h-px bg-white/10 mb-6" />
-
-            {/* Footer */}
-            <div className="flex items-center justify-between">
-              <Button
-                onClick={handleShare}
-                className="share-button relative overflow-hidden px-6 py-2 rounded-lg font-medium text-white border-0"
-                style={{
-                  background: 'linear-gradient(135deg, #8B5CF6 0%, #22D3EE 100%)'
-                }}
-              >
-                <Share2 className="h-4 w-4 mr-2" />
-                SHARE WIN
-              </Button>
-              <span className="text-xs text-white/30">arena.gg</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes confetti-fall {
-          0% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(500px) rotate(360deg);
-            opacity: 0;
-          }
-        }
-
-        @keyframes float-trophy {
-          0%, 100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-10px);
-          }
-        }
-
-        @keyframes prize-pulse {
-          0%, 100% {
-            text-shadow: 0 0 10px rgba(245, 200, 66, 0.5);
-          }
-          50% {
-            text-shadow: 0 0 20px rgba(245, 200, 66, 0.8), 0 0 30px rgba(245, 200, 66, 0.4);
-          }
-        }
-
-        @keyframes sheen {
-          0% {
-            transform: translateX(-100%) skewX(-15deg);
-          }
-          100% {
-            transform: translateX(200%) skewX(-15deg);
-          }
-        }
-
-        .floating-trophy {
-          animation: float-trophy 2s ease-in-out infinite;
-        }
-
-        .prize-glow {
-          animation: prize-pulse 2.5s ease-in-out infinite;
-        }
-
-        .winner-glow {
-          animation: prize-pulse 3s ease-in-out infinite;
-        }
-
-        .share-button::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 50%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-          animation: sheen 3s infinite;
-        }
-
-        .share-button:hover::before {
-          animation: sheen 1.5s infinite;
-        }
-      `}</style>
-    </>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

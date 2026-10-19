@@ -1,568 +1,245 @@
-import { motion } from 'framer-motion';
-import { Bell, Coins, Users } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { CalendarClock, Plus, Trophy } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { EmptyState } from '@/components/arena/Rail';
+import { getTournamentPhase, TournamentCard, TournamentCardSkeleton } from '@/components/arena/TournamentCard';
 import { ConsentModal } from '@/components/ConsentModal';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CountdownTimer } from '@/components/ui/countdown-timer';
-import { LiveBadge } from '@/components/ui/live-badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
-import { formatCurrency, formatLargeNumber } from '@/lib/format-number';
-import { formatTimeUntil } from '@/lib/utils';
+import { useJoinTournament } from '@/hooks/use-join-tournament';
+import { cn } from '@/lib/utils';
 import type { GameType, Tournament } from '@/types/database';
 import { GAME_INFO } from '@/types/database';
 
+type TabKey = 'live' | 'upcoming' | 'joined' | 'past';
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'upcoming', label: 'Open' },
+  { key: 'live', label: 'Live' },
+  { key: 'joined', label: 'Registered' },
+  { key: 'past', label: 'Finished' },
+];
+
+const EMPTY: Record<TabKey, { title: string; description: string }> = {
+  live: { title: 'Nothing live right now', description: 'Live brackets show up here the moment they start.' },
+  upcoming: { title: 'No open tournaments', description: 'New brackets go up throughout the day. You can also host your own.' },
+  joined: { title: "You haven't registered yet", description: 'Join an open tournament and it will appear here with its countdown.' },
+  past: { title: 'No finished tournaments', description: 'Results and champions appear here once brackets complete.' },
+};
+
 export default function Tournaments() {
   const { user } = useAuth();
-  const [allTournaments, setAllTournaments] = useState<Tournament[]>([]);
-  const [liveTournaments, setLiveTournaments] = useState<Tournament[]>([]);
-  const [upcomingTournaments, setUpcomingTournaments] = useState<Tournament[]>([]);
-  const [joinedTournaments, setJoinedTournaments] = useState<Tournament[]>([]);
-  const [pastTournaments, setPastTournaments] = useState<Tournament[]>([]);
-  const [reminderTournamentIds, setReminderTournamentIds] = useState<Set<string>>(new Set());
+  const [params, setParams] = useSearchParams();
+  const { startJoin, joiningId, consent, setConsent } = useJoinTournament();
+
+  const [all, setAll] = useState<Tournament[]>([]);
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set());
+  const [reminderIds, setReminderIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [tick, setTick] = useState(0);
 
-  // Refs for horizontal scroll containers
-  const liveScrollRef = useRef<HTMLDivElement>(null);
-  const upcomingScrollRef = useRef<HTMLDivElement>(null);
-  const joinedScrollRef = useRef<HTMLDivElement>(null);
-  const pastScrollRef = useRef<HTMLDivElement>(null);
-  const allScrollRef = useRef<HTMLDivElement>(null);
-
-  // Setup wheel scroll for horizontal scrolling
-  useEffect(() => {
-    const refs = [liveScrollRef, upcomingScrollRef, joinedScrollRef, pastScrollRef, allScrollRef];
-    const handlers: Array<(e: WheelEvent) => void> = [];
-
-    refs.forEach((ref) => {
-      if (!ref.current) return;
-
-      const container = ref.current;
-      const handleWheel = (e: WheelEvent) => {
-        // Always hijack vertical scroll and convert to horizontal
-        e.preventDefault();
-        container.scrollLeft += e.deltaY;
-      };
-
-      container.addEventListener('wheel', handleWheel, { passive: false });
-      handlers.push(handleWheel);
-    });
-
-    return () => {
-      refs.forEach((ref, index) => {
-        if (ref.current && handlers[index]) {
-          ref.current.removeEventListener('wheel', handlers[index]);
-        }
-      });
-    };
-  }, []);
+  const game = (params.get('game') as GameType | null) || null;
+  const tabParam = params.get('tab') as TabKey | null;
 
   useEffect(() => {
-    fetchTournaments();
-  }, [user]);
+    let cancelled = false;
+    (async () => {
+      if (tick === 0) setLoading(true);
+      // Background status maintenance (.then() makes sure it actually runs)
+      supabase
+        .rpc('check_and_update_tournament_status')
+        .then(() => supabase.rpc('check_and_cancel_insufficient_tournaments'))
+        .then(() => undefined, () => undefined);
 
-  const fetchTournaments = async () => {
-    setLoading(true);
-    try {
-      // Fire status update RPCs in the background — don't block data fetching
-      supabase.rpc('check_and_update_tournament_status').then(() =>
-        supabase.rpc('check_and_cancel_insufficient_tournaments')
-      );
-
-      // Fetch all tournaments and (if logged in) user data in parallel
-      const tournamentQuery = supabase
-        .from('tournaments')
-        .select('*')
-        .order('start_time', { ascending: false });
-
-      const participantQuery = user
-        ? supabase.from('tournament_participants').select('tournament_id').eq('user_id', user.id)
-        : Promise.resolve({ data: null });
-
-      const reminderQuery = user
-        ? supabase.from('tournament_reminders').select('tournament_id, reminder_24h, reminder_1h, reminder_15m').eq('user_id', user.id)
-        : Promise.resolve({ data: null });
-
-      const [{ data: allData }, { data: participantData }, { data: reminderData }] = await Promise.all([
-        tournamentQuery,
-        participantQuery,
-        reminderQuery,
+      const [{ data: tournaments, error }, participants, reminders] = await Promise.all([
+        supabase.from('tournaments').select('*').order('start_time', { ascending: false }).limit(200),
+        user ? supabase.from('tournament_participants').select('tournament_id').eq('user_id', user.id) : Promise.resolve({ data: [] as { tournament_id: string }[] }),
+        user
+          ? supabase.from('tournament_reminders').select('tournament_id, reminder_24h, reminder_1h, reminder_15m').eq('user_id', user.id)
+          : Promise.resolve({ data: [] as { tournament_id: string; reminder_24h: boolean; reminder_1h: boolean; reminder_15m: boolean }[] }),
       ]);
-
-      const all = allData || [];
-      const now = new Date();
-
-      // Categorize tournaments based on status
-      const live: Tournament[] = [];
-      const upcoming: Tournament[] = [];
-      const past: Tournament[] = [];
-
-      all.forEach((tournament) => {
-        const startTime = new Date(tournament.start_time);
-        const isPastStartTime = startTime <= now;
-
-        if (tournament.status === 'completed' || tournament.status === 'cancelled') {
-          past.push(tournament);
-        } else if (tournament.status === 'active' || (tournament.status === 'open' && isPastStartTime)) {
-          live.push(tournament);
-        } else if (tournament.status === 'open' && !isPastStartTime) {
-          upcoming.push(tournament);
-        }
-      });
-
-      setAllTournaments(all);
-      setLiveTournaments(live);
-      setUpcomingTournaments(upcoming);
-      setPastTournaments(past);
-
-      // Build joined ids set for card-level display (no per-card DB query)
-      const participantIds = new Set(participantData?.map(p => p.tournament_id) || []);
-      setJoinedIds(participantIds);
-
-      if (user) {
-        // Only show tournaments that haven't started yet in Joined section
-        const joined = all.filter(t =>
-          participantIds.has(t.id) &&
-          t.status === 'open' &&
-          new Date(t.start_time) > now
-        );
-        setJoinedTournaments(joined);
-
-        const reminderSet = new Set(
-          reminderData
-            ?.filter(r => r.reminder_24h || r.reminder_1h || r.reminder_15m)
-            .map(r => r.tournament_id) || []
-        );
-        setReminderTournamentIds(reminderSet);
-      }
-    } catch (error) {
-      console.error('Error fetching tournaments:', error);
-    } finally {
+      if (cancelled) return;
+      if (error) console.error('Error fetching tournaments:', error);
+      setAll((tournaments || []) as Tournament[]);
+      setJoinedIds(new Set((participants.data || []).map((p) => p.tournament_id)));
+      setReminderIds(
+        new Set((reminders.data || []).filter((r) => r.reminder_24h || r.reminder_1h || r.reminder_15m).map((r) => r.tournament_id)),
+      );
       setLoading(false);
+    })().catch((e) => {
+      console.error('Error fetching tournaments:', e);
+      if (!cancelled) setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, tick]);
+
+  // Refresh after a join completes
+  const [prevJoining, setPrevJoining] = useState<string | null>(null);
+  useEffect(() => {
+    if (prevJoining && !joiningId) setTick((t) => t + 1);
+    setPrevJoining(joiningId);
+  }, [joiningId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const groups = useMemo(() => {
+    const list = game ? all.filter((t) => t.game === game) : all;
+    const live: Tournament[] = [];
+    const upcoming: Tournament[] = [];
+    const past: Tournament[] = [];
+    for (const t of list) {
+      const phase = getTournamentPhase(t);
+      if (phase === 'completed' || phase === 'cancelled') past.push(t);
+      else if (phase === 'live' || phase === 'starting') live.push(t);
+      else upcoming.push(t);
     }
+    upcoming.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    const joined = list
+      .filter((t) => joinedIds.has(t.id) && !['completed', 'cancelled'].includes(getTournamentPhase(t)))
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    return { live, upcoming, joined, past };
+  }, [all, game, joinedIds]);
+
+  // Default to the first tab that has something in it
+  const activeTab: TabKey = useMemo(() => {
+    if (tabParam && TABS.some((t) => t.key === tabParam)) return tabParam;
+    if (groups.live.length) return 'live';
+    if (groups.upcoming.length) return 'upcoming';
+    if (groups.joined.length) return 'joined';
+    return 'upcoming';
+  }, [tabParam, groups]);
+
+  const setTab = (key: TabKey) => {
+    const next = new URLSearchParams(params);
+    next.set('tab', key);
+    setParams(next, { replace: true });
+  };
+  const setGame = (g: GameType | null) => {
+    const next = new URLSearchParams(params);
+    if (g) next.set('game', g);
+    else next.delete('game');
+    setParams(next, { replace: true });
   };
 
+  const items = groups[activeTab];
+  const gamesWithTournaments = useMemo(() => [...new Set(all.map((t) => t.game as GameType))].filter((g) => GAME_INFO[g]), [all]);
+
   return (
-    <div className="space-y-6 max-w-full">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-light tracking-tight">Tournaments</h1>
-        <p className="text-sm md:text-base text-muted-foreground font-light">Browse all available tournaments</p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl">Tournaments</h1>
+          <p className="text-muted-foreground">Brackets with referees, check-in and real prize pools.</p>
+        </div>
+        <Button asChild>
+          <Link to={`/game/${game || 'codm'}`}>
+            <Plus /> Host a tournament
+          </Link>
+        </Button>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="live" className="w-full overflow-x-hidden">
-        <div className="overflow-x-auto scrollbar-hide">
-          <TabsList className="grid w-full min-w-max md:max-w-2xl grid-cols-5 bg-gradient-to-br from-blue-950/30 via-violet-950/30 to-blue-950/30 border border-blue-500/20">
-            <TabsTrigger value="live" className="font-light text-xs md:text-sm">
-              Live ({formatCompactNumber(liveTournaments.length)})
-            </TabsTrigger>
-            <TabsTrigger value="upcoming" className="font-light text-xs md:text-sm">
-              Upcoming ({formatCompactNumber(upcomingTournaments.length)})
-            </TabsTrigger>
-            {user && (
-              <TabsTrigger value="joined" className="font-light text-xs md:text-sm">
-                Joined ({formatCompactNumber(joinedTournaments.length)})
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="past" className="font-light text-xs md:text-sm">
-              Past ({formatCompactNumber(pastTournaments.length)})
-            </TabsTrigger>
-            <TabsTrigger value="all" className="font-light text-xs md:text-sm">
-              All ({formatCompactNumber(allTournaments.length)})
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Live Tournaments */}
-        <TabsContent value="live" className="mt-6">
-          {loading ? (
-            <div className="glassmorphism-card p-8 text-center">
-              <p className="text-muted-foreground font-light">Loading tournaments...</p>
-            </div>
-          ) : liveTournaments.length === 0 ? (
-            <div className="glassmorphism-card p-8 text-center">
-              <p className="text-muted-foreground font-light">No live tournaments</p>
-            </div>
-          ) : (
-            <div ref={liveScrollRef} className="flex md:grid overflow-x-auto md:overflow-x-visible gap-4 md:grid-cols-4 pb-4 md:pb-0 scrollbar-hide">
-              {liveTournaments.map((tournament, index) => (
-                <TournamentCard 
-                  key={tournament.id} 
-                  tournament={tournament} 
-                  index={index}
-                  isJoinedInitial={joinedIds.has(tournament.id)}
-                  hasReminder={reminderTournamentIds.has(tournament.id)}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Upcoming Tournaments */}
-        <TabsContent value="upcoming" className="mt-6">
-          {loading ? (
-            <div className="glassmorphism-card p-8 text-center">
-              <p className="text-muted-foreground font-light">Loading tournaments...</p>
-            </div>
-          ) : upcomingTournaments.length === 0 ? (
-            <div className="glassmorphism-card p-8 text-center">
-              <p className="text-muted-foreground font-light">No upcoming tournaments</p>
-            </div>
-          ) : (
-            <div ref={upcomingScrollRef} className="flex md:grid overflow-x-auto md:overflow-x-visible gap-4 md:grid-cols-4 pb-4 md:pb-0 scrollbar-hide">
-              {upcomingTournaments.map((tournament, index) => (
-                <TournamentCard 
-                  key={tournament.id} 
-                  tournament={tournament} 
-                  index={index}
-                  isJoinedInitial={joinedIds.has(tournament.id)}
-                  hasReminder={reminderTournamentIds.has(tournament.id)}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Joined Tournaments */}
-        {user && (
-          <TabsContent value="joined" className="mt-6">
-            {loading ? (
-              <div className="glassmorphism-card p-8 text-center">
-                <p className="text-muted-foreground font-light">Loading tournaments...</p>
-              </div>
-            ) : joinedTournaments.length === 0 ? (
-              <div className="glassmorphism-card p-8 text-center">
-                <p className="text-muted-foreground font-light">You haven't joined any tournaments yet</p>
-              </div>
-            ) : (
-              <div ref={joinedScrollRef} className="flex md:grid overflow-x-auto md:overflow-x-visible gap-4 md:grid-cols-4 pb-4 md:pb-0 scrollbar-hide">
-                {joinedTournaments.map((tournament, index) => (
-                  <TournamentCard 
-                    key={tournament.id} 
-                    tournament={tournament} 
-                    index={index}
-                    isJoinedInitial={true}
-                    hasReminder={reminderTournamentIds.has(tournament.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        )}
-
-        {/* Past Tournaments */}
-        <TabsContent value="past" className="mt-6">
-          {loading ? (
-            <div className="glassmorphism-card p-8 text-center">
-              <p className="text-muted-foreground font-light">Loading tournaments...</p>
-            </div>
-          ) : pastTournaments.length === 0 ? (
-            <div className="glassmorphism-card p-8 text-center">
-              <p className="text-muted-foreground font-light">No past tournaments</p>
-            </div>
-          ) : (
-            <div ref={pastScrollRef} className="flex md:grid overflow-x-auto md:overflow-x-visible gap-4 md:grid-cols-4 pb-4 md:pb-0 scrollbar-hide">
-              {pastTournaments.map((tournament, index) => (
-                <TournamentCard 
-                  key={tournament.id} 
-                  tournament={tournament} 
-                  index={index}
-                  isJoinedInitial={joinedIds.has(tournament.id)}
-                  isPast 
-                  hasReminder={reminderTournamentIds.has(tournament.id)}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* All Tournaments */}
-        <TabsContent value="all" className="mt-6">
-          {loading ? (
-            <div className="glassmorphism-card p-8 text-center">
-              <p className="text-muted-foreground font-light">Loading tournaments...</p>
-            </div>
-          ) : allTournaments.length === 0 ? (
-            <div className="glassmorphism-card p-8 text-center">
-              <p className="text-muted-foreground font-light">No tournaments found</p>
-            </div>
-          ) : (
-            <div ref={allScrollRef} className="flex md:grid overflow-x-auto md:overflow-x-visible gap-4 md:grid-cols-4 pb-4 md:pb-0 scrollbar-hide">
-              {allTournaments.map((tournament, index) => (
-                <TournamentCard 
-                  key={tournament.id} 
-                  tournament={tournament} 
-                  index={index}
-                  isJoinedInitial={joinedIds.has(tournament.id)}
-                  hasReminder={reminderTournamentIds.has(tournament.id)}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-function TournamentCard({ tournament, index, isPast = false, hasReminder = false, isJoinedInitial = false }: { tournament: Tournament; index: number; isPast?: boolean; hasReminder?: boolean; isJoinedInitial?: boolean }) {
-  const { user, profile, refreshProfile } = useAuth();
-  const navigate = useNavigate();
-  const [isJoined, setIsJoined] = useState(isJoinedInitial);
-  const [isJoining, setIsJoining] = useState(false);
-  const [consentOpen, setConsentOpen] = useState(false);
-  const [consentConfig, setConsentConfig] = useState<{
-    title: string;
-    description: string;
-    amount: number;
-    onConfirm: () => void;
-  } | null>(null);
-
-  const gameInfo = GAME_INFO[tournament.game as GameType];
-  const isLive = tournament.status === 'live' || tournament.status === 'active';
-  const isOpen = tournament.status === 'open';
-  const isCancelled = tournament.status === 'cancelled';
-
-  const executeJoin = async (entryFee: number) => {
-    setIsJoining(true);
-    try {
-      // Fetch latest balance
-      const { data: latestProfile } = await supabase
-        .from('profiles')
-        .select('arena_currency, available_balance')
-        .eq('id', user!.id)
-        .single();
-      
-      const currentBalance = latestProfile?.arena_currency || 0;
-
-      if (entryFee > 0 && currentBalance < entryFee) {
-        throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(entryFee)} to join.`);
-      }
-
-      // NO MANUAL DEDUCTION HERE - Handled by database trigger on tournament_participants table
-
-      // Get gamertag from profile or generate default
-      const gamertag = profile?.gamertag || user!.email?.split('@')[0] || `Player${Math.floor(Math.random() * 10000)}`;
-
-      const { error } = await supabase
-        .from('tournament_participants')
-        .insert({
-          tournament_id: tournament.id,
-          user_id: user!.id,
-          gamertag: gamertag,
-          checked_in: false,
-          is_standby: tournament.current_players >= tournament.max_players,
-          amount_paid: entryFee
-        });
-
-      if (error) throw error;
-
-      await refreshProfile();
-      setIsJoined(true);
-      setConsentOpen(false);
-      toast.success('Successfully joined tournament!');
-    } catch (error: any) {
-      console.error('Error joining tournament:', error);
-      toast.error(error.message || 'Failed to join tournament');
-    } finally {
-      setIsJoining(false);
-    }
-  };
-
-  const handleJoin = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!user || isJoined || isJoining) return;
-
-    // If it's a team tournament, we should redirect to details page for the team register dialog
-    if (tournament.team_size > 1) {
-      navigate(`/tournaments/${tournament.id}`);
-      return;
-    }
-
-    const entryFee = tournament.entry_fee || 0;
-    
-    if (entryFee > 0) {
-      const userBalance = profile?.arena_currency || 0;
-      if (userBalance < entryFee) {
-        toast.error(`Insufficient Arena Currency. You need ${formatArenaCurrency(entryFee)} to join.`);
-        return;
-      }
-
-      setConsentConfig({
-        title: `Join Tournament: ${tournament.name}`,
-        description: `You are about to join this tournament. An entry fee will be deducted from your Arena Currency balance.`,
-        amount: entryFee,
-        onConfirm: () => executeJoin(entryFee)
-      });
-      setConsentOpen(true);
-    } else {
-      executeJoin(0);
-    }
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.4 }}
-      whileHover={{ y: -4 }}
-      className={`flex-shrink-0 w-56 md:w-auto ${isPast || isCancelled ? 'opacity-60 grayscale-[0.5]' : ''}`}
-    >
-      <Link to={`/tournaments/${tournament.id}`}>
-        <div 
-          className={`relative overflow-hidden rounded-lg border-2 shadow-lg transition-all duration-300 ${
-            isCancelled ? 'border-destructive/40 shadow-destructive/10' : 'border-violet-500/50 shadow-violet-500/20 hover:shadow-violet-500/40'
-          }`}
-          style={{ height: '450px' }}
-        >
-          {/* Status Overlay for Cancelled */}
-          {isCancelled && (
-            <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-              <Badge variant="destructive" className="text-xl px-6 py-2 rotate-[-12deg] border-2 border-destructive shadow-2xl uppercase tracking-widest font-black bg-destructive text-destructive-foreground">
-                Cancelled
-              </Badge>
-            </div>
-          )}
-          {/* Top Half - Game Image with Gradient Overlay */}
-          <div className="relative h-1/2 overflow-hidden group">
-            <img
-              src={gameInfo.banner}
-              alt={tournament.name}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            />
-            {/* Gradient Overlay */}
-            <div 
-              className="absolute inset-0" 
-              style={{
-                background: 'linear-gradient(to bottom, transparent 0%, #050810 100%)'
-              }}
-            />
-            
-            {/* Floating Elements on Image */}
-            <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
-              {/* Game Name Tag */}
-              <Badge className="bg-black/60 backdrop-blur-sm text-white border-0 text-sm font-medium">
-                {gameInfo.name}
-              </Badge>
-              
-              {/* LIVE Badge */}
-              {isLive && !isPast && (
-                <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                  <div className="w-2.5 h-2.5 bg-red-500 rounded-full pulse-dot" />
-                  <span className="text-white text-sm font-semibold">LIVE</span>
-                </div>
-              )}
-              
-              {/* Open Badge */}
-              {isOpen && !isLive && (
-                <Badge className="bg-green-500/90 text-white border-0 text-sm">
-                  Open
-                </Badge>
-              )}
-
-              {/* Reminder Indicator */}
-              {hasReminder && !isPast && !isLive && !isOpen && (
-                <div className="flex items-center gap-1 bg-blue-500/90 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                  <Bell className="h-3.5 w-3.5 text-white" />
-                </div>
-              )}
-            </div>
-
-            {/* Tournament Name at Bottom of Image */}
-            <div className="absolute bottom-4 left-4 right-4">
-              <h3 className="font-orbitron font-bold text-white text-lg leading-tight line-clamp-2">
-                {tournament.name}
-              </h3>
-            </div>
-          </div>
-
-          {/* Bottom Half - Glass Panel */}
-          <div 
-            className="h-1/2 p-5 flex flex-col justify-between"
-            style={{ backgroundColor: 'rgba(124, 58, 237, 0.12)' }}
-          >
-            {/* Prize Pool and Entry Fee */}
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Prize Pool</p>
-                <p className="font-mono font-bold text-3xl" style={{ color: '#FFD700' }}>
-                  {formatCurrency(tournament.prize_pool)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground mb-1">Entry Fee</p>
-                <p className="font-mono font-semibold text-xl text-violet-400">
-                  {formatArenaCurrency(tournament.entry_fee)}
-                </p>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="h-px bg-white/10 mb-4" />
-
-            {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-3 mb-4 text-center">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Players</p>
-                <p className="text-base font-semibold text-white">
-                  {formatCompactNumber(tournament.current_players)}/{formatCompactNumber(tournament.max_players)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Starts In</p>
-                <p className="text-base font-semibold text-white">
-                  {formatTimeUntil(tournament.start_time)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Mode</p>
-                <p className="text-base font-semibold text-white truncate">
-                  {tournament.format}
-                </p>
-              </div>
-            </div>
-
-            {/* JOIN Button */}
-            {isOpen && !isJoined && !isPast && user && (
+      <div className="space-y-3">
+        <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-card/60 p-1 scrollbar-hide" role="tablist" aria-label="Tournament status">
+          {TABS.filter((t) => t.key !== 'joined' || user).map((t) => {
+            const count = groups[t.key].length;
+            const selected = activeTab === t.key;
+            return (
               <button
-                onClick={handleJoin}
-                disabled={isJoining}
-                className="sheen-effect w-full py-3 rounded-lg font-semibold text-white transition-all duration-300 hover:scale-[1.02]"
-                style={{
-                  background: 'linear-gradient(90deg, #8b5cf6 0%, #06b6d4 100%)'
-                }}
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors sm:flex-none sm:px-4',
+                  selected ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground',
+                )}
               >
-                {isJoining ? 'JOINING...' : 'JOIN TOURNAMENT'}
+                {t.key === 'live' && count > 0 && <span className="h-1.5 w-1.5 rounded-full bg-live" />}
+                {t.label}
+                <span className={cn('font-score text-sm', selected ? 'text-white/80' : 'text-muted-foreground')}>{count}</span>
               </button>
-            )}
-            
-            {isJoined && (
-              <div className="w-full py-3 rounded-lg bg-primary/20 text-primary text-center font-semibold">
-                JOINED
-              </div>
-            )}
-          </div>
+            );
+          })}
         </div>
-      </Link>
 
-      {consentConfig && (
+        {gamesWithTournaments.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Filter by game">
+            <button
+              type="button"
+              onClick={() => setGame(null)}
+              className={cn('shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium', !game ? 'border-primary bg-primary/15 text-white' : 'border-border text-muted-foreground')}
+            >
+              All games
+            </button>
+            {gamesWithTournaments.map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setGame(game === g ? null : g)}
+                className={cn(
+                  'flex shrink-0 items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-sm font-medium',
+                  game === g ? 'border-primary bg-primary/15 text-white' : 'border-border text-muted-foreground',
+                )}
+              >
+                <img src={GAME_INFO[g].icon} alt="" className="h-6 w-6 rounded-full object-cover" loading="lazy" />
+                {GAME_INFO[g].shortName}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <TournamentCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState
+          icon={activeTab === 'past' ? <Trophy className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+          title={EMPTY[activeTab].title}
+          description={game ? `${EMPTY[activeTab].description} Try another game or clear the filter.` : EMPTY[activeTab].description}
+          action={
+            activeTab === 'live' && groups.upcoming.length > 0 ? (
+              <Button variant="outline" onClick={() => setTab('upcoming')}>
+                See {groups.upcoming.length} open tournament{groups.upcoming.length === 1 ? '' : 's'}
+              </Button>
+            ) : activeTab === 'joined' || activeTab === 'upcoming' ? (
+              <Button asChild variant="outline">
+                <Link to={`/game/${game || 'codm'}`}>Host a tournament</Link>
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          {items.map((t) => (
+            <TournamentCard
+              key={t.id}
+              tournament={t}
+              joined={joinedIds.has(t.id)}
+              hasReminder={reminderIds.has(t.id)}
+              joining={joiningId === t.id}
+              onJoin={user ? startJoin : undefined}
+            />
+          ))}
+        </div>
+      )}
+
+      {consent && (
         <ConsentModal
-          open={consentOpen}
-          onOpenChange={setConsentOpen}
-          title={consentConfig.title}
-          description={consentConfig.description}
-          amount={consentConfig.amount}
-          onConfirm={consentConfig.onConfirm}
+          open={!!consent}
+          onOpenChange={(o) => !o && setConsent(null)}
+          title={consent.title}
+          description={consent.description}
+          amount={consent.amount}
+          onConfirm={consent.onConfirm}
+          loading={!!joiningId}
         />
       )}
-    </motion.div>
+    </div>
   );
 }

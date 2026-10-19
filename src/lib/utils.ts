@@ -30,7 +30,7 @@ export function formatDate(
   date: Date | string | number,
   opts: Intl.DateTimeFormatOptions = {}
 ) {
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(undefined, {
     month: opts.month ?? "long",
     day: opts.day ?? "numeric",
     year: opts.year ?? "numeric",
@@ -40,14 +40,38 @@ export function formatDate(
 
 export function formatTimeUntil(startTime: string | Date): string {
   const timeLeftMs = new Date(startTime).getTime() - Date.now();
-  if (timeLeftMs <= 0) return 'Live';
-  
-  const hours = Math.floor(timeLeftMs / (1000 * 60 * 60));
-  const minutes = Math.floor((timeLeftMs % (1000 * 60 * 60)) / (1000 * 60));
-  
-  if (hours > 0) {
-    return `${hours}h`;
-  }
-  return `${minutes}m`;
+  if (!Number.isFinite(timeLeftMs)) return '—';
+  if (timeLeftMs <= 0) return 'Started';
+
+  const days = Math.floor(timeLeftMs / 86_400_000);
+  const hours = Math.floor((timeLeftMs % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((timeLeftMs % 3_600_000) / 60_000);
+
+  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  return `${Math.max(1, minutes)}m`;
 }
 
+/** "in 3h", "2d ago" style relative time. */
+export function formatRelativeTime(date: string | Date): string {
+  const diff = new Date(date).getTime() - Date.now();
+  if (!Number.isFinite(diff)) return '';
+  const abs = Math.abs(diff);
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  if (abs < 60_000) return rtf.format(Math.round(diff / 1000), 'second');
+  if (abs < 3_600_000) return rtf.format(Math.round(diff / 60_000), 'minute');
+  if (abs < 86_400_000) return rtf.format(Math.round(diff / 3_600_000), 'hour');
+  return rtf.format(Math.round(diff / 86_400_000), 'day');
+}
+
+
+/** Haptic buzz, only once the user has interacted (browsers block it before that). */
+export function buzz(pattern: number | number[]) {
+  try {
+    const nav = navigator as Navigator & { userActivation?: { hasBeenActive: boolean } };
+    if (nav.userActivation && !nav.userActivation.hasBeenActive) return;
+    nav.vibrate?.(pattern);
+  } catch {
+    /* unsupported */
+  }
+}

@@ -175,7 +175,16 @@ export default function AdminDashboard() {
       });
 
       if (error) throw error;
-      if (data) setPlatformFloat(data);
+      if (data) {
+        // The edge function can return partial data (e.g. Stripe not configured);
+        // missing fields used to crash the whole admin page.
+        setPlatformFloat({
+          availableCents: Number(data.availableCents) || 0,
+          pendingCents: Number(data.pendingCents) || 0,
+          queuedTotal: Number(data.queuedTotal) || 0,
+          queuedWithdrawals: Array.isArray(data.queuedWithdrawals) ? data.queuedWithdrawals : [],
+        });
+      }
     } catch (error) {
       console.error('Error fetching platform float:', error);
       toast.error('Failed to load platform float');
@@ -455,8 +464,8 @@ export default function AdminDashboard() {
     const rows = tournaments.map(t => [
       t.name,
       t.game,
-      `A$${t.prize_pool.toFixed(2)}`,
-      `A$${t.platform_fee.toFixed(2)}`,
+      `${t.prize_pool.toFixed(2)} AC`,
+      `${t.platform_fee.toFixed(2)} AC`,
       t.current_players,
       new Date(t.start_time).toLocaleDateString()
     ]);
