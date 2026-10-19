@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRightLeft, RefreshCcw, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowRightLeft, RefreshCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -95,31 +95,17 @@ export default function ExchangeRates() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold">
-                      1 {rate.base_currency} =
-                    </span>
-                    <span className="text-3xl font-bold text-primary">
-                      {Number(rate.rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {rate.target_currency}
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-sm text-muted-foreground">1 {rate.base_currency} =</span>
+                    <span className="font-score text-3xl">
+                      {Number(rate.rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}{' '}
+                      <span className="text-lg text-primary-soft">{rate.target_currency}</span>
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-xs text-muted-foreground">
-                      Last updated: {new Date(rate.last_updated).toLocaleString()}
+                      Updated {new Date(rate.last_updated).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
-                    <div className="flex items-center gap-1">
-                      {Math.random() > 0.5 ? (
-                        <>
-                          <TrendingUp className="h-3 w-3 text-emerald-500" />
-                          <span className="text-[10px] text-emerald-500 font-bold">+{(Math.random() * 0.5).toFixed(2)}%</span>
-                        </>
-                      ) : (
-                        <>
-                          <TrendingDown className="h-3 w-3 text-rose-500" />
-                          <span className="text-[10px] text-rose-500 font-bold">-{(Math.random() * 0.5).toFixed(2)}%</span>
-                        </>
-                      )}
-                    </div>
                   </div>
                 </CardContent>
               </Card>

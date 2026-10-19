@@ -1,29 +1,12 @@
-import {
-  Coins,
-  Globe, 
-  Home,
-  LogOut,
-  Menu,
-  MessageSquare,
-  Play,
-  Search,
-  Settings,
-  Swords,
-  Trophy,
-  User,
-  Users,
-  Wallet,
-  X
-} from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
+import { Coins, Download, LogOut, Menu, Search, Swords, Trophy, Home, MessageSquare, User } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,657 +15,517 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDirectMessages } from '@/contexts/DirectMessageContext';
 import { useWorldChat } from '@/contexts/WorldChatContext';
-import { useHeartbeat } from '@/hooks/useHeartbeat';
-import { formatArenaCurrency } from '@/lib/arena-currency';
+import { useInstallPrompt } from '@/hooks/use-install-prompt';
+import { formatArenaAmount } from '@/lib/arena-currency';
+import { getLevelInfo } from '@/lib/progression';
+import { cn } from '@/lib/utils';
+import { CommandSearch } from './CommandSearch';
+import { ACCOUNT_NAV, isActivePath, type NavItem, PRIMARY_NAV, SOCIAL_NAV, STAFF_NAV } from './nav-config';
 
-const navigation = [
-  { name: 'Home', href: '/dashboard', icon: Home },
-  { name: 'Tournaments', href: '/tournaments', icon: Trophy },
-  { name: 'Quick Match', href: '/quick-match', icon: Swords },
-  { name: 'Streaming Lounge', href: '/streams', icon: Play },
-  { name: 'World Chat', href: '/world-chat', icon: Globe },
-  { name: 'Messages', href: '/messages', icon: MessageSquare },
-  { name: 'Friends', href: '/friends', icon: Users },
-];
+/** Routes that render full-screen without the app chrome. */
+const BARE_ROUTES = ['/', '/sign-in', '/sign-up', '/auth/callback'];
+/** Public pages that signed-out visitors may see with a minimal header. */
+const PUBLIC_DOC_ROUTES = ['/terms', '/privacy', '/404'];
 
-const accountNavigation = [
-  { name: 'Profile', href: '/profile', icon: User },
-  { name: 'Wallet', href: '/wallet', icon: Wallet },
-  { name: 'Settings', href: '/settings', icon: Settings },
-  { name: 'Leaderboard', href: '/leaderboard', icon: Users },
-  { name: 'Exchange Rates', href: '/exchange-rates', icon: Globe },
-];
+function useBadgeCounts() {
+  const { unreadCount: worldChat } = useWorldChat();
+  const { unreadTotal: messages, pendingRequests } = useDirectMessages();
+  return { worldChat, messages, friends: pendingRequests.length };
+}
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { user, profile, signOut } = useAuth();
-  const { unreadCount: worldChatUnread } = useWorldChat();
-  const { unreadTotal: dmUnread, pendingRequests } = useDirectMessages();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+function CountBadge({ count, className }: { count: number; className?: string }) {
+  if (!count) return null;
+  return (
+    <span
+      className={cn(
+        'inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-bold leading-none text-white',
+        className,
+      )}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
 
-  // Initialize heartbeat
-  useHeartbeat();
+/* ------------------------------------------------------------------ */
+/* Sidebar (md+): icon rail on tablets, full sidebar on wide screens   */
+/* ------------------------------------------------------------------ */
 
-  const arenaCurrency = profile?.arena_currency !== undefined ? profile.arena_currency : 5000;
-  const feedbackSubmitted = profile?.feedback_submitted || false;
+function SideNavLink({ item, active, count }: { item: NavItem; active: boolean; count?: number }) {
+  const Icon = item.icon;
+  return (
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <Link
+          to={item.href}
+          aria-current={active ? 'page' : undefined}
+          className={cn(
+            'relative flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors',
+            'justify-center xl:justify-start',
+            active ? 'text-white' : 'text-muted-foreground hover:bg-white/[0.04] hover:text-foreground',
+          )}
+        >
+          {active && (
+            <motion.span
+              layoutId="sidenav-active"
+              className="absolute inset-0 rounded-xl bg-primary/20 ring-1 ring-inset ring-primary/40"
+              transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+            />
+          )}
+          {active && <span className="absolute left-0 top-1/2 hidden h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary xl:block" />}
+          <Icon className="relative h-5 w-5 shrink-0" />
+          <span className="relative hidden xl:inline">{item.name}</span>
+          {!!count && (
+            <>
+              <CountBadge count={count} className="relative ml-auto hidden xl:inline-flex" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive xl:hidden" />
+            </>
+          )}
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="xl:hidden">
+        {item.name}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
-  // Check if user has depleted currency and hasn't submitted feedback
-  useEffect(() => {
-    if (user && profile && profile.arena_currency !== undefined && profile.arena_currency <= 0 && !feedbackSubmitted) {
-      setFeedbackModalOpen(true);
-    }
-  }, [user, profile, feedbackSubmitted]);
+function Sidebar() {
+  const { pathname } = useLocation();
+  const { profile } = useAuth();
+  const badges = useBadgeCounts();
+  const role = profile?.role;
+  const staff = STAFF_NAV.filter((i) => i.roles?.includes(role as 'admin' | 'referee'));
 
-  // Check if we're on the landing page
-  const isLandingPage = location.pathname === '/' || location.pathname === '';
+  const section = (title: string, items: NavItem[]) => (
+    <div className="space-y-1">
+      <p className="hidden px-3 pb-1 text-xs font-medium text-muted-foreground/70 xl:block">{title}</p>
+      {items.map((item) => (
+        <SideNavLink key={item.href} item={item} active={isActivePath(pathname, item.href)} count={item.badge ? badges[item.badge] : 0} />
+      ))}
+    </div>
+  );
 
-  // If on landing page, render children without layout
-  if (isLandingPage) {
-    return <>{children}</>;
-  }
+  return (
+    <aside className="glassmorphism-sidebar fixed inset-y-0 left-0 z-40 hidden w-20 flex-col md:flex xl:w-64">
+      <Link to="/dashboard" className="flex h-16 shrink-0 items-center justify-center gap-2 px-4 xl:justify-start" aria-label="Arena Royal home">
+        <img src="/images/crest-128.webp" alt="" className="h-10 w-10 xl:hidden" width={40} height={40} />
+        <img src="/images/logo-sm.webp" alt="Arena Royal" className="hidden h-12 w-auto xl:block" height={48} />
+      </Link>
+      <LayoutGroup id="sidenav">
+        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4 scrollbar-hide" aria-label="Main">
+          {section('Play', PRIMARY_NAV)}
+          {section('Social', SOCIAL_NAV)}
+          {section('You', ACCOUNT_NAV)}
+          {staff.length > 0 && section('Staff', staff)}
+        </nav>
+      </LayoutGroup>
+      <div className="hidden border-t border-border/60 px-5 py-4 text-[11px] text-muted-foreground xl:block">
+        <div className="flex gap-3">
+          <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
+          <Link to="/terms" className="hover:text-foreground">Terms</Link>
+        </div>
+        <p className="mt-1 opacity-60">© {new Date().getFullYear()} Nebula Dark LLC</p>
+      </div>
+    </aside>
+  );
+}
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast.success('Signed out successfully');
-      // Use navigate with replace to avoid full page reload and white screen
-      navigate('/', { replace: true });
-    } catch (error) {
-      console.error('Sign out error:', error);
-      toast.error('Failed to sign out');
-    }
+/* ------------------------------------------------------------------ */
+/* Mobile bottom tab bar                                               */
+/* ------------------------------------------------------------------ */
+
+function BottomNav({ onMenu }: { onMenu: () => void }) {
+  const { pathname } = useLocation();
+  const badges = useBadgeCounts();
+  const socialCount = badges.messages + badges.friends + badges.worldChat;
+
+  const tab = (href: string, label: string, Icon: typeof Home, count = 0) => {
+    const active = isActivePath(pathname, href) || (href === '/messages' && ['/world-chat', '/friends'].some((p) => pathname.startsWith(p)));
+    return (
+      <Link
+        to={href}
+        aria-current={active ? 'page' : undefined}
+        className={cn('relative flex flex-1 flex-col items-center justify-center gap-1 pt-2 text-[11px] font-medium', active ? 'text-white' : 'text-muted-foreground')}
+      >
+        {active && (
+          <motion.span
+            layoutId="bottomnav-active"
+            className="absolute top-0 h-0.5 w-8 rounded-full bg-primary"
+            transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+          />
+        )}
+        <span className="relative">
+          <Icon className="h-[22px] w-[22px]" />
+          {count > 0 && <CountBadge count={count} className="absolute -right-3 -top-2 h-4 min-w-4 px-1 text-[10px]" />}
+        </span>
+        {label}
+      </Link>
+    );
+  };
+
+  const playActive = isActivePath(pathname, '/quick-match');
+
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/90 backdrop-blur-xl md:hidden"
+      style={{ paddingBottom: 'var(--safe-bottom)' }}
+      aria-label="Main"
+    >
+      <LayoutGroup id="bottomnav">
+        <div className="mx-auto flex h-16 max-w-md items-stretch px-2">
+          {tab('/dashboard', 'Home', Home)}
+          {tab('/tournaments', 'Compete', Trophy)}
+          <div className="flex flex-1 items-start justify-center">
+            <Link
+              to="/quick-match"
+              aria-label="Quick match"
+              aria-current={playActive ? 'page' : undefined}
+              className={cn(
+                '-mt-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_10px_30px_-8px_hsl(262_83%_55%/0.9)] ring-4 ring-background transition-transform active:scale-95',
+                playActive && 'ring-primary/40',
+              )}
+            >
+              <Swords className="h-6 w-6" />
+            </Link>
+          </div>
+          {tab('/messages', 'Social', MessageSquare, socialCount)}
+          <button
+            type="button"
+            onClick={onMenu}
+            className="flex flex-1 flex-col items-center justify-center gap-1 pt-2 text-[11px] font-medium text-muted-foreground"
+          >
+            <Menu className="h-[22px] w-[22px]" />
+            More
+          </button>
+        </div>
+      </LayoutGroup>
+    </nav>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile "More" sheet                                                 */
+/* ------------------------------------------------------------------ */
+
+function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenChange: (o: boolean) => void; onSignOut: () => void }) {
+  const { pathname } = useLocation();
+  const { profile } = useAuth();
+  const badges = useBadgeCounts();
+  const { canInstall, install } = useInstallPrompt();
+  const staff = STAFF_NAV.filter((i) => i.roles?.includes(profile?.role as 'admin' | 'referee'));
+  const level = getLevelInfo(profile);
+
+  const row = (item: NavItem) => {
+    const Icon = item.icon;
+    const active = isActivePath(pathname, item.href);
+    const count = item.badge ? badges[item.badge] : 0;
+    return (
+      <Link
+        key={item.href}
+        to={item.href}
+        onClick={() => onOpenChange(false)}
+        className={cn('flex h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium', active ? 'bg-primary/15 text-white' : 'text-foreground/90 active:bg-white/5')}
+      >
+        <Icon className="h-5 w-5 text-muted-foreground" />
+        {item.name}
+        <CountBadge count={count} className="ml-auto" />
+      </Link>
+    );
   };
 
   return (
-    <div className="min-h-screen flex relative overflow-x-hidden">
-      {/* Full Background Image */}
-      <div 
-        className="fixed inset-0 bg-cover bg-center bg-no-repeat -z-10"
-        style={{
-          backgroundImage: 'url(https://miaoda-site-img.s3cdn.medo.dev/images/KLing_1f3b06bb-cab6-4a8f-8663-85c5e3fb8d8a.jpg)'
-        }}
-      />
-      
-      {/* Background Overlays */}
-      <div className="fixed inset-0 bg-gradient-to-r from-black via-black/70 to-black/30 -z-10" />
-      <div className="fixed inset-0 bg-gradient-to-t from-black via-black/50 to-black/20 -z-10" />
-      <div className="fixed inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 -z-10" />
-      <div className="fixed inset-0 bg-gradient-to-l from-black/60 via-transparent to-black/80 -z-10" />
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-[86vw] max-w-sm flex-col gap-0 border-l border-border bg-background p-0">
+        <SheetTitle className="sr-only">Menu</SheetTitle>
+        <SheetDescription className="sr-only">All pages and account options</SheetDescription>
+        <Link
+          to="/profile"
+          onClick={() => onOpenChange(false)}
+          className="flex items-center gap-3 border-b border-border p-5 pr-12"
+        >
+          <Avatar className="h-12 w-12 ring-2 ring-primary/40">
+            <AvatarImage src={profile?.avatar_url || ''} alt="" />
+            <AvatarFallback className="bg-primary/20 font-score text-lg">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-score text-xl leading-tight">{profile?.gamertag || 'Player'}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Level {level.level}</span>
+              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.round(level.progress * 100)}%` }} />
+              </span>
+            </div>
+          </div>
+        </Link>
+        <nav className="flex-1 space-y-5 overflow-y-auto p-3" aria-label="All pages">
+          <div className="space-y-1">{PRIMARY_NAV.map(row)}</div>
+          <div className="space-y-1">{SOCIAL_NAV.map(row)}</div>
+          <div className="space-y-1">{ACCOUNT_NAV.map(row)}</div>
+          {staff.length > 0 && <div className="space-y-1">{staff.map(row)}</div>}
+        </nav>
+        <div className="space-y-2 border-t border-border p-4" style={{ paddingBottom: 'calc(1rem + var(--safe-bottom))' }}>
+          {canInstall && (
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await install();
+                if (ok) toast.success('Arena is on your home screen');
+              }}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary-soft"
+            >
+              <Download className="h-4 w-4" />
+              Install the Arena app
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              onSignOut();
+            }}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold text-muted-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </button>
+          <div className="flex justify-center gap-4 pt-1 text-xs text-muted-foreground">
+            <Link to="/privacy" onClick={() => onOpenChange(false)}>Privacy</Link>
+            <Link to="/terms" onClick={() => onOpenChange(false)}>Terms</Link>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
 
-      {/* Sidebar - Desktop Only */}
-      <aside className="w-64 flex-shrink-0 fixed left-0 top-0 bottom-0 z-[60] hidden md:block">
-        <div className="h-full glassmorphism-sidebar p-6 flex flex-col overflow-y-auto scrollbar-hide">
-          {/* Logo */}
-          <Link to={user ? "/dashboard" : "/"} className="mb-8 block">
-            <img src="/images/logo.png" alt="Arena Royal" className="h-16 w-auto object-contain" />
+/* ------------------------------------------------------------------ */
+/* Top bar                                                             */
+/* ------------------------------------------------------------------ */
+
+function TopBar({ onSearch, onSignOut }: { onSearch: () => void; onSignOut: () => void }) {
+  const { profile } = useAuth();
+  const navigate = useNavigate();
+  const level = getLevelInfo(profile);
+  const ac = Number(profile?.arena_currency ?? 0);
+  const { canInstall, install } = useInstallPrompt();
+
+  return (
+    <header className="glassmorphism-topbar sticky top-0 z-30" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="flex h-16 items-center gap-3 px-4 md:px-6 xl:px-8">
+        <Link to="/dashboard" className="md:hidden" aria-label="Arena Royal home">
+          <img src="/images/crest-128.webp" alt="" className="h-9 w-9" width={36} height={36} />
+        </Link>
+
+        <button
+          type="button"
+          onClick={onSearch}
+          className="hidden h-10 max-w-md flex-1 items-center gap-3 rounded-xl border border-border bg-white/[0.03] px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground md:flex"
+        >
+          <Search className="h-4 w-4" />
+          <span className="flex-1 text-left">Search players and tournaments</span>
+          <kbd className="rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px]">Ctrl K</kbd>
+        </button>
+
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={onSearch}
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground md:hidden"
+            aria-label="Search"
+          >
+            <Search className="h-5 w-5" />
+          </button>
+
+          <Link
+            to="/wallet"
+            className="flex h-9 items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 pl-2 pr-3 text-gold transition-colors hover:bg-gold/15"
+            aria-label={`Arena Currency balance: ${ac} AC`}
+          >
+            <Coins className="h-4 w-4" />
+            <span className="font-score text-base leading-none">{formatArenaAmount(ac)}</span>
+            <span className="hidden text-[11px] font-semibold text-gold/70 sm:inline">AC</span>
           </Link>
 
-          {/* Main Navigation */}
-          <nav className="space-y-2 flex-1">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.href;
-              const showWorldChatBadge = item.name === 'World Chat' && worldChatUnread > 0;
-              const showDMBadge = item.name === 'Messages' && dmUnread > 0;
-              const showFriendsBadge = item.name === 'Friends' && pendingRequests.length > 0;
-              
-              let badgeCount = 0;
-              if (item.name === 'World Chat') badgeCount = worldChatUnread;
-              else if (item.name === 'Messages') badgeCount = dmUnread;
-              else if (item.name === 'Friends') badgeCount = pendingRequests.length;
+          <NotificationDropdown />
 
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-500 relative overflow-hidden group ${
-                    isActive
-                      ? 'text-white shadow-lg shadow-blue-500/30'
-                      : 'text-muted-foreground hover:text-white'
-                  }`}
-                >
-                  {/* Active state - continuous slow gradient */}
-                  {isActive && (
-                    <div 
-                      className="absolute inset-0 gradient-animate-slow"
-                      style={{
-                        background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 20%, #7c3aed 40%, #a855f7 50%, #7c3aed 60%, #4f46e5 80%, #2563eb 100%)'
-                      }}
-                    />
-                  )}
-                  {/* Hover state - continuous slow gradient */}
-                  {!isActive && (
-                    <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 gradient-animate-slow"
-                      style={{
-                        background: 'linear-gradient(90deg, transparent 0%, #2563eb 15%, #4f46e5 30%, #7c3aed 45%, #a855f7 50%, #7c3aed 55%, #4f46e5 70%, #2563eb 85%, transparent 100%)'
-                      }}
-                    />
-                  )}
-                  <Icon className="h-5 w-5 relative z-10" />
-                  <span className="font-medium relative z-10">{item.name}</span>
-                  {(showWorldChatBadge || showDMBadge || showFriendsBadge) && (
-                    <Badge className="ml-auto bg-red-500 text-white text-xs px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center relative z-10">
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </Badge>
-                  )}
-                </Link>
-              );
-            })}
-
-            {/* Account Section */}
-            <div className="pt-6 mt-6 border-t border-white/10">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider px-4 mb-3">
-                Account
-              </p>
-
-              {/* Arena Currency Display */}
-              {user && (
-                <div className="px-4 py-3 rounded-lg bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 mb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Coins className="h-4 w-4 text-amber-400" />
-                      <span className="text-xs text-muted-foreground">Arena Currency</span>
-                    </div>
-                    <Badge variant="secondary" className="bg-amber-500/20 text-amber-400 border-amber-500/30 font-mono">
-                      {formatArenaCurrency(arenaCurrency)}
-                    </Badge>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-1 font-light">Demo Mode</p>
-                </div>
-              )}
-
-              {accountNavigation.map((item) => {
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="flex items-center gap-3 rounded-xl p-1 pr-1 transition-colors hover:bg-white/5 lg:pr-3" aria-label="Account menu">
+                <span className="relative">
+                  <Avatar className="h-9 w-9 ring-2 ring-primary/40">
+                    <AvatarImage src={profile?.avatar_url || ''} alt="" />
+                    <AvatarFallback className="bg-primary/20 font-score">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
+                  </Avatar>
+                  <span className="absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-background bg-primary px-1 font-score text-[10px] leading-none text-white">
+                    {level.level}
+                  </span>
+                </span>
+                <span className="hidden text-left lg:block">
+                  <span className="block max-w-[140px] truncate text-sm font-semibold leading-tight">{profile?.gamertag || 'Player'}</span>
+                  <span className="block text-xs text-muted-foreground">Level {level.level}</span>
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel className="space-y-1.5">
+                <span className="block truncate">{profile?.gamertag || 'Player'}</span>
+                <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+                  Level {level.level}
+                  <span className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                    <span className="block h-full bg-primary" style={{ width: `${Math.round(level.progress * 100)}%` }} />
+                  </span>
+                  {level.toNext.toLocaleString()} XP
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate('/profile')}><User className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
+              {ACCOUNT_NAV.filter((i) => i.href !== '/profile').map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.href;
                 return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-500 relative overflow-hidden group ${
-                      isActive
-                        ? 'text-white shadow-lg shadow-blue-500/30'
-                        : 'text-muted-foreground hover:text-white'
-                    }`}
-                  >
-                    {/* Active state - continuous slow gradient */}
-                    {isActive && (
-                      <div 
-                        className="absolute inset-0 gradient-animate-slow"
-                        style={{
-                          background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 20%, #7c3aed 40%, #a855f7 50%, #7c3aed 60%, #4f46e5 80%, #2563eb 100%)'
-                        }}
-                      />
-                    )}
-                    {/* Hover state - continuous slow gradient */}
-                    {!isActive && (
-                      <div 
-                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 gradient-animate-slow"
-                        style={{
-                          background: 'linear-gradient(90deg, transparent 0%, #2563eb 15%, #4f46e5 30%, #7c3aed 45%, #a855f7 50%, #7c3aed 55%, #4f46e5 70%, #2563eb 85%, transparent 100%)'
-                        }}
-                      />
-                    )}
-                    <Icon className="h-5 w-5 relative z-10" />
-                    <span className="font-medium relative z-10">{item.name}</span>
-                  </Link>
+                  <DropdownMenuItem key={item.href} onSelect={() => navigate(item.href)}>
+                    <Icon className="mr-2 h-4 w-4" />
+                    {item.name}
+                  </DropdownMenuItem>
                 );
               })}
-            </div>
-
-            {/* Referee Section - Visible to referees and admins */}
-            {(profile?.role === 'referee' || profile?.role === 'admin') && (
-              <div className="space-y-2 mt-6">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider px-4 mb-3">
-                  Referee
-                </p>
-                <Link
-                  to="/referee"
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-500 relative overflow-hidden group ${
-                    location.pathname === '/referee'
-                      ? 'text-white shadow-lg shadow-blue-500/30'
-                      : 'text-muted-foreground hover:text-white'
-                  }`}
-                >
-                  {/* Active state - continuous slow gradient */}
-                  {location.pathname === '/referee' && (
-                    <div 
-                      className="absolute inset-0 gradient-animate-slow"
-                      style={{
-                        background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 20%, #7c3aed 40%, #a855f7 50%, #7c3aed 60%, #4f46e5 80%, #2563eb 100%)'
-                      }}
-                    />
-                  )}
-                  {/* Hover state - continuous slow gradient */}
-                  {location.pathname !== '/referee' && (
-                    <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 gradient-animate-slow"
-                      style={{
-                        background: 'linear-gradient(90deg, transparent 0%, #2563eb 15%, #4f46e5 30%, #7c3aed 45%, #a855f7 50%, #7c3aed 55%, #4f46e5 70%, #2563eb 85%, transparent 100%)'
-                      }}
-                    />
-                  )}
-                  <Users className="h-5 w-5 relative z-10" />
-                  <span className="font-medium relative z-10">Control Center</span>
-                </Link>
-              </div>
-            )}
-            
-            {/* Admin Section - Only visible to admins */}
-            {profile?.role === 'admin' && (
-              <div className="space-y-2 mt-6">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider px-4 mb-3">
-                  Admin
-                </p>
-                <Link
-                  to="/admin"
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-500 relative overflow-hidden group ${
-                    location.pathname === '/admin'
-                      ? 'text-white shadow-lg shadow-blue-500/30'
-                      : 'text-muted-foreground hover:text-white'
-                  }`}
-                >
-                  {/* Active state - continuous slow gradient */}
-                  {location.pathname === '/admin' && (
-                    <div 
-                      className="absolute inset-0 gradient-animate-slow"
-                      style={{
-                        background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 20%, #7c3aed 40%, #a855f7 50%, #7c3aed 60%, #4f46e5 80%, #2563eb 100%)'
-                      }}
-                    />
-                  )}
-                  {/* Hover state - continuous slow gradient */}
-                  {location.pathname !== '/admin' && (
-                    <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 gradient-animate-slow"
-                      style={{
-                        background: 'linear-gradient(90deg, transparent 0%, #2563eb 15%, #4f46e5 30%, #7c3aed 45%, #a855f7 50%, #7c3aed 55%, #4f46e5 70%, #2563eb 85%, transparent 100%)'
-                      }}
-                    />
-                  )}
-                  <Settings className="h-5 w-5 relative z-10" />
-                  <span className="font-medium relative z-10">Admin Control Center</span>
-                </Link>
-              </div>
-            )}
-          </nav>
-
-          {/* User Profile & Auth */}
-          <div className="mt-auto pt-4 border-t border-white/10 space-y-3">
-            {user ? (
-              <>
-                <Link
-                  to="/profile"
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-all duration-200"
-                >
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={profile?.avatar_url || ''} alt={profile?.gamertag || 'User'} />
-                    <AvatarFallback className="bg-primary/20 text-primary">
-                      {profile?.gamertag?.[0]?.toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{profile?.gamertag || 'User'}</p>
-                    <p className="text-xs text-muted-foreground truncate">{profile?.email}</p>
-                  </div>
-                </Link>
-
-                <Button
-                  variant="outline"
-                  onClick={handleSignOut}
-                  className="w-full justify-start gap-3 text-muted-foreground hover:text-red-400 hover:border-red-400/50 transition-colors"
-                >
-                  <LogOut className="h-5 w-5" />
-                  <span className="font-medium">Sign Out</span>
-                </Button>
-              </>
-            ) : (
-              <Link to="/sign-in">
-                <Button variant="default" className="w-full">
-                  Sign In
-                </Button>
-              </Link>
-            )}
-
-            {/* Legal Links */}
-            <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 pt-2">
-              <Link to="/privacy" className="text-[10px] text-muted-foreground hover:text-white transition-colors">Privacy Policy</Link>
-              <Link to="/terms" className="text-[10px] text-muted-foreground hover:text-white transition-colors">Terms & Conditions</Link>
-              <span className="text-[10px] text-muted-foreground/50 w-full mt-1">© 2026 Nebula Dark LLC</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 md:ml-64 overflow-x-hidden">
-        {/* Top Bar */}
-        <div className="sticky top-0 z-[60] glassmorphism-topbar">
-          <div className="px-4 md:px-8 py-4 flex items-center justify-between gap-4">
-            {/* Mobile Menu Button */}
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden">
-                  <Menu className="h-6 w-6" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-64 p-0 bg-gradient-to-b from-blue-600/20 via-purple-600/20 to-[#0a0a0f] border-r border-white/10 backdrop-blur-2xl">
-                <div className="h-full p-6 flex flex-col overflow-y-auto scrollbar-hide">
-                  {/* Logo */}
-                  <Link to={user ? "/dashboard" : "/"} className="mb-8 block" onClick={() => setMobileMenuOpen(false)}>
-                    <img src="/images/logo.png" alt="Arena Royal" className="h-16 w-auto object-contain" />
-                  </Link>
-
-                  {/* Main Navigation */}
-                  <nav className="space-y-2 flex-1">
-                    {navigation.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = location.pathname === item.href;
-                      const showWorldChatBadge = item.name === 'World Chat' && worldChatUnread > 0;
-                      const showDMBadge = item.name === 'Messages' && dmUnread > 0;
-                      const showFriendsBadge = item.name === 'Friends' && pendingRequests.length > 0;
-                      
-                      let badgeCount = 0;
-                      if (item.name === 'World Chat') badgeCount = worldChatUnread;
-                      else if (item.name === 'Messages') badgeCount = dmUnread;
-                      else if (item.name === 'Friends') badgeCount = pendingRequests.length;
-
-                      return (
-                        <Link
-                          key={item.name}
-                          to={item.href}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-500 relative overflow-hidden group ${
-                            isActive
-                              ? 'text-white shadow-lg shadow-blue-500/30'
-                              : 'text-muted-foreground hover:text-white'
-                          }`}
-                        >
-                          {isActive && (
-                            <div 
-                              className="absolute inset-0 gradient-animate-slow"
-                              style={{
-                                background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 20%, #7c3aed 40%, #a855f7 50%, #7c3aed 60%, #4f46e5 80%, #2563eb 100%)'
-                              }}
-                            />
-                          )}
-                          {!isActive && (
-                            <div 
-                              className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 gradient-animate-slow"
-                              style={{
-                                background: 'linear-gradient(90deg, transparent 0%, #2563eb 15%, #4f46e5 30%, #7c3aed 45%, #a855f7 50%, #7c3aed 55%, #4f46e5 70%, #2563eb 85%, transparent 100%)'
-                              }}
-                            />
-                          )}
-                          <Icon className="h-5 w-5 relative z-10" />
-                          <span className="font-light relative z-10">{item.name}</span>
-                          {(showWorldChatBadge || showDMBadge || showFriendsBadge) && (
-                            <Badge className="ml-auto bg-red-500 text-white text-xs px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center relative z-10">
-                              {badgeCount > 99 ? '99+' : badgeCount}
-                            </Badge>
-                          )}
-                        </Link>
-                      );
-                    })}
-
-                    {/* Account Section */}
-                    <div className="pt-6 mt-6 border-t border-white/10">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider px-4 mb-3 font-light">
-                        Account
-                      </p>
-                      {accountNavigation.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = location.pathname === item.href;
-                        return (
-                          <Link
-                            key={item.name}
-                            to={item.href}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-500 relative overflow-hidden group ${
-                              isActive
-                                ? 'text-white shadow-lg shadow-blue-500/30'
-                                : 'text-muted-foreground hover:text-white'
-                            }`}
-                          >
-                            {isActive && (
-                              <div 
-                                className="absolute inset-0 gradient-animate-slow"
-                                style={{
-                                  background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 20%, #7c3aed 40%, #a855f7 50%, #7c3aed 60%, #4f46e5 80%, #2563eb 100%)'
-                                }}
-                              />
-                            )}
-                            {!isActive && (
-                              <div 
-                                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 gradient-animate-slow"
-                                style={{
-                                  background: 'linear-gradient(90deg, transparent 0%, #2563eb 15%, #4f46e5 30%, #7c3aed 45%, #a855f7 50%, #7c3aed 55%, #4f46e5 70%, #2563eb 85%, transparent 100%)'
-                                }}
-                              />
-                            )}
-                            <Icon className="h-5 w-5 relative z-10" />
-                            <span className="font-light relative z-10">{item.name}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-
-                    {/* Referee Section - Visible to referees and admins */}
-                    {(profile?.role === 'referee' || profile?.role === 'admin') && (
-                      <div className="space-y-2 mt-6">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider px-4 mb-3 font-light">
-                          Referee
-                        </p>
-                        <Link
-                          to="/referee"
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-500 relative overflow-hidden group ${
-                            location.pathname === '/referee'
-                              ? 'text-white shadow-lg shadow-blue-500/30'
-                              : 'text-muted-foreground hover:text-white'
-                          }`}
-                        >
-                          {location.pathname === '/referee' && (
-                            <div 
-                              className="absolute inset-0 gradient-animate-slow"
-                              style={{
-                                background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 20%, #7c3aed 40%, #a855f7 50%, #7c3aed 60%, #4f46e5 80%, #2563eb 100%)'
-                              }}
-                            />
-                          )}
-                          {location.pathname !== '/referee' && (
-                            <div 
-                              className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 gradient-animate-slow"
-                              style={{
-                                background: 'linear-gradient(90deg, transparent 0%, #2563eb 15%, #4f46e5 30%, #7c3aed 45%, #a855f7 50%, #7c3aed 55%, #4f46e5 70%, #2563eb 85%, transparent 100%)'
-                              }}
-                            />
-                          )}
-                          <Users className="h-5 w-5 relative z-10" />
-                          <span className="font-light relative z-10">Control Center</span>
-                        </Link>
-                      </div>
-                    )}
-                    
-                    {/* Admin Section - Only visible to admins */}
-                    {profile?.role === 'admin' && (
-                      <div className="space-y-2 mt-6">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider px-4 mb-3 font-light">
-                          Admin
-                        </p>
-                        <Link
-                          to="/admin"
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-500 relative overflow-hidden group ${
-                            location.pathname === '/admin'
-                              ? 'text-white shadow-lg shadow-blue-500/30'
-                              : 'text-muted-foreground hover:text-white'
-                          }`}
-                        >
-                          {location.pathname === '/admin' && (
-                            <div 
-                              className="absolute inset-0 gradient-animate-slow"
-                              style={{
-                                background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 20%, #7c3aed 40%, #a855f7 50%, #7c3aed 60%, #4f46e5 80%, #2563eb 100%)'
-                              }}
-                            />
-                          )}
-                          {location.pathname !== '/admin' && (
-                            <div 
-                              className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 gradient-animate-slow"
-                              style={{
-                                background: 'linear-gradient(90deg, transparent 0%, #2563eb 15%, #4f46e5 30%, #7c3aed 45%, #a855f7 50%, #7c3aed 55%, #4f46e5 70%, #2563eb 85%, transparent 100%)'
-                              }}
-                            />
-                          )}
-                          <Users className="h-5 w-5 relative z-10" />
-                          <span className="font-light relative z-10">Admin Control Center</span>
-                        </Link>
-                      </div>
-                    )}
-                  </nav>
-
-                  {/* Sign Out Button */}
-                  {user && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        handleSignOut();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full justify-start gap-3 text-muted-foreground hover:text-white font-light"
-                    >
-                      <LogOut className="h-5 w-5" />
-                      <span className="font-light">Sign Out</span>
-                    </Button>
-                  )}
-
-                  {/* Legal Links - Mobile */}
-                  <div className="mt-8 pt-6 border-t border-white/10 space-y-3 px-4">
-                    <div className="flex flex-col gap-2">
-                      <Link to="/privacy" onClick={() => setMobileMenuOpen(false)} className="text-xs text-muted-foreground hover:text-white transition-colors">Privacy Policy</Link>
-                      <Link to="/terms" onClick={() => setMobileMenuOpen(false)} className="text-xs text-muted-foreground hover:text-white transition-colors">Terms & Conditions</Link>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground/30">© 2026 Nebula Dark LLC</p>
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-
-            {/* Logo - Mobile Only */}
-            <Link to={user ? "/dashboard" : "/"} className="md:hidden block">
-              <img src="/images/logo.png" alt="Arena Royal" className="h-10 w-auto object-contain" />
-            </Link>
-
-            {/* Search Bar */}
-            <div className="flex-1 max-w-xl hidden md:block">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search tournaments, players..."
-                  className="pl-10 bg-white/5 border-white/10 focus:border-primary/50 font-light"
-                />
-              </div>
-            </div>
-
-            {/* Right Side */}
-            <div className="flex items-center gap-2 md:gap-4">
-              {user && (
-                <div className="md:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
-                  <Coins className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="text-[11px] font-bold text-amber-400 font-mono">
-                    {formatArenaCurrency(arenaCurrency)}
-                  </span>
-                </div>
+              {canInstall && (
+                <DropdownMenuItem onSelect={() => void install()}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Install app
+                </DropdownMenuItem>
               )}
-              {user && <NotificationDropdown />}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onSignOut} className="text-destructive focus:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  );
+}
 
-              {user ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity">
-                      <div className="text-right hidden md:block">
-                        <p className="text-sm font-light">{profile?.gamertag || 'User'}</p>
-                        <p className="text-xs text-muted-foreground font-light">
-                          ${profile?.total_earnings?.toFixed(2) || '0.00'}
-                        </p>
-                      </div>
-                      <Avatar className="h-8 w-8 md:h-10 md:w-10 border-2 border-primary/50">
-                        <AvatarImage src={profile?.avatar_url || ''} alt={profile?.gamertag || 'User'} />
-                        <AvatarFallback className="bg-primary/20 text-primary">
-                          {profile?.gamertag?.[0]?.toUpperCase() || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
-                        <User className="h-4 w-4" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/wallet" className="flex items-center gap-2 cursor-pointer">
-                        <Wallet className="h-4 w-4" />
-                        Wallet
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/settings" className="flex items-center gap-2 cursor-pointer">
-                        <Settings className="h-4 w-4" />
-                        Settings
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={handleSignOut}
-                      className="text-red-400 focus:text-red-400 cursor-pointer"
-                    >
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Sign Out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Link to="/sign-in">
-                  <Button variant="default">Sign In</Button>
-                </Link>
-              )}
-            </div>
+/* ------------------------------------------------------------------ */
+/* Minimal header for signed-out visitors on legal pages               */
+/* ------------------------------------------------------------------ */
+
+function PublicShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen">
+      <header className="glassmorphism-topbar sticky top-0 z-30">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
+          <Link to="/" aria-label="Arena Royal home">
+            <img src="/images/logo-sm.webp" alt="Arena Royal" className="h-10 w-auto" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/sign-in" className="rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground">Sign in</Link>
+            <Link to="/sign-up" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white">Join Arena</Link>
           </div>
         </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+    </div>
+  );
+}
 
-        {/* Page Content */}
-        <div className="p-4 md:p-8">
-          {location.pathname !== '/' && <Breadcrumbs />}
-          {children}
-        </div>
+/* ------------------------------------------------------------------ */
+/* Layout                                                              */
+/* ------------------------------------------------------------------ */
 
-        {/* Site Footer */}
-        <footer className="border-t border-white/10 px-4 md:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-muted-foreground bg-black/20">
-          <div className="flex flex-col items-center md:items-start gap-1">
-            <span className="font-medium tracking-wide text-white/70">© {new Date().getFullYear()} ARENA • Nebula Dark LLC</span>
-            <span className="font-light opacity-50">Providing competitive gaming solutions globally. Registered in Delaware, USA.</span>
-          </div>
-          <div className="flex items-center gap-8">
-            <Link to="/privacy" className="hover:text-white transition-colors underline underline-offset-4">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-white transition-colors underline underline-offset-4">Terms & Conditions</Link>
-          </div>
-        </footer>
-      </main>
+export default function MainLayout({ children }: { children: React.ReactNode }) {
+  const { user, profile, signOut } = useAuth();
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
 
-      {/* Feedback Modal */}
+  const searchPages = useMemo(() => {
+    const staff = STAFF_NAV.filter((i) => i.roles?.includes(profile?.role as 'admin' | 'referee'));
+    return [...PRIMARY_NAV, ...SOCIAL_NAV, ...ACCOUNT_NAV, ...staff];
+  }, [profile?.role]);
+
+  // Ctrl/⌘ + K opens search
+  useEffect(() => {
+    if (!user) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [user]);
+
+  // Players who run out of Arena Currency are asked for feedback once
+  useEffect(() => {
+    if (user && profile && profile.arena_currency !== undefined && profile.arena_currency <= 0 && !profile.feedback_submitted) {
+      setFeedbackModalOpen(true);
+    }
+  }, [user, profile]);
+
+  // New pages start at the top; back/forward keeps the browser's restored position
+  useEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo(0, 0);
+  }, [location.pathname, navigationType]);
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await signOut();
+      toast.success('Signed out');
+      navigate('/', { replace: true });
+    } catch (error) {
+      console.error('Sign out error:', error);
+      toast.error('Could not sign out. Please try again.');
+    }
+  }, [signOut, navigate]);
+
+  const path = location.pathname;
+  if (BARE_ROUTES.includes(path)) return <>{children}</>;
+  if (!user) {
+    // Signed-out visitors only reach public pages (RouteGuard redirects the rest)
+    return PUBLIC_DOC_ROUTES.includes(path) ? <PublicShell>{children}</PublicShell> : <>{children}</>;
+  }
+
+  return (
+    <div className="min-h-screen">
+      <Sidebar />
+      <div className="md:pl-20 xl:pl-64">
+        <TopBar onSearch={() => setSearchOpen(true)} onSignOut={handleSignOut} />
+        <main
+          id="main"
+          className="mx-auto w-full max-w-[1400px] px-4 pb-28 pt-5 md:px-6 md:pb-12 md:pt-6 xl:px-8"
+        >
+          <ErrorBoundary compact resetKey={path}>
+            {/* Enter-only transition: a keyed wrapper fades each new page in.
+                (An exit animation would briefly render the next route inside
+                the old wrapper and mount it twice.) */}
+            <motion.div
+              key={path}
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+            >
+              {children}
+            </motion.div>
+          </ErrorBoundary>
+        </main>
+      </div>
+
+      <BottomNav onMenu={() => setMenuOpen(true)} />
+      <MoreSheet open={menuOpen} onOpenChange={setMenuOpen} onSignOut={handleSignOut} />
+      <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} pages={searchPages} />
       <FeedbackModal open={feedbackModalOpen} onOpenChange={setFeedbackModalOpen} />
     </div>
   );

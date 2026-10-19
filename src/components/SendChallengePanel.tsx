@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Check, Loader2, Swords, X } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { invalidatePlayerProgress } from '@/hooks/use-player-progress';
 import { formatArenaCurrency } from '@/lib/arena-currency';
+import { createChallenge, friendlyChallengeError } from '@/lib/challenges';
+import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
 import { ConsentModal } from './ConsentModal';
 
@@ -27,302 +31,188 @@ interface SendChallengePanelProps {
 }
 
 const STAKE_OPTIONS = [2, 5, 10, 25];
-const ALL_GAMES: GameType[] = ['codm', 'fortnite', 'fifa', 'warzone', 'apex', 'valorant', 'injustice', 'mortal_kombat', 'efootball', 'pubg_mobile'];
+const MIN_STAKE = 2;
+const MAX_STAKE = 1000;
+const ALL_GAMES = (Object.keys(GAME_INFO) as GameType[]).filter((g) => GAME_INFO[g]);
 
 export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallengePanelProps) {
   const { user, profile, refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [selectedStake, setSelectedStake] = useState(10);
   const [customStake, setCustomStake] = useState('');
   const [selectedGame, setSelectedGame] = useState<GameType>('codm');
   const [sending, setSending] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
-  const gameScrollRef = useRef<HTMLDivElement>(null);
 
-  const executeSend = async (stake: number) => {
+  const parsedCustom = customStake ? Number(customStake) : NaN;
+  const stake = customStake ? (Number.isFinite(parsedCustom) ? Math.round(parsedCustom * 100) / 100 : 0) : selectedStake;
+  const stakeValid = stake >= MIN_STAKE && stake <= MAX_STAKE;
+  const balance = Number(profile?.arena_currency || 0);
+  const pot = stake * 2;
+  const fee = pot * 0.1;
+  const prize = pot - fee;
+
+  const close = () => onOpenChange(false);
+
+  const resetForm = () => {
+    setSelectedStake(10);
+    setCustomStake('');
+    setSelectedGame('codm');
+  };
+
+  const getTeamCaptainId = async (teamId: string) => {
+    const { data } = await supabase.from('teams').select('captain_id').eq('id', teamId).maybeSingle();
+    return (data?.captain_id as string | undefined) ?? null;
+  };
+
+  const executeSend = async () => {
+    if (!user) return;
     setSending(true);
-
     try {
-      // Fetch latest balance
-      const { data: latestProfile } = await supabase
-        .from('profiles')
-        .select('arena_currency, available_balance')
-        .eq('id', user!.id)
-        .single();
-      
-      const currentBalance = latestProfile?.arena_currency || 0;
+      let myTeamId: string | null = null;
+      let opponentId = opponent.user_id ?? null;
 
-      if (stake > 0 && currentBalance < stake) {
-        throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(stake)} to send this challenge.`);
-      }
-
-      // If team challenge, check if user is a captain of a 5-member team
-      let myTeamId = null;
       if (opponent.team_id) {
         const { data: myTeam } = await supabase
           .from('teams')
           .select('id, team_members(count)')
-          .eq('captain_id', user!.id)
-          .single();
-        
-        if (!myTeam) {
-          throw new Error('You must be a team captain to send team challenges.');
-        }
-        
-        const memberCount = (myTeam.team_members as any)?.[0]?.count || 0;
-        if (memberCount < 5) {
-          throw new Error('Your team must have 5 members to send team challenges.');
-        }
-        myTeamId = myTeam.id;
+          .eq('captain_id', user.id)
+          .limit(1)
+          .maybeSingle();
+        if (!myTeam) throw new Error('Only team captains can send team challenges.');
+        const memberCount = (myTeam.team_members as { count: number }[] | null)?.[0]?.count || 0;
+        if (memberCount < 5) throw new Error('Your team needs 5 members to send a team challenge.');
+        myTeamId = myTeam.id as string;
+        opponentId = await getTeamCaptainId(opponent.team_id);
       }
+      if (!opponentId) throw new Error('That player or team is no longer available.');
 
-      // Deduct Arena Currency only (non-withdrawable)
-      const { error: balanceError } = await supabase
-        .from('profiles')
-        .update({ 
-          arena_currency: currentBalance - stake
-        })
-        .eq('id', user!.id);
-
-      if (balanceError) throw balanceError;
-
-      // Record transaction
-      const { data: txData, error: txError } = await supabase.from('transactions').insert({
-        user_id: user!.id,
-        type: 'challenge_fee',
-        amount: -stake,
-        description: `Stake for challenge to: ${opponent.gamertag}`,
-        status: 'pending' // Pending until challenge is accepted or declined
-      }).select().single();
-
-      await refreshProfile();
-
-      // Calculate prize pool (stake * 2 - 10% fee)
-      const totalPot = stake * 2;
-      const platformFee = totalPot * 0.1;
-      const prizePool = totalPot - platformFee;
-
-      // Create challenge with 5 minute expiry
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + 5);
-
-      const challengeData: any = {
-        challenger_id: user!.id,
-        opponent_id: opponent.user_id || (await getTeamCaptainId(opponent.team_id!)),
+      await createChallenge({
+        userId: user.id,
+        opponentId,
+        opponentTag: opponent.gamertag,
         game: selectedGame,
-        stake_amount: stake,
-        prize_pool: prizePool,
-        platform_fee: platformFee,
-        expires_at: expiresAt.toISOString(),
-        status: 'pending'
-      };
+        stake,
+        challengerTeamId: myTeamId,
+        opponentTeamId: opponent.team_id ?? null,
+      });
 
-      if (opponent.team_id) {
-        challengeData.opponent_team_id = opponent.team_id;
-        challengeData.challenger_team_id = myTeamId;
-      }
-
-      const { error } = await supabase
-        .from('challenges')
-        .insert(challengeData);
-
-      if (error) {
-        // Refund if challenge creation fails
-        await supabase
-          .from('profiles')
-          .update({ 
-            arena_currency: currentBalance
-          })
-          .eq('id', user!.id);
-        
-        // Delete the transaction record if it exists
-        if (txData) {
-          await supabase.from('transactions').delete().eq('id', txData.id);
-        }
-        
-        throw error;
-      }
-
-      // Mark transaction as completed now that challenge is created
-      if (txData) {
-        await supabase.from('transactions')
-          .update({ status: 'completed', challenge_id: (error ? null : (await supabase.from('challenges').select('id').eq('challenger_id', user!.id).order('created_at', { ascending: false }).limit(1).single()).data?.id) })
-          .eq('id', txData.id);
-      }
-      
-      // Wait, let's simplify this. Just mark it completed. 
-      // Actually, I can't easily get the challenge ID here before it's inserted, 
-      // but I can update it after.
-      // But let's just mark it completed and skip the challenge_id for the fee if it's too complex.
-      // No, let's try to get it.
-      
-      const { data: newChallenge } = await supabase
-        .from('challenges')
-        .select('id')
-        .eq('challenger_id', user!.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-        
-      if (newChallenge && txData) {
-        await supabase.from('transactions')
-          .update({ challenge_id: newChallenge.id, status: 'completed' })
-          .eq('id', txData.id);
-      }
-
-      // Also send a DM to let them know
+      // Heads-up DM so the opponent sees it even if they miss the popup
       if (!opponent.team_id && opponent.user_id) {
-        await supabase.from('direct_messages').insert({
-          sender_id: user!.id,
-          receiver_id: opponent.user_id,
-          message: `🎮 I challenged you to a ${GAME_INFO[selectedGame].name} match for ${formatArenaCurrency(stake)}! Check your notifications to accept.`
-        });
+        void supabase
+          .from('direct_messages')
+          .insert({
+            sender_id: user.id,
+            receiver_id: opponent.user_id,
+            message: `🎮 I challenged you to a ${GAME_INFO[selectedGame].name} match for ${formatArenaCurrency(stake)}. Accept it from your notifications within 5 minutes.`,
+          })
+          .then(
+            () => undefined,
+            () => undefined,
+          );
       }
 
-      toast.success(`Challenge sent to ${opponent.gamertag}`);
+      invalidatePlayerProgress(user.id);
+      await refreshProfile();
+      toast.success(`Challenge sent to ${opponent.gamertag}`, { description: 'They have 5 minutes to accept. Your stake is refunded if they don’t.' });
       setConsentOpen(false);
-      onOpenChange(false);
-      
-      // Reset form
-      setSelectedStake(10);
-      setCustomStake('');
-      setSelectedGame('codm');
-    } catch (error: any) {
+      close();
+      resetForm();
+    } catch (error) {
       console.error('Error sending challenge:', error);
-      toast.error(error.message || 'Failed to send challenge');
+      const message = friendlyChallengeError(error);
+      toast.error(message, /insufficient|not enough/i.test(message) ? { action: { label: 'Top up', onClick: () => navigate('/wallet') } } : undefined);
     } finally {
       setSending(false);
     }
   };
 
-  const getTeamCaptainId = async (teamId: string) => {
-    const { data } = await supabase
-      .from('teams')
-      .select('captain_id')
-      .eq('id', teamId)
-      .single();
-    return data?.captain_id;
-  };
-
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!user || !profile) {
-      toast.error('You must be logged in to send challenges');
+      toast.error('Sign in to send challenges');
       return;
     }
-
-    const stake = customStake ? parseFloat(customStake) : selectedStake;
-
-    if (stake < 2 || stake > 1000) {
-      toast.error('Stake must be between A$2 and A$1000');
+    if (!stakeValid) {
+      toast.error(`Stakes run from ${formatArenaCurrency(MIN_STAKE)} to ${formatArenaCurrency(MAX_STAKE)}`);
       return;
     }
-
-    // Check Arena Currency balance
-    const currentBalance = profile.arena_currency || 0;
-    if (currentBalance < stake) {
-      toast.error(`Insufficient Arena Currency. You need ${formatArenaCurrency(stake)} to send this challenge.`);
+    if (balance < stake) {
+      toast.error(`You need ${formatArenaCurrency(stake)} to send this challenge`, { action: { label: 'Top up', onClick: () => navigate('/wallet') } });
       return;
     }
-
     setConsentOpen(true);
   };
 
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => onOpenChange(false)}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          />
+        <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4" role="dialog" aria-modal="true" aria-labelledby="send-challenge-title">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
-          {/* Modal Card - Centered on Desktop, Slide-up on Mobile */}
           <motion.div
-            initial={{ y: '100%', opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="relative w-full md:w-auto md:max-w-2xl md:min-w-[600px] bg-background border border-border rounded-t-3xl md:rounded-2xl shadow-2xl max-h-[90vh] md:max-h-[85vh] overflow-y-auto z-10"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+            className="relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-2xl md:max-w-xl md:rounded-2xl"
           >
-            <div className="p-6 md:p-8 space-y-6">
-              {/* Close Button */}
-              <button
-                onClick={() => onOpenChange(false)}
-                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors z-10"
-              >
-                <X className="h-6 w-6" />
-              </button>
-
-              {/* Title */}
-              <div>
-                <h2 className="text-2xl md:text-3xl font-bold font-orbitron gradient-primary-text">
-                  Send Challenge
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Challenge your opponent to a 1v1 match
-                </p>
-              </div>
-
-              {/* Opponent Info Card */}
-              <div className="glassmorphism-card p-4 flex items-center gap-4">
-                <Avatar className="h-16 w-16 border-2 border-primary">
-                  <AvatarImage src={opponent.avatar_url || undefined} />
-                  <AvatarFallback className="text-lg font-bold">
-                    {opponent.gamertag?.charAt(0).toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold">{opponent.gamertag}</h3>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                    <span className="text-green-500 font-semibold">{opponent.wins}W</span>
-                    <span className="text-red-500 font-semibold">{opponent.losses}L</span>
-                    {opponent.rank && (
-                      <span className="text-amber-500 font-semibold">{opponent.rank}</span>
-                    )}
-                  </div>
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-muted md:hidden" />
+            <div className="space-y-6 p-5 md:p-7">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 id="send-challenge-title" className="text-3xl leading-none">
+                    Send a challenge
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {opponent.team_id ? '5v5 team match.' : '1v1 match.'} Winner takes 90% of the pot.
+                  </p>
                 </div>
+                <button type="button" onClick={close} className="-mr-1 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
+                  <X className="h-5 w-5" />
+                </button>
               </div>
 
-              {/* Game Selection */}
-              <div className="space-y-3">
-                <Label className="text-base font-semibold">Select Game</Label>
-                <div 
-                  ref={gameScrollRef}
-                  className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent"
-                  style={{ scrollbarWidth: 'thin' }}
-                >
+              <div className="flex items-center gap-4 rounded-xl border border-border bg-background/40 p-3">
+                <Avatar className="h-14 w-14 border-2 border-primary/60">
+                  <AvatarImage src={opponent.avatar_url || undefined} />
+                  <AvatarFallback className="font-score text-lg">{opponent.gamertag?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-score text-xl font-bold">{opponent.gamertag}</p>
+                  <p className="flex gap-3 text-sm">
+                    <span className="font-score text-success">{opponent.wins ?? 0}W</span>
+                    <span className="font-score text-destructive">{opponent.losses ?? 0}L</span>
+                    {opponent.rank && <span className="text-gold">{opponent.rank}</span>}
+                  </p>
+                </div>
+                <Swords className="h-6 w-6 shrink-0 text-primary-soft" aria-hidden />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Game</Label>
+                <div className="-mx-5 flex snap-x gap-2 overflow-x-auto px-5 pb-1 scrollbar-hide md:-mx-7 md:px-7" role="radiogroup" aria-label="Game">
                   {ALL_GAMES.map((game) => {
-                    const gameInfo = GAME_INFO[game];
-                    const isSelected = selectedGame === game;
+                    const info = GAME_INFO[game];
+                    const selected = selectedGame === game;
                     return (
                       <button
                         key={game}
                         type="button"
+                        role="radio"
+                        aria-checked={selected}
                         onClick={() => setSelectedGame(game)}
-                        className={`relative flex-shrink-0 w-32 h-40 rounded-xl overflow-hidden transition-all ${
-                          isSelected 
-                            ? 'ring-4 ring-primary scale-105' 
-                            : 'hover:scale-105 opacity-70 hover:opacity-100'
-                        }`}
+                        className={cn(
+                          'relative h-28 w-24 shrink-0 snap-start overflow-hidden rounded-xl border-2 transition-[border-color,opacity]',
+                          selected ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100',
+                        )}
                       >
-                        <img
-                          src={gameInfo.banner}
-                          alt={gameInfo.name}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-3">
-                          <p className="text-white font-bold text-sm text-center">
-                            {gameInfo.name}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs">✓</span>
-                          </div>
+                        <img src={info.banner} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        <span className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                        <span className="absolute inset-x-0 bottom-0 p-2 text-center text-xs font-semibold leading-tight text-white">{info.shortName || info.name}</span>
+                        {selected && (
+                          <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
+                            <Check className="h-3 w-3" />
+                          </span>
                         )}
                       </button>
                     );
@@ -330,93 +220,75 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
                 </div>
               </div>
 
-      {/* Stake Selection */}
-      <div className="space-y-3">
-        <Label className="text-base font-semibold">Entry Fee (Arena Currency)</Label>
-        <div className="flex flex-wrap gap-2">
-          {STAKE_OPTIONS.map((stake) => (
-            <button
-              key={stake}
-              type="button"
-              onClick={() => {
-                setSelectedStake(stake);
-                setCustomStake('');
-              }}
-              className={`px-6 py-3 rounded-xl font-semibold transition-all ${
-                selectedStake === stake && !customStake
-                  ? 'bg-primary text-primary-foreground scale-105'
-                  : 'bg-muted text-foreground hover:bg-muted/80'
-              }`}
-            >
-              A${stake}
-            </button>
-          ))}
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-mono text-xs">A$</span>
-            <Input
-              type="number"
-              placeholder="Custom"
-              value={customStake}
-              onChange={(e) => setCustomStake(e.target.value)}
-              className={`w-32 pl-8 pr-4 py-3 rounded-xl font-semibold ${
-                customStake
-                  ? 'border-2 border-primary bg-primary/10'
-                  : 'bg-muted'
-              }`}
-              min="2"
-              max="1000"
-              step="0.01"
-            />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Min: A$2 • Max: A$1000 • Winner takes 90% of total pot
-        </p>
-      </div>
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <Label htmlFor="custom-stake" className="text-sm font-semibold">
+                    Stake
+                  </Label>
+                  <span className="text-xs text-muted-foreground">
+                    Balance <span className="font-score text-sm text-foreground">{formatArenaCurrency(balance)}</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                  {STAKE_OPTIONS.map((option) => {
+                    const selected = selectedStake === option && !customStake;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStake(option);
+                          setCustomStake('');
+                        }}
+                        disabled={option > balance}
+                        className={cn(
+                          'h-11 rounded-lg border font-score text-lg font-bold transition-colors disabled:opacity-35',
+                          selected ? 'border-primary bg-primary text-white' : 'border-border bg-background/40 hover:border-primary/50',
+                        )}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                  <Input
+                    id="custom-stake"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Custom"
+                    value={customStake}
+                    onChange={(e) => setCustomStake(e.target.value)}
+                    min={MIN_STAKE}
+                    max={MAX_STAKE}
+                    step="1"
+                    className={cn('col-span-4 h-11 font-score text-lg sm:col-span-1', customStake && 'border-primary bg-primary/10')}
+                    aria-invalid={!!customStake && !stakeValid}
+                  />
+                </div>
+                <p className={cn('text-xs', customStake && !stakeValid ? 'text-destructive' : 'text-muted-foreground')}>
+                  {formatArenaCurrency(MIN_STAKE)} to {formatArenaCurrency(MAX_STAKE)}. Refunded if they decline or the challenge expires.
+                </p>
+              </div>
 
-      {/* Prize Breakdown */}
-      <div className="glassmorphism-card p-4 space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Your Stake:</span>
-          <span className="font-semibold">{formatArenaCurrency(customStake ? parseFloat(customStake) : selectedStake)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Opponent Stake:</span>
-          <span className="font-semibold">{formatArenaCurrency(customStake ? parseFloat(customStake) : selectedStake)}</span>
-        </div>
-        <div className="h-px bg-border my-2" />
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Total Pot:</span>
-          <span className="font-semibold">{formatArenaCurrency((customStake ? parseFloat(customStake) : selectedStake) * 2)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Platform Fee (10%):</span>
-          <span className="font-semibold text-red-400">-{formatArenaCurrency((customStake ? parseFloat(customStake) : selectedStake) * 2 * 0.1)}</span>
-        </div>
-        <div className="h-px bg-border my-2" />
-        <div className="flex justify-between">
-          <span className="font-bold text-amber-500">Winner Prize:</span>
-          <span className="font-bold text-amber-500 text-lg">{formatArenaCurrency((customStake ? parseFloat(customStake) : selectedStake) * 2 * 0.9)}</span>
-        </div>
-      </div>
+              <dl className="space-y-2 rounded-xl border border-border bg-background/40 p-4 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Total pot</dt>
+                  <dd className="font-score text-base">{formatArenaCurrency(stakeValid ? pot : 0)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Platform fee (10%)</dt>
+                  <dd className="font-score text-base text-muted-foreground">−{formatArenaCurrency(stakeValid ? fee : 0)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between border-t border-border pt-2">
+                  <dt className="font-semibold">Winner gets</dt>
+                  <dd className="font-score text-2xl font-bold text-gold">{formatArenaCurrency(stakeValid ? prize : 0)}</dd>
+                </div>
+              </dl>
 
-              {/* Send Button */}
-              <Button
-                onClick={handleSend}
-                disabled={sending}
-                className="sheen-effect w-full py-6 text-lg font-bold transition-all duration-300 hover:scale-[1.02]"
-                style={{
-                  fontFamily: 'Orbitron, sans-serif',
-                  background: 'linear-gradient(90deg, #8b5cf6 0%, #06b6d4 100%)',
-                  border: 0,
-                }}
-              >
-                {sending ? 'SENDING...' : 'SEND CHALLENGE'}
+              <Button onClick={handleSend} disabled={sending || !stakeValid} size="lg" className="w-full text-base">
+                {sending ? <Loader2 className="animate-spin" /> : <Swords />}
+                {sending ? 'Sending…' : `Challenge for ${formatArenaCurrency(stakeValid ? stake : 0)}`}
               </Button>
-
-              <p className="text-xs text-center text-muted-foreground">
-                Challenge expires in 5 minutes if not accepted
-              </p>
+              <p className="text-center text-xs text-muted-foreground">The challenge expires in 5 minutes if it isn’t accepted.</p>
             </div>
           </motion.div>
 
@@ -424,10 +296,10 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
             <ConsentModal
               open={consentOpen}
               onOpenChange={setConsentOpen}
-              title={`Challenge Opponent: ${opponent.gamertag}`}
-              description={`You are about to challenge ${opponent.gamertag} to a 1v1 match in ${GAME_INFO[selectedGame].name}. The stake amount will be deducted from your balance.`}
-              amount={customStake ? parseFloat(customStake) : selectedStake}
-              onConfirm={() => executeSend(customStake ? parseFloat(customStake) : selectedStake)}
+              title={`Challenge ${opponent.gamertag}`}
+              description={`${GAME_INFO[selectedGame].name}, winner takes ${formatArenaCurrency(prize)}. Your stake is held until the match is decided and refunded if they decline or it expires.`}
+              amount={stake}
+              onConfirm={executeSend}
               loading={sending}
             />
           )}

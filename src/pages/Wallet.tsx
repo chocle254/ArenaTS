@@ -9,7 +9,7 @@ import {
   Trophy,
   Loader2
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,16 @@ interface Transaction {
 }
 
 const TRANSACTION_FILTERS = ['all', 'wins', 'fees', 'withdrawals', 'deposits'] as const;
+
+// Units follow the database functions: entry fees, stakes, deposits and refunds
+// move Arena Currency; prizes, payouts and withdrawals move cash (USD dollars).
+// The currency column alone isn't reliable (fee rows default to 'USD').
+const CASH_TYPES = new Set(['payout', 'challenge_win', 'tournament_win', 'withdrawal']);
+function formatTransactionAmount(t: { type: string; amount: number; currency?: string | null }) {
+  const value = Math.abs(Number(t.amount) || 0);
+  if (t.currency === 'AC' || !CASH_TYPES.has(t.type)) return formatArenaCurrency(value);
+  return `$${value.toFixed(2)}`;
+}
 type TransactionFilter = typeof TRANSACTION_FILTERS[number];
 
 export default function Wallet() {
@@ -54,16 +64,22 @@ export default function Wallet() {
   const animatedCash = useCountUp(cashBalance, 1500, 0);
 
   useEffect(() => {
-    fetchTransactions();
-  }, [user]);
+    fetchTransactions({ reset: true, pageNum: 1, filterValue: filter });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-  const fetchTransactions = async (reset = false) => {
+  // Page and filter are passed explicitly. (Reading them from state inside a
+  // setTimeout used stale values: "Load more" refetched the same page and
+  // filters applied one click late.)
+  const requestRef = useRef(0);
+  const fetchTransactions = async ({ reset, pageNum, filterValue }: { reset: boolean; pageNum: number; filterValue: TransactionFilter }) => {
     if (!user) return;
+    const requestId = ++requestRef.current;
 
     setLoading(true);
     try {
       const pageSize = 10;
-      const from = reset ? 0 : (page - 1) * pageSize;
+      const from = (pageNum - 1) * pageSize;
       const to = from + pageSize - 1;
 
       let query = supabase
@@ -74,19 +90,21 @@ export default function Wallet() {
         .range(from, to);
 
       // Apply filter
-      if (filter !== 'all') {
+      if (filterValue !== 'all') {
         const typeMap: Record<string, string[]> = {
-          wins: ['tournament_win', 'challenge_win'],
+          wins: ['tournament_win', 'challenge_win', 'payout'],
           fees: ['tournament_fee', 'challenge_fee'],
           withdrawals: ['withdrawal'],
-          deposits: ['credit', 'deposit'],
+          deposits: ['credit', 'deposit', 'refund'],
         };
-        query = query.in('type', typeMap[filter] || []);
+        query = query.in('type', typeMap[filterValue] || []);
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
+      // Ignore responses from superseded requests (fast filter switching)
+      if (requestId !== requestRef.current) return;
 
       if (reset) {
         setTransactions(data || []);
@@ -104,15 +122,17 @@ export default function Wallet() {
   };
 
   const handleFilterChange = (newFilter: TransactionFilter) => {
+    if (newFilter === filter) return;
     setFilter(newFilter);
     setPage(1);
     setTransactions([]);
-    setTimeout(() => fetchTransactions(true), 0);
+    fetchTransactions({ reset: true, pageNum: 1, filterValue: newFilter });
   };
 
   const handleLoadMore = () => {
-    setPage((p) => p + 1);
-    setTimeout(() => fetchTransactions(), 0);
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchTransactions({ reset: false, pageNum: nextPage, filterValue: filter });
   };
 
   const [isDepositLoading, setIsDepositLoading] = useState(false);
@@ -282,7 +302,8 @@ export default function Wallet() {
       toast.success(`Transferred $${amount.toFixed(2)} to Arena Currency`);
       setTransferAmount('');
       await refreshProfile();
-      fetchTransactions(true);
+      setPage(1);
+      fetchTransactions({ reset: true, pageNum: 1, filterValue: filter });
     } catch (error: any) {
       toast.error(error.message || 'Transfer failed');
     } finally {
@@ -838,9 +859,7 @@ export default function Wallet() {
                     isIncoming(transaction.type) ? 'text-emerald-500' : 'text-destructive'
                   }`}>
                     {isIncoming(transaction.type) ? '+' : '−'}
-                    {transaction.currency === 'AC'
-                      ? formatArenaCurrency(Math.abs(transaction.amount))
-                      : formatUSD(Math.abs(transaction.amount))}
+                    {formatTransactionAmount(transaction)}
                   </div>
                 </div>
               ))}

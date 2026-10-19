@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
@@ -15,14 +15,22 @@ export interface Notification {
   updated_at: string;
 }
 
+// Only one mounted instance shows toasts for new notifications.
+let toastOwnerId: string | null = null;
+
 export function useNotifications() {
   const { user } = useAuth();
+  const userId = user?.id;
+  // Each hook instance needs its own channel: the header dropdown and the
+  // notifications page are mounted at the same time, and reusing one channel
+  // name crashed the page ("cannot add postgres_changes callbacks ... after subscribe()").
+  const instanceId = useId().replace(/:/g, '');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const fetchNotifications = async () => {
-    if (!user) {
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) {
       setNotifications([]);
       setUnreadCount(0);
       setLoading(false);
@@ -34,7 +42,7 @@ export function useNotifications() {
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -47,7 +55,7 @@ export function useNotifications() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -86,27 +94,30 @@ export function useNotifications() {
   useEffect(() => {
     fetchNotifications();
 
-    if (!user) return;
+    if (!userId) return;
+
+    if (!toastOwnerId) toastOwnerId = instanceId;
 
     // Subscribe to new notifications
     const channel = supabase
-      .channel('notifications')
+      .channel(`notifications-${userId}-${instanceId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${user.id}`
+          filter: `user_id=eq.${userId}`
         },
         (payload) => {
           const newNotification = payload.new as Notification;
           
           // Add to notifications list
-          setNotifications(prev => [newNotification, ...prev]);
+          setNotifications(prev => (prev.some(n => n.id === newNotification.id) ? prev : [newNotification, ...prev]));
           setUnreadCount(prev => prev + 1);
 
-          // Show toast notification
+          // Only the first mounted instance shows the toast, so it isn't duplicated
+          if (toastOwnerId !== instanceId) return;
           toast.info(
             <div className="space-y-1">
               <p className="font-light text-sm">{newNotification.title}</p>
@@ -123,9 +134,10 @@ export function useNotifications() {
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      if (toastOwnerId === instanceId) toastOwnerId = null;
+      supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [userId, instanceId, fetchNotifications]);
 
   return {
     notifications,

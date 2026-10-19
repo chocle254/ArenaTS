@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { IncomingChallengeModal } from '@/components/IncomingChallengeModal';
 import { AuthContext } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { buzz } from '@/lib/utils';
 
 interface Challenge {
   id: string;
@@ -51,18 +52,26 @@ const ChallengeContext = createContext<ChallengeContextType | undefined>(undefin
 
 export function ChallengeProvider({ children }: { children: React.ReactNode }) {
   const auth = useContext(AuthContext);
-  const user = auth?.user;
+  const userId = auth?.user?.id;
   const [pendingChallenges, setPendingChallenges] = useState<Challenge[]>([]);
   const [activeChallenges, setActiveChallenges] = useState<Challenge[]>([]);
   const [currentChallenge, setCurrentChallenge] = useState<ChallengeWithProfiles | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // Refs instead of state in the fetch callback, so opening/closing the modal
+  // doesn't recreate the realtime subscription and immediately re-open it.
+  const modalOpenRef = React.useRef(false);
+  modalOpenRef.current = modalOpen;
+  const dismissedIdsRef = React.useRef<Set<string>>(new Set());
 
   const fetchChallenges = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
 
     try {
-      // Expire old challenges in the background — don't block UI
-      supabase.rpc('expire_old_challenges');
+      // Expire old challenges in the background — don't block UI.
+      // (.then() is required: an un-awaited Supabase query is never sent.)
+      supabase.rpc('expire_old_challenges').then(({ error }) => {
+        if (error) console.error('Error expiring challenges:', error);
+      });
 
       // Fetch pending and active challenges in parallel
       const [
@@ -72,13 +81,13 @@ export function ChallengeProvider({ children }: { children: React.ReactNode }) {
         supabase
           .from('challenges')
           .select('*')
-          .eq('opponent_id', user.id)
+          .eq('opponent_id', userId)
           .eq('status', 'pending')
           .order('created_at', { ascending: false }),
         supabase
           .from('challenges')
           .select('*')
-          .or(`challenger_id.eq.${user.id},opponent_id.eq.${user.id}`)
+          .or(`challenger_id.eq.${userId},opponent_id.eq.${userId}`)
           .in('status', ['accepted', 'disputed', 'disputed_warning'])
           .order('accepted_at', { ascending: false }),
       ]);
@@ -91,14 +100,15 @@ export function ChallengeProvider({ children }: { children: React.ReactNode }) {
       setPendingChallenges(validPendingData);
       setActiveChallenges(activeData || []);
 
-      // If there's a new pending challenge, show modal
-      if (validPendingData.length > 0 && !modalOpen) {
-        await loadChallengeWithProfiles(validPendingData[0]);
+      // Show the newest pending challenge the player hasn't already dismissed
+      const next = validPendingData.find((c) => !dismissedIdsRef.current.has(c.id));
+      if (next && !modalOpenRef.current) {
+        await loadChallengeWithProfiles(next);
       }
     } catch (error) {
       console.error('Error fetching challenges:', error);
     }
-  }, [user, modalOpen]);
+  }, [userId]);
 
   const loadChallengeWithProfiles = useCallback(async (challenge: Challenge) => {
     try {
@@ -128,6 +138,11 @@ export function ChallengeProvider({ children }: { children: React.ReactNode }) {
           }
         });
         setModalOpen(true);
+        try {
+          buzz([60, 40, 60]);
+        } catch {
+          /* not supported */
+        }
       }
     } catch (error) {
       console.error('Error loading challenge profiles:', error);
@@ -135,21 +150,21 @@ export function ChallengeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (user) {
+    if (userId) {
       fetchChallenges();
 
       // Subscribe to all challenge changes for current user
       const channel = supabase
-        .channel('challenges-realtime')
+        .channel(`challenges-${userId}`)
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
             table: 'challenges',
-            filter: `opponent_id=eq.${user.id}`
+            filter: `opponent_id=eq.${userId}`
           },
-          (payload) => {
+          () => {
             fetchChallenges();
           }
         )
@@ -159,9 +174,9 @@ export function ChallengeProvider({ children }: { children: React.ReactNode }) {
             event: '*',
             schema: 'public',
             table: 'challenges',
-            filter: `challenger_id=eq.${user.id}`
+            filter: `challenger_id=eq.${userId}`
           },
-          (payload) => {
+          () => {
             fetchChallenges();
           }
         )
@@ -170,20 +185,29 @@ export function ChallengeProvider({ children }: { children: React.ReactNode }) {
       return () => {
         supabase.removeChannel(channel);
       };
+    } else {
+      setPendingChallenges([]);
+      setActiveChallenges([]);
+      setModalOpen(false);
+      setCurrentChallenge(null);
     }
-  }, [user, fetchChallenges]);
+  }, [userId, fetchChallenges]);
 
   const handleModalClose = useCallback(() => {
+    if (currentChallenge) dismissedIdsRef.current.add(currentChallenge.id);
     setModalOpen(false);
     setCurrentChallenge(null);
-    
-    // Check if there are more pending challenges
-    if (pendingChallenges.length > 1) {
+
+    // Offer the next pending challenge the player hasn't seen yet
+    const next = pendingChallenges.find(
+      (c) => c.id !== currentChallenge?.id && !dismissedIdsRef.current.has(c.id) && new Date(c.expires_at) > new Date()
+    );
+    if (next) {
       setTimeout(() => {
-        loadChallengeWithProfiles(pendingChallenges[1]);
+        loadChallengeWithProfiles(next);
       }, 500);
     }
-  }, [pendingChallenges, loadChallengeWithProfiles]);
+  }, [currentChallenge, pendingChallenges, loadChallengeWithProfiles]);
 
   return (
     <ChallengeContext.Provider

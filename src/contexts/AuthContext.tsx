@@ -3,6 +3,7 @@ import * as React from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/db/supabase';
 import { getProfile } from '@/db/profile';
+import { flushPendingGameAccounts } from '@/lib/pending-game-accounts';
 import type { Profile } from '@/types/database';
 
 interface SignUpData {
@@ -51,10 +52,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(profileData);
   }, [user]);
 
+  // Keep the logged-in user stable across token refreshes so that consumers
+  // depending on `user` don't tear down and rebuild subscriptions every hour.
+  const applySessionUser = React.useCallback((next: User | null, force = false) => {
+    setUser((prev) => {
+      if (!force && prev && next && prev.id === next.id) return prev;
+      return next;
+    });
+  }, []);
+
   React.useEffect(() => {
     // ── Initial session fetch ──────────────────────────────
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null);
       if (session?.user) {
         getProfile(session.user.id).then(setProfile);
       }
@@ -63,70 +73,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // ── Auth state changes (login / logout / token refresh) ─
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          getProfile(session.user.id).then(setProfile);
-        } else {
+      (event, session) => {
+        applySessionUser(session?.user ?? null, event === 'USER_UPDATED');
+        if (!session?.user) {
           setProfile(null);
+          return;
+        }
+        // Token refreshes don't change the profile; skip the extra request.
+        if (event !== 'TOKEN_REFRESHED') {
+          getProfile(session.user.id).then(setProfile);
         }
       }
     );
 
-    // ── Real-time profile row subscription ─────────────────
-    // Fires whenever the current user's profile row is updated
-    // in the database — wins, losses, earnings, tournaments_played etc.
-    // This means stats reflect immediately after a tournament ends
-    // without requiring a logout.
-    let profileSubscription: ReturnType<typeof supabase.channel> | null = null;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user) return;
-      profileSubscription = supabase
-        .channel(`profile-updates-${session.user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${session.user.id}`,
-          },
-          (payload) => {
-            // Update profile state directly from the realtime payload
-            // No extra fetch needed — the payload contains the new row
-            setProfile(payload.new as Profile);
-          }
-        )
-        .subscribe();
-    });
-
-    // ── Cleanup all subscriptions on unmount ───────────────
     return () => {
       authSubscription.unsubscribe();
-      if (profileSubscription) {
-        supabase.removeChannel(profileSubscription);
-      }
     };
-  }, []);
+  }, [applySessionUser]);
+
+  const userId = user?.id;
+
+  // Save in-game names entered at sign-up once the player has a session
+  React.useEffect(() => {
+    if (!user) return;
+    flushPendingGameAccounts(user.id, user.email).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // ── Real-time profile row subscription ─────────────────
+  // Keeps balances and stats live (wins, earnings, arena currency) for
+  // whoever is signed in — including users who sign in after page load.
+  React.useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`profile-updates-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+        (payload) => {
+          setProfile((prev) => ({ ...(prev || {}), ...(payload.new as Profile) }) as Profile);
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   const signIn = React.useCallback(async (usernameOrEmail: string, password: string) => {
-    let email = usernameOrEmail;
+    let email = usernameOrEmail.trim();
     
-    // If input doesn't contain @, it's a username or gamertag - convert to email format
+    // If input doesn't contain @, it's a username or gamertag - look up the email
     if (!usernameOrEmail.includes('@')) {
-      // Try to find user by username or gamertag
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('email')
-        .or(`username.eq.${usernameOrEmail},gamertag.eq.${usernameOrEmail}`)
-        .maybeSingle();
-      
-      if (profileData && profileData.email) {
-        email = profileData.email;
-      } else {
-        // Fallback to default email format for legacy or unknown accounts
-        email = `${usernameOrEmail}@miaoda.com`;
-      }
+      const handle = usernameOrEmail.trim();
+      // Two exact-match lookups instead of a raw PostgREST .or() string, so
+      // characters like commas or parentheses in the input can't alter the filter.
+      const lookup = async (column: 'username' | 'gamertag') => {
+        const { data } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq(column, handle)
+          .limit(1)
+          .maybeSingle();
+        return data?.email as string | undefined;
+      };
+      const found = (await lookup('gamertag')) || (await lookup('username'));
+      // Fallback to the legacy email format for accounts created by username only
+      email = found || `${handle}@miaoda.com`;
     }
     
     const { error } = await supabase.auth.signInWithPassword({ email, password });

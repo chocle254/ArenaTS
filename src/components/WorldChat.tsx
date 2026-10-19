@@ -51,7 +51,7 @@ export function WorldChat() {
     if (user) {
       markAsRead();
     }
-  }, [user, markAsRead]);
+  }, [user, markAsRead, messages.length]);
 
   useEffect(() => {
     // Close profile dialog when navigating away from world chat
