@@ -159,7 +159,7 @@ function JoinTeamDialog({ tournament, open, onOpenChange, onSuccess, loading }: 
           <div className="pt-4">
             <Button 
               type="submit" 
-              className="w-full sheen-effect bg-gradient-to-r from-blue-600 to-violet-600 hover:scale-[1.02] transition-transform"
+              className="w-full sheen-effect bg-gradient-to-r from-blue-600 to-primary hover:scale-[1.02] transition-transform"
               disabled={loading}
             >
               {loading ? 'Registering Team...' : 'Register Team & Join'}
@@ -1196,7 +1196,7 @@ export default function TournamentDetail() {
                           <span className="text-base">Players must check in {formatCompactNumber(tournament.check_in_window)} minutes before start time</span>
                         </li>
                         <li className="flex items-start gap-3 p-3 rounded-lg bg-muted/20">
-                          <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: '#8b5cf6', filter: 'drop-shadow(0 0 6px rgba(139, 92, 246, 0.6))' }} />
+                          <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'hsl(var(--primary))' }} />
                           <span className="text-base">Ready check must be completed within 5 minutes of match start</span>
                         </li>
                         <li className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
@@ -1386,7 +1386,7 @@ export default function TournamentDetail() {
                             key={participant.id}
                             className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 hover:bg-muted/30 transition-all duration-200"
                           >
-                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-blue-600/20 to-violet-600/20 font-bold text-sm shadow-lg shadow-blue-500/30">
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-blue-600/20 to-primary/20 font-bold text-sm shadow-lg shadow-blue-500/30">
                               <span className="gradient-primary-text">{tournamentWinner ? index + 2 : index + 1}</span>
                             </div>
                             <Avatar className="h-10 w-10">

@@ -131,7 +131,7 @@ export function QuickMatchLiveCard({ challenge, currentUserId }: QuickMatchLiveC
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Swords className="h-4 w-4 text-primary" />
-              <span className="text-xs font-bold uppercase tracking-tighter" style={{ fontFamily: 'Orbitron, sans-serif' }}>
+              <span className="text-xs font-bold uppercase tracking-tighter" style={{ fontFamily: "'Saira Condensed', sans-serif" }}>
                 {GAME_LABELS[challenge.game] || challenge.game}
               </span>
               {['accepted', 'disputed'].includes(challenge.status) ? (

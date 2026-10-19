@@ -197,19 +197,41 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('world_chat_messages')
       .insert({
         user_id: user.id,
         message: message.trim()
-      });
+      })
+      .select('id, user_id, message, created_at')
+      .single();
 
     if (error) {
       console.error('[WorldChat] Error sending message:', error);
       throw error;
     }
 
-  }, [user]);
+    // Show it immediately; the realtime echo is de-duplicated by id.
+    if (data) {
+      setMessages((prev) =>
+        prev.some((m) => m.id === data.id)
+          ? prev
+          : [
+              ...prev,
+              {
+                ...(data as Omit<WorldChatMessage, 'profiles'>),
+                profiles: {
+                  id: user.id,
+                  gamertag: profile?.gamertag || 'You',
+                  avatar_url: profile?.avatar_url ?? null,
+                  wins: profile?.wins ?? 0,
+                  losses: profile?.losses ?? 0,
+                },
+              },
+            ].slice(-300),
+      );
+    }
+  }, [user, profile?.gamertag, profile?.avatar_url, profile?.wins, profile?.losses]);
 
   const markAsRead = useCallback(() => {
     const now = new Date().toISOString();

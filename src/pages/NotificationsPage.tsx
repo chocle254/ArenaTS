@@ -13,9 +13,9 @@ const NotificationIcon = ({ type }: { type: Notification['type'] }) => {
     case 'tournament':
       return <Trophy className="h-5 w-5 text-blue-500" />;
     case 'match':
-      return <Trophy className="h-5 w-5 text-violet-500" />;
+      return <Trophy className="h-5 w-5 text-primary" />;
     case 'payment':
-      return <CreditCard className="h-5 w-5 text-indigo-500" />;
+      return <CreditCard className="h-5 w-5 text-primary" />;
     case 'system':
       return <AlertCircle className="h-5 w-5 text-muted-foreground" />;
     default:
@@ -106,7 +106,7 @@ export default function NotificationsPage() {
 
       {/* Filters */}
       <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'unread')} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 bg-gradient-to-br from-blue-950/30 via-violet-950/30 to-blue-950/30 border border-blue-500/20">
+        <TabsList className="grid w-full max-w-md grid-cols-2 bg-gradient-to-br from-blue-950/30 via-primary/10 to-blue-950/30 border border-blue-500/20">
           <TabsTrigger value="all" className="font-light">
             All ({notifications.length})
           </TabsTrigger>

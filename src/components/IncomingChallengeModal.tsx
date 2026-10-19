@@ -140,7 +140,7 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="incoming-challenge-title">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="incoming-challenge-title">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => onOpenChange(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
           <motion.div
@@ -153,7 +153,7 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
             {/* Time remaining, drawn as a draining bar */}
             <div className="h-1 w-full bg-muted">
               <div
-                className={cn('h-full transition-[width] duration-1000 ease-linear', urgent ? 'bg-destructive' : 'bg-live')}
+                className={cn('h-full transition-[width] duration-1000 ease-linear', urgent ? 'bg-destructive' : 'bg-primary')}
                 style={{ width: `${Math.min(100, (timeLeft / 300) * 100)}%` }}
               />
             </div>
@@ -166,7 +166,7 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
                 <span
                   className={cn(
                     'rounded-full border px-2.5 py-1 font-score text-sm font-bold tabular-nums',
-                    urgent ? 'border-destructive/40 bg-destructive/15 text-destructive' : 'border-live/30 bg-live/10 text-live',
+                    urgent ? 'border-destructive/40 bg-destructive/15 text-destructive' : 'border-primary/30 bg-primary/10 text-primary-soft',
                   )}
                   aria-label={`${timeLeft} seconds left`}
                 >

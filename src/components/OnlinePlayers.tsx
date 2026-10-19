@@ -64,12 +64,12 @@ export function OnlinePlayers() {
       <div className="flex items-center gap-2">
         <h2 id="online-title" className="flex items-center gap-2 text-2xl">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-live opacity-60 motion-reduce:hidden" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-live" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60 motion-reduce:hidden" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
           </span>
           Online now
         </h2>
-        {players && players.length > 0 && <span className="font-score text-lg text-live">{players.length}</span>}
+        {players && players.length > 0 && <span className="font-score text-lg text-success">{players.length}</span>}
       </div>
 
       {players === null ? (
@@ -92,7 +92,7 @@ export function OnlinePlayers() {
                   <AvatarImage src={p.avatar_url || undefined} alt="" />
                   <AvatarFallback className="font-score">{p.gamertag?.[0]?.toUpperCase() || '?'}</AvatarFallback>
                 </Avatar>
-                <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card bg-live" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card bg-success" />
               </Link>
               <div className="min-w-0 flex-1">
                 <Link to={`/profile/${p.id}`} className="block truncate font-semibold hover:text-primary-soft">

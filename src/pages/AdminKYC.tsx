@@ -232,7 +232,7 @@ export default function AdminKYC() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
           <div className="space-y-1">
             <h1 className="admin-header-title uppercase">KYC Verification Review</h1>
-            <p className="text-[#64748b] font-inter font-light text-[15px]">
+            <p className="text-muted-foreground font-inter font-light text-[15px]">
               Review and approve or reject identity verification submissions
             </p>
           </div>
@@ -344,7 +344,7 @@ export default function AdminKYC() {
                                 </Avatar>
                                 <div className="min-w-0">
                                   <p className="text-white font-semibold truncate">{item.profile.gamertag}</p>
-                                  <p className="text-[#64748b] text-xs truncate">{item.profile.email}</p>
+                                  <p className="text-muted-foreground text-xs truncate">{item.profile.email}</p>
                                 </div>
                               </div>
                             </TableCell>
@@ -352,7 +352,7 @@ export default function AdminKYC() {
                               {item.profile.extracted_dob || '—'}
                             </TableCell>
                             <TableCell>{statusBadge(item.profile.kyc_status)}</TableCell>
-                            <TableCell className="text-right text-[#64748b] font-inter text-[13px]">
+                            <TableCell className="text-right text-muted-foreground font-inter text-[13px]">
                               {new Date(item.submitted_at).toLocaleDateString()}
                             </TableCell>
                             <TableCell className="text-right">

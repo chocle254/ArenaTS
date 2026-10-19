@@ -418,7 +418,7 @@ function HeroMatch({
   if (!tournament) {
     return (
       <div className="surface-raised relative flex min-h-[260px] flex-col justify-end overflow-hidden p-6">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full" style={{ background: 'radial-gradient(circle, hsl(262 83% 60% / 0.35), transparent 70%)' }} />
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full" style={{ background: 'radial-gradient(circle, hsl(224 100% 60% / 0.22), transparent 70%)' }} />
         <p className="text-sm text-muted-foreground">{greeting()}{name ? `, ${name}` : ''}</p>
         <h1 className="mt-1 text-4xl leading-none sm:text-5xl">Find your next match</h1>
         <p className="mt-2 max-w-md text-muted-foreground">Challenge someone who is online right now, or start a tournament for your squad.</p>

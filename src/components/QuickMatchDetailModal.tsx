@@ -299,7 +299,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                 <Swords className="h-5 w-5 md:h-6 md:w-6 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-base md:text-xl font-bold uppercase tracking-tight" style={{ fontFamily: 'Orbitron, sans-serif' }}>
+                <DialogTitle className="text-base md:text-xl font-bold uppercase tracking-tight" style={{ fontFamily: "'Saira Condensed', sans-serif" }}>
                   {challenge.game.toUpperCase()} MATCH
                 </DialogTitle>
                 <p className="text-[10px] md:text-xs text-muted-foreground font-mono flex items-center gap-2 mt-0.5 md:mt-1">
@@ -398,7 +398,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                               }`}
                               disabled={myCheckedIn || checkingIn || isDeadlinePassed}
                               onClick={handleCheckIn}
-                              style={{ fontFamily: 'Orbitron, sans-serif' }}
+                              style={{ fontFamily: "'Saira Condensed', sans-serif" }}
                             >
                               {checkingIn ? (
                                 'PROCESSING...'

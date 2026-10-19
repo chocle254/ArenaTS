@@ -18,9 +18,9 @@ const NotificationIcon = ({ type }: { type: Notification['type'] }) => {
     case 'tournament':
       return <Trophy className="h-4 w-4 text-blue-500" />;
     case 'match':
-      return <Trophy className="h-4 w-4 text-violet-500" />;
+      return <Trophy className="h-4 w-4 text-primary" />;
     case 'payment':
-      return <CreditCard className="h-4 w-4 text-indigo-500" />;
+      return <CreditCard className="h-4 w-4 text-primary" />;
     case 'system':
       return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
     default:

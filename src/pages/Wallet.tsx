@@ -404,7 +404,7 @@ export default function Wallet() {
       case 'payout':
         return <Plus className="h-5 w-5 text-blue-500" />;
       case 'refund':
-        return <Plus className="h-5 w-5 text-indigo-500" />;
+        return <Plus className="h-5 w-5 text-primary" />;
       default:
         return <Plus className="h-5 w-5 text-muted-foreground" />;
     }
@@ -425,7 +425,7 @@ export default function Wallet() {
       case 'payout':
         return 'bg-blue-500/20';
       case 'refund':
-        return 'bg-indigo-500/20';
+        return 'bg-primary/20';
       default:
         return 'bg-muted';
     }

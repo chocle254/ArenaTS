@@ -36,8 +36,8 @@ export function LevelRing({ level, progress, size = 96, stroke = 6, className, c
         />
         <defs>
           <linearGradient id="lvl-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="hsl(258 100% 80%)" />
-            <stop offset="100%" stopColor="hsl(262 83% 58%)" />
+            <stop offset="0%" stopColor="hsl(var(--primary-soft))" />
+            <stop offset="100%" stopColor="hsl(var(--primary))" />
           </linearGradient>
         </defs>
       </svg>
