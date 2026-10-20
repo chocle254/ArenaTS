@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Launch performance indexes
 -- ============================================================================
--- NOT YET APPLIED. Safe to run more than once (IF NOT EXISTS); adds indexes
+-- Applied to the ArenaTS project on 2026-10-20. Safe to run more than once (IF NOT EXISTS); adds indexes
 -- only, no data changes. Each statement briefly locks its table for writes,
 -- so run it at a quiet moment (seconds on a launch-sized database).
 --
