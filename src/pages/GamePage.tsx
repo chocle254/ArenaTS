@@ -1,3 +1,4 @@
+import { FinishedTournamentList } from '@/components/arena/FinishedTournamentList';
 import { defaultRuleGroups, parseCustomRules } from '@/components/arena/TournamentRules';
 import { ArrowLeft, CalendarClock, ChevronDown, Plus } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -179,7 +180,7 @@ export default function GamePage() {
           {past.length > 0 && (
             <section className="space-y-4">
               <SectionHeader title="Recently finished" />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{past.map(card)}</div>
+              <FinishedTournamentList tournaments={past} />
             </section>
           )}
         </>
