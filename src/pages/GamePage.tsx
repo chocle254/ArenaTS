@@ -1,4 +1,5 @@
-import { ArrowLeft, CalendarClock, Plus } from 'lucide-react';
+import { defaultRuleGroups, parseCustomRules } from '@/components/arena/TournamentRules';
+import { ArrowLeft, CalendarClock, ChevronDown, Plus } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -230,7 +231,8 @@ function CreateTournamentDialog({
     startTime: '',
     prize1st: '50',
     prize2nd: '30',
-    prize3rd: '20'
+    prize3rd: '20',
+    rules: ''
   });
   
   // Calculate team size based on selected mode
@@ -285,6 +287,7 @@ function CreateTournamentDialog({
         mode: formData.gameMode,
         team_size: teamSize,
         description: formData.description,
+        rules: parseCustomRules(formData.rules).join('\n') || null,
         format: format,
         bracket_type: 'single_elimination',
         max_players: maxPlayersCount,
@@ -445,11 +448,46 @@ function CreateTournamentDialog({
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              placeholder="Describe your tournament rules and format..."
+              placeholder="What makes this tournament worth joining?"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
             />
+          </div>
+
+          {/* Rules */}
+          <div className="space-y-3">
+            <Label htmlFor="rules">Rules</Label>
+            <details className="group rounded-xl border border-border bg-card/60 [&_summary::-webkit-details-marker]:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 text-sm">
+                <span>
+                  <span className="font-semibold">House rules are included</span>
+                  <span className="block text-xs text-muted-foreground">Stable connection, no hacks or cheats, streaming, reporting and disputes.</span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="space-y-3 border-t border-border p-3">
+                {defaultRuleGroups({ check_in_window: 30, match_time_limit: 60, team_size: teamSize }).map((g) => (
+                  <div key={g.id}>
+                    <p className="mb-1 text-xs font-semibold">{g.title}</p>
+                    <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+                      {g.rules.map((r) => (
+                        <li key={r}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </details>
+            <Textarea
+              id="rules"
+              placeholder={'Extra rules for this tournament, one per line. For example:\nBest of 3 in the final\nNo grenade launchers'}
+              value={formData.rules}
+              onChange={(e) => setFormData({ ...formData, rules: e.target.value })}
+              rows={4}
+              maxLength={2000}
+            />
+            <p className="text-xs text-muted-foreground">Optional. Shown to players above the house rules.</p>
           </div>
 
           {/* Entry Fee and Prize Pool */}
