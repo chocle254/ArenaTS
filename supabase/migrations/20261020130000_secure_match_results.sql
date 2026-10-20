@@ -289,3 +289,180 @@ DROP TRIGGER IF EXISTS a_guard_match_results_write ON public.match_results;
 CREATE TRIGGER a_guard_match_results_write
   BEFORE INSERT OR UPDATE ON public.match_results
   FOR EACH ROW EXECUTE FUNCTION public.guard_match_results_write();
+
+-- ============================================================================
+-- Guard direct writes to challenges (quick matches)
+-- ============================================================================
+-- "Participants can update live challenges" let either player set
+-- status='completed' and winner_id to themselves, which pays out the pot.
+-- Allowed direct writes now:
+--   challenger : cancel while pending
+--   opponent   : accept or decline while pending
+--   players    : check in, upload a screenshot, report their own result
+--                (winner must be one of the two), cancel during a dispute
+--   admins not playing in the match : settle (winner must be a player) or cancel
+-- Completion still happens through the existing result trigger when both
+-- reports agree, and payouts through the existing prize trigger.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.guard_challenges_write()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_changed text[];
+  v_allowed text[] := ARRAY[]::text[];
+  v_is_challenger boolean;
+  v_is_opponent boolean;
+  v_is_admin boolean;
+BEGIN
+  IF current_user NOT IN ('authenticated', 'anon') THEN
+    RETURN NEW;
+  END IF;
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Not signed in' USING ERRCODE = '28000';
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status IS DISTINCT FROM 'pending' OR NEW.winner_id IS NOT NULL
+       OR NEW.challenger_reported_winner IS NOT NULL OR NEW.opponent_reported_winner IS NOT NULL THEN
+      RAISE EXCEPTION 'New challenges start as pending' USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  SELECT COALESCE(array_agg(n.key), '{}') INTO v_changed
+  FROM jsonb_each(to_jsonb(NEW)) n
+  WHERE n.value IS DISTINCT FROM (to_jsonb(OLD) -> n.key)
+    AND n.key <> 'updated_at';
+  IF cardinality(v_changed) = 0 THEN
+    RETURN NEW;
+  END IF;
+
+  v_is_challenger := v_uid = OLD.challenger_id;
+  v_is_opponent := v_uid = OLD.opponent_id;
+  v_is_admin := EXISTS (SELECT 1 FROM profiles WHERE id = v_uid AND role = 'admin');
+
+  IF v_is_challenger OR v_is_opponent THEN
+    IF NEW.submitted_by IS DISTINCT FROM OLD.submitted_by AND NEW.submitted_by IS DISTINCT FROM v_uid THEN
+      RAISE EXCEPTION 'You can only act as yourself' USING ERRCODE = '42501';
+    END IF;
+
+    IF OLD.status = 'pending' THEN
+      IF v_is_challenger AND NEW.status = 'cancelled' THEN
+        v_allowed := ARRAY['status', 'submitted_by'];
+      ELSIF v_is_opponent AND NEW.status IN ('accepted', 'declined') THEN
+        v_allowed := ARRAY['status', 'accepted_at', 'submitted_by'];
+      END IF;
+    ELSIF OLD.status IN ('accepted', 'disputed', 'disputed_warning') THEN
+      v_allowed := ARRAY['submitted_by', 'screenshot_url',
+                         CASE WHEN v_is_challenger THEN 'challenger_checked_in' ELSE 'opponent_checked_in' END,
+                         CASE WHEN v_is_challenger THEN 'challenger_reported_winner' ELSE 'opponent_reported_winner' END];
+      IF OLD.status IN ('disputed', 'disputed_warning') AND NEW.status = 'cancelled' THEN
+        v_allowed := v_allowed || ARRAY['status', 'dispute_count'];
+      END IF;
+      IF (v_is_challenger AND NEW.challenger_reported_winner IS DISTINCT FROM OLD.challenger_reported_winner
+            AND NEW.challenger_reported_winner IS NOT NULL AND NEW.challenger_reported_winner NOT IN (OLD.challenger_id, OLD.opponent_id))
+         OR (v_is_opponent AND NEW.opponent_reported_winner IS DISTINCT FROM OLD.opponent_reported_winner
+            AND NEW.opponent_reported_winner IS NOT NULL AND NEW.opponent_reported_winner NOT IN (OLD.challenger_id, OLD.opponent_id)) THEN
+        RAISE EXCEPTION 'The winner must be one of the two players';
+      END IF;
+    END IF;
+  ELSIF v_is_admin THEN
+    IF OLD.status IN ('completed', 'cancelled', 'declined', 'expired') THEN
+      RAISE EXCEPTION 'This match is already closed';
+    END IF;
+    IF NEW.status = 'completed' THEN
+      IF NEW.winner_id IS NULL OR NEW.winner_id NOT IN (OLD.challenger_id, OLD.opponent_id) THEN
+        RAISE EXCEPTION 'The winner must be one of the two players';
+      END IF;
+      v_allowed := ARRAY['status', 'winner_id', 'challenger_reported_winner', 'opponent_reported_winner', 'completed_at', 'submitted_by'];
+    ELSIF NEW.status = 'cancelled' THEN
+      v_allowed := ARRAY['status', 'submitted_by'];
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'You are not part of this match' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT (v_changed <@ v_allowed) THEN
+    RAISE EXCEPTION 'Not allowed to change % on this match', array_to_string(ARRAY(SELECT unnest(v_changed) EXCEPT SELECT unnest(v_allowed)), ', ')
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS a_guard_challenges_write ON public.challenges;
+CREATE TRIGGER a_guard_challenges_write
+  BEFORE INSERT OR UPDATE ON public.challenges
+  FOR EACH ROW EXECUTE FUNCTION public.guard_challenges_write();
+
+-- ============================================================================
+-- Guard direct writes to tournaments
+-- ============================================================================
+-- "Creators can update their tournaments" had no column limits: a creator
+-- could raise prize_pool after paying the creation fee, feature their own
+-- event, or set status='completed' with a winner, which triggers prize payout.
+-- Creators may now only edit the wording (name, description, rules, banned
+-- items, tie-break) while registration is open. Status, money, winners and
+-- featuring are handled by server functions or by admins.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.guard_tournaments_write()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_changed text[];
+BEGIN
+  IF current_user NOT IN ('authenticated', 'anon') THEN
+    RETURN NEW;
+  END IF;
+  IF EXISTS (SELECT 1 FROM profiles WHERE id = v_uid AND role = 'admin') THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.created_by IS DISTINCT FROM v_uid THEN
+      RAISE EXCEPTION 'You can only create tournaments as yourself' USING ERRCODE = '42501';
+    END IF;
+    IF NEW.status IS DISTINCT FROM 'open' OR COALESCE(NEW.featured, false) OR NEW.winner_id IS NOT NULL
+       OR COALESCE(NEW.current_players, 0) <> 0 OR COALESCE(NEW.prizes_distributed, false)
+       OR COALESCE(NEW.bracket_generated, false) OR NEW.completed_at IS NOT NULL THEN
+      RAISE EXCEPTION 'New tournaments start open with no players' USING ERRCODE = '42501';
+    END IF;
+    IF COALESCE(NEW.platform_fee_percentage, 10) < 10 THEN
+      RAISE EXCEPTION 'Platform fee cannot be lowered' USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  SELECT COALESCE(array_agg(n.key), '{}') INTO v_changed
+  FROM jsonb_each(to_jsonb(NEW)) n
+  WHERE n.value IS DISTINCT FROM (to_jsonb(OLD) -> n.key)
+    AND n.key <> 'updated_at';
+  IF cardinality(v_changed) = 0 THEN
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status <> 'open' THEN
+    RAISE EXCEPTION 'This tournament can no longer be edited' USING ERRCODE = '42501';
+  END IF;
+  IF NOT (v_changed <@ ARRAY['name', 'description', 'rules', 'banned_items', 'tie_break_rules']) THEN
+    RAISE EXCEPTION 'Not allowed to change % on this tournament', array_to_string(ARRAY(SELECT unnest(v_changed) EXCEPT SELECT unnest(ARRAY['name', 'description', 'rules', 'banned_items', 'tie_break_rules'])), ', ')
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS a_guard_tournaments_write ON public.tournaments;
+CREATE TRIGGER a_guard_tournaments_write
+  BEFORE INSERT OR UPDATE ON public.tournaments
+  FOR EACH ROW EXECUTE FUNCTION public.guard_tournaments_write();
