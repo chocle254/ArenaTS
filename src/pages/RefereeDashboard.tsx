@@ -198,11 +198,11 @@ function DisputeReview({ dispute: d, names, currentUserId, isAdmin, onClose, onD
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <div className="rounded-xl bg-secondary/60 p-3">
             <dt className="text-muted-foreground">{n1} says</dt>
-            <dd className="font-semibold">{said(reports.p1)} won</dd>
+            <dd className="font-semibold">{reports.p1 ? `${said(reports.p1)} won` : 'No report'}</dd>
           </div>
           <div className="rounded-xl bg-secondary/60 p-3">
             <dt className="text-muted-foreground">{n2} says</dt>
-            <dd className="font-semibold">{said(reports.p2)} won</dd>
+            <dd className="font-semibold">{reports.p2 ? `${said(reports.p2)} won` : 'No report'}</dd>
           </div>
         </dl>
 
