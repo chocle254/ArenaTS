@@ -22,7 +22,7 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
           <div className="max-w-md space-y-4">
             <p className="font-display text-5xl font-bold leading-[0.95]">Your skill. Your bracket. Your payout.</p>
             <p className="text-muted-foreground">
-              Tournaments and 1v1 challenges for CODM, eFootball, PUBG Mobile and more — with referees, real prizes and a leaderboard that remembers.
+              Tournaments and free 1v1 quick matches for CODM, eFootball, PUBG Mobile and more, with referees, real prizes paid to M-Pesa and a leaderboard that remembers. Available in Kenya.
             </p>
           </div>
         </div>

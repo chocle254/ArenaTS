@@ -106,6 +106,9 @@ export interface Tournament {
   current_players: number;
   entry_fee: number;
   prize_pool: number;
+  /** 'fixed' or 'sliding' (guarantee + entries after sliding_after slots) */
+  prize_mode?: 'fixed' | 'sliding';
+  sliding_after?: number | null;
   creator_contribution: number;
   prize_distribution: Record<string, number>;
   platform_fee_percentage: number;

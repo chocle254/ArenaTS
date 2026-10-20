@@ -1,4 +1,5 @@
 import { Bell, Check, Loader2, Users } from 'lucide-react';
+import { isSliding, livePrizePool } from '@/lib/prize';
 import type React from 'react';
 import { Link } from 'react-router-dom';
 import { LiveBadge } from '@/components/ui/live-badge';
@@ -109,9 +110,9 @@ export function TournamentCard({
 
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-xs text-muted-foreground">Prize pool</p>
+            <p className="text-xs text-muted-foreground">{isSliding(tournament) ? 'Prize pool, growing' : 'Prize pool'}</p>
             <p className="font-score text-3xl leading-none text-gold">
-              {formatArenaAmount(tournament.prize_pool)}
+              {formatArenaAmount(livePrizePool(tournament))}
               <span className="ml-1 text-sm text-gold/70">KES</span>
             </p>
           </div>

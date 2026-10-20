@@ -11,7 +11,6 @@ const Achievements = lazy(() => import('@/pages/Achievements'));
 const AuthCallback = lazy(() => import('@/pages/AuthCallback'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const DirectMessages = lazy(() => import('@/pages/DirectMessages'));
-const ExchangeRates = lazy(() => import('@/pages/ExchangeRates'));
 const Friends = lazy(() => import('@/pages/Friends'));
 const GamePage = lazy(() => import('@/pages/GamePage'));
 const Landing = lazy(() => import('@/pages/Landing'));
@@ -185,12 +184,6 @@ export const routes: RouteConfig[] = [
     name: 'Referee Dashboard',
     path: '/referee',
     element: <RefereeDashboard />,
-    public: false,
-  },
-  {
-    name: 'Exchange Rates',
-    path: '/exchange-rates',
-    element: <ExchangeRates />,
     public: false,
   },
   {

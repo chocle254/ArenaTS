@@ -1,20 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Loader2, Swords, X } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { invalidatePlayerProgress } from '@/hooks/use-player-progress';
-import { formatArenaCurrency } from '@/lib/arena-currency';
-import { createChallenge, friendlyChallengeError, STAKE_MAX, STAKE_MIN } from '@/lib/challenges';
+import { createChallenge, friendlyChallengeError } from '@/lib/challenges';
+import { XP_RULES } from '@/lib/progression';
 import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
-import { ConsentModal } from './ConsentModal';
 
 interface SendChallengePanelProps {
   open: boolean;
@@ -30,33 +27,16 @@ interface SendChallengePanelProps {
   };
 }
 
-const STAKE_OPTIONS = [50, 100, 200, 500];
-const MIN_STAKE = STAKE_MIN;
 const ALL_GAMES = (Object.keys(GAME_INFO) as GameType[]).filter((g) => GAME_INFO[g]);
 
 export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallengePanelProps) {
-  const { user, profile, refreshProfile } = useAuth();
-  const navigate = useNavigate();
-  const [selectedStake, setSelectedStake] = useState(100);
-  const [customStake, setCustomStake] = useState('');
+  const { user, profile } = useAuth();
   const [selectedGame, setSelectedGame] = useState<GameType>('codm');
   const [sending, setSending] = useState(false);
-  const [consentOpen, setConsentOpen] = useState(false);
-
-  const parsedCustom = customStake ? Number(customStake) : NaN;
-  const stake = customStake ? (Number.isFinite(parsedCustom) ? Math.round(parsedCustom) : 0) : selectedStake;
-  const MAX_STAKE = STAKE_MAX;
-  const stakeValid = stake >= MIN_STAKE && stake <= MAX_STAKE;
-  const balance = Number(profile?.arena_currency || 0);
-  const pot = stake * 2;
-  const fee = pot * 0.1;
-  const prize = pot - fee;
 
   const close = () => onOpenChange(false);
 
   const resetForm = () => {
-    setSelectedStake(100);
-    setCustomStake('');
     setSelectedGame('codm');
   };
 
@@ -92,7 +72,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
         opponentId,
         opponentTag: opponent.gamertag,
         game: selectedGame,
-        stake,
+        stake: 0,
         challengerTeamId: myTeamId,
         opponentTeamId: opponent.team_id ?? null,
       });
@@ -104,7 +84,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
           .insert({
             sender_id: user.id,
             receiver_id: opponent.user_id,
-            message: `🎮 I challenged you to a ${GAME_INFO[selectedGame].name} match for ${formatArenaCurrency(stake)}. Accept it from your notifications within 5 minutes.`,
+            message: `🎮 I challenged you to a ${GAME_INFO[selectedGame].name} quick match. Accept it from your notifications within 5 minutes.`,
           })
           .then(
             () => undefined,
@@ -113,15 +93,13 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
       }
 
       invalidatePlayerProgress(user.id);
-      await refreshProfile();
-      toast.success(`Challenge sent to ${opponent.gamertag}`, { description: 'They have 5 minutes to accept. Your stake is refunded if they don’t.' });
-      setConsentOpen(false);
+      toast.success(`Challenge sent to ${opponent.gamertag}`, { description: 'They have 5 minutes to accept.' });
       close();
       resetForm();
     } catch (error) {
       console.error('Error sending challenge:', error);
       const message = friendlyChallengeError(error);
-      toast.error(message, /insufficient|not enough/i.test(message) ? { action: { label: 'Top up', onClick: () => navigate('/wallet') } } : undefined);
+      toast.error(message);
     } finally {
       setSending(false);
     }
@@ -132,15 +110,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
       toast.error('Sign in to send challenges');
       return;
     }
-    if (!stakeValid) {
-      toast.error(`Stakes run from ${formatArenaCurrency(MIN_STAKE)} to ${formatArenaCurrency(MAX_STAKE)}`);
-      return;
-    }
-    if (balance < stake) {
-      toast.error(`You need ${formatArenaCurrency(stake)} to send this challenge`, { action: { label: 'Top up', onClick: () => navigate('/wallet') } });
-      return;
-    }
-    setConsentOpen(true);
+    void executeSend();
   };
 
   return (
@@ -164,7 +134,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
                     Send a challenge
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {opponent.team_id ? '5v5 team match.' : '1v1 match.'} Winner takes 90% of the pot.
+                    {opponent.team_id ? '5v5 team match' : '1v1 match'}, free to play. Win for XP and rank.
                   </p>
                 </div>
                 <button type="button" onClick={close} className="-mr-1 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
@@ -220,89 +190,30 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <Label htmlFor="custom-stake" className="text-sm font-semibold">
-                    Stake
-                  </Label>
-                  <span className="text-xs text-muted-foreground">
-                    Balance <span className="font-score text-sm text-foreground">{formatArenaCurrency(balance)}</span>
-                  </span>
+              <dl className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl border border-border bg-background/40 p-3">
+                  <dt className="text-xs text-muted-foreground">Entry</dt>
+                  <dd className="font-score text-xl font-bold">Free</dd>
                 </div>
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                  {STAKE_OPTIONS.map((option) => {
-                    const selected = selectedStake === option && !customStake;
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        onClick={() => {
-                          setSelectedStake(option);
-                          setCustomStake('');
-                        }}
-                        disabled={option > balance}
-                        className={cn(
-                          'h-11 rounded-lg border font-score text-lg font-bold transition-colors disabled:opacity-35',
-                          selected ? 'border-primary bg-primary text-white' : 'border-border bg-background/40 hover:border-primary/50',
-                        )}
-                      >
-                        {option}
-                      </button>
-                    );
-                  })}
-                  <Input
-                    id="custom-stake"
-                    type="number"
-                    inputMode="decimal"
-                    placeholder="Custom"
-                    value={customStake}
-                    onChange={(e) => setCustomStake(e.target.value)}
-                    min={MIN_STAKE}
-                    max={MAX_STAKE}
-                    step="1"
-                    className={cn('col-span-4 h-11 font-score text-lg sm:col-span-1', customStake && 'border-primary bg-primary/10')}
-                    aria-invalid={!!customStake && !stakeValid}
-                  />
+                <div className="rounded-xl border border-primary/30 bg-primary/10 p-3">
+                  <dt className="text-xs text-primary-soft">Win</dt>
+                  <dd className="font-score text-xl font-bold">+{XP_RULES.win} XP</dd>
                 </div>
-                <p className={cn('text-xs', customStake && !stakeValid ? 'text-destructive' : 'text-muted-foreground')}>
-                  {formatArenaCurrency(MIN_STAKE)} to {formatArenaCurrency(MAX_STAKE)}. Back to your play balance if they decline or it expires.
-                </p>
-              </div>
-
-              <dl className="space-y-2 rounded-xl border border-border bg-background/40 p-4 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Total pot</dt>
-                  <dd className="font-score text-base">{formatArenaCurrency(stakeValid ? pot : 0)}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Platform fee (10%)</dt>
-                  <dd className="font-score text-base text-muted-foreground">−{formatArenaCurrency(stakeValid ? fee : 0)}</dd>
-                </div>
-                <div className="flex items-baseline justify-between border-t border-border pt-2">
-                  <dt className="font-semibold">Winner gets</dt>
-                  <dd className="font-score text-2xl font-bold text-gold">{formatArenaCurrency(stakeValid ? prize : 0)}</dd>
+                <div className="rounded-xl border border-border bg-background/40 p-3">
+                  <dt className="text-xs text-muted-foreground">Lose</dt>
+                  <dd className="font-score text-xl font-bold">+{XP_RULES.loss} XP</dd>
                 </div>
               </dl>
+              <p className="text-xs text-muted-foreground">Wins climb the leaderboard. Your first 3 matches a day against the same player count toward your record.</p>
 
-              <Button onClick={handleSend} disabled={sending || !stakeValid} size="lg" className="w-full text-base">
+              <Button onClick={handleSend} disabled={sending} size="lg" className="w-full text-base">
                 {sending ? <Loader2 className="animate-spin" /> : <Swords />}
-                {sending ? 'Sending…' : `Challenge for ${formatArenaCurrency(stakeValid ? stake : 0)}`}
+                {sending ? 'Sending…' : `Challenge ${opponent.gamertag}`}
               </Button>
               <p className="text-center text-xs text-muted-foreground">The challenge expires in 5 minutes if it isn’t accepted.</p>
             </div>
           </motion.div>
 
-          {consentOpen && (
-            <ConsentModal
-              open={consentOpen}
-              onOpenChange={setConsentOpen}
-              title={`Challenge ${opponent.gamertag}`}
-              description={`${GAME_INFO[selectedGame].name}, winner takes ${formatArenaCurrency(prize)}. Your stake is held until the match is decided and refunded if they decline or it expires.`}
-              amount={stake}
-              onConfirm={executeSend}
-              loading={sending}
-            />
-          )}
         </div>
       )}
     </AnimatePresence>

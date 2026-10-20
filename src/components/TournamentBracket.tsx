@@ -1,3 +1,4 @@
+import { StreamToggle } from '@/components/arena/StreamToggle';
 import { DisputePanel } from '@/components/disputes/DisputePanel';
 import { AlertTriangle, ArrowRight, CheckCircle, Clock, MessageCircle, Play, Send, Shield, Trophy, Users, XCircle } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
@@ -445,6 +446,8 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
               </div>
             </div>
           )}
+
+          {isParticipant && matchResult.status !== 'confirmed' && <StreamToggle matchResultId={matchResult.id} />}
 
           {matchResult.status === 'disputed' && (
             <DisputePanel

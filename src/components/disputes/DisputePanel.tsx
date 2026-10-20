@@ -105,7 +105,7 @@ export function DisputePanel({
             {dispute.status === 'ai_review' && 'The AI referee is reviewing the evidence'}
             {dispute.status === 'proposed' && `AI referee: ${name(dispute.ai_winner)} won`}
             {dispute.status === 'human_review' && (dispute.referee_id ? 'A referee is reviewing this match' : 'Waiting for a referee')}
-            {dispute.status === 'decided' && (dispute.decided_winner ? `${name(dispute.decided_winner)} won` : 'Match cancelled, stakes returned')}
+            {dispute.status === 'decided' && (dispute.decided_winner ? `${name(dispute.decided_winner)} won` : 'Match cancelled')}
             {dispute.status === 'void' && 'Settled'}
           </p>
           <p className="text-sm text-muted-foreground">

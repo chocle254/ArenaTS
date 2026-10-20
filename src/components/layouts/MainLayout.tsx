@@ -318,7 +318,6 @@ function parentOf(pathname: string): string | null {
   if (/^\/live\/[^/]+/.test(pathname)) return '/streams';
   if (/^\/profile\/[^/]+/.test(pathname)) return '/leaderboard';
   if (pathname === '/achievements') return '/profile';
-  if (pathname === '/exchange-rates') return '/wallet';
   if (pathname === '/notifications' || pathname === '/settings') return '/dashboard';
   if (pathname.startsWith('/admin/')) return '/admin';
   return null;

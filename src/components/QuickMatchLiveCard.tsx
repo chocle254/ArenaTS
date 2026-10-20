@@ -149,7 +149,7 @@ export function QuickMatchLiveCard({ challenge, currentUserId }: QuickMatchLiveC
               )}
             </div>
             <div className="text-xs font-mono font-bold text-green-500">
-              {formatArenaCurrency(challenge.prize_pool)}
+              {Number(challenge.stake_amount) > 0 ? formatArenaCurrency(challenge.prize_pool) : 'Free'}
             </div>
           </div>
           

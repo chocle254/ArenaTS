@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { LiveBadge } from '@/components/ui/live-badge';
 import {
@@ -237,11 +238,24 @@ function CreateTournamentDialog({
     prize3rd: '20',
     rules: ''
   });
+  // ACGL-style growing prize: guarantee up front, entries after N slots add to it
+  const [sliding, setSliding] = useState(false);
+  const [slidingAfter, setSlidingAfter] = useState('');
   
   // Calculate team size based on selected mode
   const teamSize = formData.gameMode ? MODE_TEAM_SIZES[formData.gameMode as GameMode] : 1;
   const isTeamBased = teamSize > 1;
   const arenaCurrency = profile?.arena_currency || 0;
+
+  const feeNum = parseFloat(formData.entryFee) || 0;
+  const poolNum = parseFloat(formData.prizePool) || 0;
+  const maxNum = parseInt(formData.maxPlayers, 10) || 0;
+  const slotsNum = Math.floor(maxNum / teamSize);
+  const canSlide = feeNum > 0 && poolNum > 0;
+  const slideOn = sliding && canSlide;
+  const slideAfterNum = parseInt(slidingAfter || formData.minParticipants, 10) || 0;
+  const perEntry = feeNum * teamSize;
+  const fullPool = poolNum + (slideOn ? Math.max(slotsNum - slideAfterNum, 0) * perEntry : 0);
 
   const executeCreateTournament = async (deduction: number) => {
     setLoading(true);
@@ -298,6 +312,8 @@ function CreateTournamentDialog({
         current_players: 0,
         entry_fee: entryFee,
         prize_pool: prizePool,
+        prize_mode: slideOn ? 'sliding' : 'fixed',
+        sliding_after: slideOn ? slideAfterNum : null,
         prize_distribution: prizeDistribution,
         platform_fee_percentage: 10,
         status: 'open',
@@ -364,6 +380,9 @@ function CreateTournamentDialog({
     if (minPlayersTotal > maxPlayersValue) return void toast.error('Minimum participants cannot exceed max players');
     if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 5 * 60_000) return void toast.error('Pick a start time at least 5 minutes from now');
     if (Math.abs(split - 100) > 0.01) return void toast.error(`Prize split must add up to 100% (it's ${split}%)`);
+    if (slideOn && (slideAfterNum < 1 || slideAfterNum >= slotsNum)) {
+      return void toast.error(`The prize should start growing after 1 to ${slotsNum - 1} ${isTeamBased ? 'teams' : 'players'}`);
+    }
 
     // Prize tournaments (same rules as the server). Verified organizers such as
     // sponsors and brands skip the caps.
@@ -372,7 +391,10 @@ function CreateTournamentDialog({
       const unit = isTeamBased ? 'teams' : 'players';
       if (minParticipantsValue < 5 || slots < 5) return void toast.error(`Tournaments with prizes need at least 5 ${unit} to start`);
       if (start.getTime() < Date.now() + 30 * 60_000) return void toast.error('Give players at least 30 minutes to join before a prize tournament starts');
-      if (prizePoolValue > slots * 2000) return void toast.error(`Prize pool can be up to KES ${(slots * 2000).toLocaleString()} for ${slots} ${unit}. Hosting a sponsored event? Contact us to get verified as an organizer.`);
+      if (fullPool > slots * 2000)
+        return void toast.error(
+          `Prize pool can reach up to KES ${(slots * 2000).toLocaleString()} for ${slots} ${unit}${slideOn ? ` (this one could reach KES ${fullPool.toLocaleString()})` : ''}. Hosting a sponsored event? Contact us to get verified as an organizer.`,
+        );
       if (prizePoolValue > 20000 && profile.kyc_status !== 'verified') return void toast.error('Verify your ID to fund a prize pool above KES 20,000');
     }
 
@@ -523,13 +545,15 @@ function CreateTournamentDialog({
                 required
               />
               <p className="text-xs text-muted-foreground font-light">
-                Entry fees go to you after the event, minus a 10% platform fee.
+                {slideOn
+                  ? `The first ${slideAfterNum || 'few'} entries go to you after the event (minus 10%). Every entry after that grows the prize.`
+                  : 'Entry fees go to you after the event, minus a 10% platform fee.'}
               </p>
             </div>
             
             {/* Always show prize pool input */}
             <div className="space-y-2">
-              <Label htmlFor="prizePool">Prize pool (KES)</Label>
+              <Label htmlFor="prizePool">{slideOn ? 'Guaranteed prize (KES)' : 'Prize pool (KES)'}</Label>
               <Input
                 id="prizePool"
                 type="number"
@@ -544,6 +568,53 @@ function CreateTournamentDialog({
               <p className="text-xs text-muted-foreground font-light">
                 Paid from your play balance when you create it. Winners get it minus a 10% platform fee. Prize tournaments need at least 5 players, and you can't play in your own.
               </p>
+            </div>
+
+            <div className={`rounded-xl border p-3 ${slideOn ? 'border-gold/40 bg-gold/[0.06]' : 'border-border'}`}>
+              <label className="flex items-start gap-3">
+                <Switch checked={slideOn} onCheckedChange={setSliding} disabled={!canSlide} aria-describedby="sliding-help" className="mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Grow the prize with entries</span>
+                  <span id="sliding-help" className="block text-xs text-muted-foreground">
+                    {canSlide
+                      ? 'Your prize is guaranteed. Once enough players join, each extra entry fee is added to the prize.'
+                      : 'Set an entry fee and a guaranteed prize to turn this on.'}
+                  </span>
+                </span>
+              </label>
+              {slideOn && (
+                <div className="mt-3 space-y-3 border-t border-border pt-3">
+                  <div className="flex items-center gap-3">
+                    <Label htmlFor="slidingAfter" className="flex-1 text-sm font-normal">
+                      Start growing after this many {isTeamBased ? 'teams' : 'players'}
+                    </Label>
+                    <Input
+                      id="slidingAfter"
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      max={slotsNum ? slotsNum - 1 : undefined}
+                      value={slidingAfter || formData.minParticipants}
+                      onChange={(e) => setSlidingAfter(e.target.value)}
+                      className="w-20"
+                    />
+                  </div>
+                  <dl className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Guaranteed</dt>
+                      <dd className="font-score text-lg font-bold">{formatArenaCurrency(poolNum)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Each extra entry</dt>
+                      <dd className="font-score text-lg font-bold">+{formatArenaCurrency(perEntry)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">If it fills</dt>
+                      <dd className="font-score text-lg font-bold text-gold">{slotsNum ? formatArenaCurrency(fullPool) : '—'}</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
             </div>
           </div>
 

@@ -3,6 +3,7 @@ import { supabase } from '@/db/supabase';
 /** Turn database errors into something a player can act on. */
 export function friendlyChallengeError(error: unknown): string {
   const msg = (error as { message?: string })?.message || '';
+  if (/5 challenges waiting/i.test(msg)) return msg;
   if (/insufficient|not enough in your play balance/i.test(msg)) return 'Not enough in your play balance for this stake. Top up with M-Pesa and try again.';
   if (/expired/i.test(msg)) return 'This challenge has expired.';
   if (/no longer open/i.test(msg)) return 'This challenge is no longer open.';
@@ -45,6 +46,10 @@ export async function acceptChallenge(args: AcceptArgs): Promise<void> {
   if (error) throw error;
 }
 
-/** Quick-match stake limits (KES), mirrored from the database. */
+/**
+ * Quick matches are free (XP and rank only). Money stakes are switched off on
+ * the server (platform_settings.quick_match_stakes_enabled); these limits
+ * apply only if that is ever turned on.
+ */
 export const STAKE_MIN = 50;
 export const STAKE_MAX = 2000;

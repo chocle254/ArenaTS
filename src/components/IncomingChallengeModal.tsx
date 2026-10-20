@@ -10,6 +10,7 @@ import { supabase } from '@/db/supabase';
 import { invalidatePlayerProgress } from '@/hooks/use-player-progress';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
 import { acceptChallenge, friendlyChallengeError } from '@/lib/challenges';
+import { XP_RULES } from '@/lib/progression';
 import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
 import { ConsentModal } from './ConsentModal';
@@ -114,7 +115,13 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
     }
   };
 
+  const free = !(Number(challenge.stake_amount) > 0);
+
   const handleAccept = () => {
+    if (free) {
+      void executeAccept();
+      return;
+    }
     if (balance < challenge.stake_amount) {
       toast.error(`You need ${formatArenaCurrency(challenge.stake_amount)} to accept`, { action: { label: 'Top up', onClick: () => navigate('/wallet') } });
       return;
@@ -194,14 +201,29 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
                   <dt className="text-xs text-muted-foreground">Mode</dt>
                   <dd className="text-sm font-semibold">{challenge.challenger_team_id ? '5v5 team' : '1v1 duel'}</dd>
                 </div>
-                <div className="rounded-xl border border-border bg-background/40 p-3">
-                  <dt className="text-xs text-muted-foreground">Your stake</dt>
-                  <dd className="font-score text-xl font-bold">{formatArenaCurrency(challenge.stake_amount)}</dd>
-                </div>
-                <div className="rounded-xl border border-gold/30 bg-gold/10 p-3">
-                  <dt className="text-xs text-gold/80">Winner gets</dt>
-                  <dd className="font-score text-xl font-bold text-gold">{formatArenaCurrency(challenge.prize_pool)}</dd>
-                </div>
+                {free ? (
+                  <>
+                    <div className="rounded-xl border border-border bg-background/40 p-3">
+                      <dt className="text-xs text-muted-foreground">Entry</dt>
+                      <dd className="font-score text-xl font-bold">Free</dd>
+                    </div>
+                    <div className="rounded-xl border border-primary/30 bg-primary/10 p-3">
+                      <dt className="text-xs text-primary-soft">Win</dt>
+                      <dd className="font-score text-xl font-bold">+{XP_RULES.win} XP</dd>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-xl border border-border bg-background/40 p-3">
+                      <dt className="text-xs text-muted-foreground">Your stake</dt>
+                      <dd className="font-score text-xl font-bold">{formatArenaCurrency(challenge.stake_amount)}</dd>
+                    </div>
+                    <div className="rounded-xl border border-gold/30 bg-gold/10 p-3">
+                      <dt className="text-xs text-gold/80">Winner gets</dt>
+                      <dd className="font-score text-xl font-bold text-gold">{formatArenaCurrency(challenge.prize_pool)}</dd>
+                    </div>
+                  </>
+                )}
               </dl>
 
               <div className="flex gap-2">
@@ -214,7 +236,7 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
                   Accept
                 </Button>
               </div>
-              <p className="text-center text-xs text-muted-foreground">Declining refunds the challenger. Nothing is charged to you.</p>
+              <p className="text-center text-xs text-muted-foreground">{free ? `Win or lose, you earn XP (+${XP_RULES.loss} for playing). Nothing to pay.` : 'Declining refunds the challenger. Nothing is charged to you.'}</p>
             </div>
           </motion.div>
 

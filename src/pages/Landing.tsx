@@ -239,7 +239,7 @@ export default function Landing() {
               </motion.span>
             </h1>
             <motion.p {...rise(0.34)} className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-foreground/75 sm:text-lg lg:mx-0">
-              Join refereed tournaments, settle 1v1 money matches, and withdraw what you win. One app for CODM, eFootball, PUBG Mobile, FIFA and more.
+              Join refereed tournaments with real prizes, play free 1v1 quick matches for rank, and withdraw what you win to M-Pesa. One app for CODM, eFootball, PUBG Mobile, FIFA and more.
             </motion.p>
             <motion.div {...rise(0.42)} className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
               <Link to="/sign-up" className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-semibold text-white transition-colors hover:bg-primary/90 sm:w-auto">
@@ -329,7 +329,7 @@ export default function Landing() {
           <Step n={3} title="Get paid" text="Winnings land in your cash balance automatically. Withdraw them or turn them back into entries.">
             <div className="rounded-lg border border-gold/25 bg-gold/[0.07] p-3">
               <p className="text-xs text-muted-foreground">Cash balance</p>
-              <p className="font-score text-3xl font-bold leading-none text-gold">$84.50</p>
+              <p className="font-score text-3xl font-bold leading-none text-gold">KES 8,450</p>
               <p className="mt-2 flex items-center gap-1 text-xs text-success">
                 <Check className="h-3.5 w-3.5" /> 1st place payout received
               </p>
@@ -407,7 +407,7 @@ export default function Landing() {
             <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
               <Coins className="h-7 w-7 text-gold" />
               <h3 className="mt-5 text-3xl">Play balance</h3>
-              <p className="mt-2 text-muted-foreground">Top up with M-Pesa to cover entry fees and challenge stakes.</p>
+              <p className="mt-2 text-muted-foreground">Top up with M-Pesa to cover tournament entry fees.</p>
               <p className="mt-6 font-score text-5xl font-bold text-gold">KES 1,250</p>
             </div>
             <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">

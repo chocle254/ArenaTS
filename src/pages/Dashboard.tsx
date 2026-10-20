@@ -1,4 +1,5 @@
 import { useReducedMotion } from 'framer-motion';
+import { livePrizePool } from '@/lib/prize';
 import { CalendarClock, ChevronRight, Plus, Radio, Swords, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -370,7 +371,7 @@ function FeaturedCarousel({
                   <div>
                     <p className="text-[11px] text-muted-foreground">Prize pool</p>
                     <p className="font-score text-3xl font-bold leading-none text-gold sm:text-4xl">
-                      {formatArenaAmount(t.prize_pool)}
+                      {formatArenaAmount(livePrizePool(t))}
                       <span className="ml-1 text-base text-gold/70">KES</span>
                     </p>
                   </div>

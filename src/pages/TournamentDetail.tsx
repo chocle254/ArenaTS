@@ -1,4 +1,5 @@
 import { TournamentRules } from '@/components/arena/TournamentRules';
+import { isSliding, livePrizePool, perEntryBonus } from '@/lib/prize';
 import { 
   ArrowLeft, 
   Bell,
@@ -832,7 +833,7 @@ export default function TournamentDetail() {
   const gameInfo = GAME_INFO[tournament.game];
   const distribution = (tournament.prize_distribution || {}) as Record<string, number>;
   const firstPlaceShare = Number(distribution['1st'] ?? distribution['1'] ?? 0.5) || 0.5;
-  const shareText = `${isParticipant ? "I'm playing in" : 'Join me in'} ${tournament.name} on Arena — ${formatArenaCurrency(tournament.prize_pool)} prize pool.`;
+  const shareText = `${isParticipant ? "I'm playing in" : 'Join me in'} ${tournament.name} on Arena — ${formatArenaCurrency(livePrizePool(tournament))} prize pool.`;
   const shareUrl = `${window.location.origin}/tournaments/${tournament.id}`;
   const startTime = new Date(tournament.start_time);
   const now = new Date();
@@ -909,7 +910,7 @@ export default function TournamentDetail() {
           }}
           tournamentId={tournament.id}
           tournamentName={tournament.name}
-          prizeAmount={tournament.prize_pool * firstPlaceShare}
+          prizeAmount={livePrizePool(tournament) * firstPlaceShare}
           game={tournament.game}
           totalPlayers={confirmedParticipants.length || tournament.max_players}
         />
@@ -1035,8 +1036,12 @@ export default function TournamentDetail() {
           <div className="surface-raised p-4 md:p-5">
             <Trophy className="mb-3 h-5 w-5 text-gold" />
             <p className="text-xs text-muted-foreground">Prize pool</p>
-            <p className="font-score text-3xl leading-tight text-gold md:text-4xl">{formatArenaCurrency(tournament.prize_pool)}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">10% platform fee applies</p>
+            <p className="font-score text-3xl leading-tight text-gold md:text-4xl">{formatArenaCurrency(livePrizePool(tournament))}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {isSliding(tournament)
+                ? `${formatArenaCurrency(tournament.prize_pool)} guaranteed, +${formatArenaCurrency(perEntryBonus(tournament))} for each ${(tournament.team_size || 1) > 1 ? 'team' : 'player'} after ${tournament.sliding_after}`
+                : '10% platform fee applies'}
+            </p>
           </div>
           <div className="surface p-4 md:p-5">
             <DollarSign className="mb-3 h-5 w-5 text-primary-soft" />
@@ -1117,7 +1122,7 @@ export default function TournamentDetail() {
                         {Object.entries(distribution).map(([place, rawShare]) => {
                           // Shares are stored as fractions (0.5); tolerate whole percentages (50)
                           const percentage = Number(rawShare) > 1 ? Number(rawShare) / 100 : Number(rawShare);
-                          const grossAmount = tournament.prize_pool * percentage;
+                          const grossAmount = livePrizePool(tournament) * percentage;
                           const platformFee = grossAmount * 0.10;
                           const netAmount = grossAmount - platformFee;
                           
@@ -1297,7 +1302,7 @@ export default function TournamentDetail() {
                                 <Badge variant="outline" className="font-light text-xs">Winner</Badge>
                               </div>
                               <p className="text-sm font-light text-muted-foreground">
-                                Prize: {formatArenaCurrency(tournament.prize_pool * firstPlaceShare)}
+                                Prize: {formatArenaCurrency(livePrizePool(tournament) * firstPlaceShare)}
                               </p>
                             </div>
                           </div>

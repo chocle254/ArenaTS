@@ -14,23 +14,6 @@ import { safeNextPath } from '@/lib/safe-redirect';
 import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
 
-const LOCATIONS = [
-  { name: 'Kenya', timezone: 'Africa/Nairobi' },
-  { name: 'Uganda', timezone: 'Africa/Kampala' },
-  { name: 'Tanzania', timezone: 'Africa/Dar_es_Salaam' },
-  { name: 'Rwanda', timezone: 'Africa/Kigali' },
-  { name: 'Nigeria', timezone: 'Africa/Lagos' },
-  { name: 'Ghana', timezone: 'Africa/Accra' },
-  { name: 'South Africa', timezone: 'Africa/Johannesburg' },
-  { name: 'Egypt', timezone: 'Africa/Cairo' },
-  { name: 'UK', timezone: 'Europe/London' },
-  { name: 'USA (East)', timezone: 'America/New_York' },
-  { name: 'USA (West)', timezone: 'America/Los_Angeles' },
-  { name: 'India', timezone: 'Asia/Kolkata' },
-  { name: 'China', timezone: 'Asia/Shanghai' },
-  { name: 'Brazil', timezone: 'America/Sao_Paulo' },
-];
-
 export default function SignUp() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -38,13 +21,6 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [gamertag, setGamertag] = useState('');
   const [twitchHandle, setTwitchHandle] = useState('');
-  const [location, setLocation] = useState(() => {
-    try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone === 'Africa/Nairobi' ? 'Kenya' : '';
-    } catch {
-      return '';
-    }
-  });
   const [selectedGames, setSelectedGames] = useState<GameType[]>([]);
   const [gameAccounts, setGameAccounts] = useState<Partial<Record<GameType, string>>>({});
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -84,7 +60,6 @@ export default function SignUp() {
     if (password.length < 6) return toast.error('Use a password with at least 6 characters');
     if (!gamertag.trim()) return toast.error('Choose a gamertag');
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(gamertag.trim())) return toast.error('Gamertags are 3–20 letters, numbers or underscores');
-    if (!location) return toast.error('Select your country');
     if (selectedGames.length === 0) return toast.error('Pick at least one game you play');
     const missing = selectedGames.filter((g) => !gameAccounts[g]?.trim());
     if (missing.length > 0) return toast.error(`Add your in-game name for ${missing.map((g) => GAME_INFO[g].name).join(', ')}`);
@@ -108,7 +83,6 @@ export default function SignUp() {
       sanitizedTwitch = sanitizedTwitch.replace(/^@/, '');
 
       const gameAccountsArray = selectedGames.map((game) => ({ game, inGameName: (gameAccounts[game] || '').trim() }));
-      const selectedLoc = LOCATIONS.find((l) => l.name === location);
 
       // If email confirmation is required there's no session yet, so the
       // game_accounts insert inside signUpWithProfile is rejected by RLS.
@@ -124,8 +98,9 @@ export default function SignUp() {
         twitchHandle: sanitizedTwitch,
         efootballId: gameAccounts.efootball || '',
         pubgId: gameAccounts.pubg_mobile || '',
-        location,
-        timezone: selectedLoc?.timezone || 'UTC',
+        // Arena is Kenya-only for now
+        location: 'Kenya',
+        timezone: 'Africa/Nairobi',
         favoriteGames: selectedGames,
         gameAccounts: gameAccountsArray,
       });
@@ -144,7 +119,7 @@ export default function SignUp() {
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Set up your gamer profile once. Join tournaments in a tap."
+      subtitle="Set up your gamer profile once. Arena is for players in Kenya, with prizes in KES paid to M-Pesa."
       footer={
         <>
           Already have an account?{' '}
@@ -197,26 +172,7 @@ export default function SignUp() {
           <p className="text-xs text-muted-foreground">At least 6 characters.</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="location">Country</Label>
-            <select
-              id="location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              disabled={loading}
-              className="flex h-11 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="" disabled>
-                Select your country
-              </option>
-              {LOCATIONS.map((loc) => (
-                <option key={loc.name} value={loc.name}>
-                  {loc.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="grid gap-4">
           <div className="space-y-2">
             <Label htmlFor="twitchHandle">
               Twitch <span className="font-normal text-muted-foreground">(optional)</span>

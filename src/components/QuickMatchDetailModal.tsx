@@ -25,6 +25,8 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { formatArenaCurrency } from '@/lib/arena-currency';
+import { XP_RULES } from '@/lib/progression';
+import { StreamToggle } from '@/components/arena/StreamToggle';
 import { MatchTimer } from './MatchTimer';
 
 interface QuickMatchDetailModalProps {
@@ -123,12 +125,12 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
     if (challenge.status === 'completed' && challenge.winner_id) {
       const isWinner = challenge.winner_id === currentUserId;
       if (isWinner) {
-        toast.success(`CONGRATULATIONS! You won against ${opponentEntity?.gamertag || 'your opponent'}! ${formatArenaCurrency(challenge.prize_pool)} has been awarded to your wallet.`, {
+        toast.success(Number(challenge.stake_amount) > 0 ? `You beat ${opponentEntity?.gamertag || 'your opponent'}! ${formatArenaCurrency(challenge.prize_pool)} is on its way to your winnings.` : `You beat ${opponentEntity?.gamertag || 'your opponent'}! +${XP_RULES.win} XP.`, {
           duration: 10000,
           position: 'top-center'
         });
       } else {
-        toast.error(`Better luck next time! You lost against ${opponentEntity?.gamertag || 'your opponent'}.`, {
+        toast.error(`${opponentEntity?.gamertag || 'Your opponent'} won this one.${Number(challenge.stake_amount) > 0 ? '' : ` +${XP_RULES.loss} XP for playing.`}`, {
           duration: 10000,
           position: 'top-center'
         });
@@ -224,7 +226,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
         if (dispute && !['decided', 'void'].includes(dispute.status)) {
           const { error } = await supabase.rpc('referee_decide', { p_dispute: dispute.id, p_winner: winnerId === 'cancel' ? null : winnerId, p_note: 'Decided by an admin from the match room' });
           if (error) throw error;
-          toast.success(winnerId === 'cancel' ? 'Match cancelled, stakes returned' : 'Winner confirmed');
+          toast.success(winnerId === 'cancel' ? (Number(challenge.stake_amount) > 0 ? 'Match cancelled, stakes returned' : 'Match cancelled') : 'Winner confirmed');
           return;
         }
         const updates: any = {
@@ -312,7 +314,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                   {challenge.game.toUpperCase()} MATCH
                 </DialogTitle>
                 <p className="text-[10px] md:text-xs text-muted-foreground font-mono flex items-center gap-2 mt-0.5 md:mt-1">
-                  ID: {challenge.id.substring(0, 8)} • STAKE: {formatArenaCurrency(challenge.stake_amount)}
+                  ID {challenge.id.substring(0, 8)}, {Number(challenge.stake_amount) > 0 ? `stake ${formatArenaCurrency(challenge.stake_amount)}` : 'free match'}
                 </p>
               </div>
             </div>
@@ -386,6 +388,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                     </div>
                   ) : (
                     <>
+                      {!isAdmin && ['accepted', 'disputed', 'disputed_warning'].includes(challenge.status) && <StreamToggle challengeId={challenge.id} />}
                       {!challenge.both_players_ready && challenge.status === 'accepted' && (
                         <div className="space-y-3">
                           <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
