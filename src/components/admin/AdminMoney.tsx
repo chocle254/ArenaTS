@@ -84,7 +84,7 @@ function Figure({ label, value, note, tone }: { label: string; value: string; no
 }
 
 export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChanged }: { revenueBalance: number; tournaments: TournamentRevenue[]; currentUserId: string; onChanged: () => void }) {
-  const [wallet, setWallet] = useState<{ payments_wallet_balance?: number; service_wallet_balance?: number } | null>(null);
+  const [wallet, setWallet] = useState<{ payments_wallet_balance?: number; disbursement_wallet_balance?: number; service_wallet_balance?: number } | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [owed, setOwed] = useState({ winnings: 0, held: 0, play: 0 });
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
@@ -115,7 +115,7 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
   const loadWallet = useCallback(async () => {
     try {
       setWalletError(null);
-      setWallet(await mpesaAdmin<{ payments_wallet_balance?: number; service_wallet_balance?: number }>({ action: 'balances' }));
+      setWallet(await mpesaAdmin<{ payments_wallet_balance?: number; disbursement_wallet_balance?: number; service_wallet_balance?: number }>({ action: 'balances' }));
     } catch (e) {
       setWalletError((e as Error).message);
     }
@@ -188,7 +188,8 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
 
   const review = withdrawals.filter((w) => w.status === 'review');
   const stuck = withdrawals.filter((w) => w.status !== 'review');
-  const walletBal = Number(wallet?.payments_wallet_balance || 0);
+  // UpesiPay's dashboard calls this the Disbursement Wallet; the API names it payments_wallet_balance
+  const walletBal = Number(wallet?.disbursement_wallet_balance ?? wallet?.payments_wallet_balance ?? 0);
   const liabilities = owed.winnings + owed.held + owed.play;
 
   return (
@@ -201,7 +202,7 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Figure label="UpesiPay wallet" value={wallet ? formatKES(walletBal) : walletError ? 'Not set up' : '…'} note={walletError || `Service wallet ${formatKES(Number(wallet?.service_wallet_balance || 0))}`} tone={wallet && walletBal < owed.winnings ? 'warn' : undefined} />
+          <Figure label="Disbursement wallet" value={wallet ? formatKES(walletBal) : walletError ? 'Not set up' : '…'} note={walletError || `Service wallet ${formatKES(Number(wallet?.service_wallet_balance || 0))}`} tone={wallet && walletBal < owed.winnings ? 'warn' : undefined} />
           <Figure label="Players can withdraw" value={formatKES(owed.winnings)} note={`${formatKES(owed.held)} more on hold`} />
           <Figure label="Play balances" value={formatKES(owed.play)} note="Deposits not yet played" />
           <Figure label="Platform revenue" value={formatKES(revenueBalance)} note="Your fees, inside the wallet" tone="gold" />
