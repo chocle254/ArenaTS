@@ -83,7 +83,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
           </div>
           <DialogTitle className="text-center text-2xl">Demo Complete!</DialogTitle>
           <DialogDescription className="text-center text-base">
-            You've used all your Arena Currency. This was a demo experience to help you understand how ARENA works.
+            Your play balance is empty. Top up with M-Pesa from your wallet to keep playing.
           </DialogDescription>
         </DialogHeader>
 

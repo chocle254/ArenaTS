@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { invalidatePlayerProgress } from '@/hooks/use-player-progress';
 import { formatArenaCurrency } from '@/lib/arena-currency';
-import { createChallenge, friendlyChallengeError } from '@/lib/challenges';
+import { createChallenge, friendlyChallengeError, STAKE_MAX, STAKE_MAX_UNVERIFIED, STAKE_MIN } from '@/lib/challenges';
 import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
 import { ConsentModal } from './ConsentModal';
@@ -30,22 +30,23 @@ interface SendChallengePanelProps {
   };
 }
 
-const STAKE_OPTIONS = [2, 5, 10, 25];
-const MIN_STAKE = 2;
-const MAX_STAKE = 1000;
+const STAKE_OPTIONS = [50, 100, 200, 500];
+const MIN_STAKE = STAKE_MIN;
 const ALL_GAMES = (Object.keys(GAME_INFO) as GameType[]).filter((g) => GAME_INFO[g]);
 
 export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallengePanelProps) {
   const { user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const [selectedStake, setSelectedStake] = useState(10);
+  const [selectedStake, setSelectedStake] = useState(100);
   const [customStake, setCustomStake] = useState('');
   const [selectedGame, setSelectedGame] = useState<GameType>('codm');
   const [sending, setSending] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
 
   const parsedCustom = customStake ? Number(customStake) : NaN;
-  const stake = customStake ? (Number.isFinite(parsedCustom) ? Math.round(parsedCustom * 100) / 100 : 0) : selectedStake;
+  const stake = customStake ? (Number.isFinite(parsedCustom) ? Math.round(parsedCustom) : 0) : selectedStake;
+  // Until ID is verified the cap is lower (matches the server rule)
+  const MAX_STAKE = profile?.kyc_status === 'verified' ? STAKE_MAX : STAKE_MAX_UNVERIFIED;
   const stakeValid = stake >= MIN_STAKE && stake <= MAX_STAKE;
   const balance = Number(profile?.arena_currency || 0);
   const pot = stake * 2;
@@ -55,7 +56,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
   const close = () => onOpenChange(false);
 
   const resetForm = () => {
-    setSelectedStake(10);
+    setSelectedStake(100);
     setCustomStake('');
     setSelectedGame('codm');
   };
@@ -265,7 +266,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
                   />
                 </div>
                 <p className={cn('text-xs', customStake && !stakeValid ? 'text-destructive' : 'text-muted-foreground')}>
-                  {formatArenaCurrency(MIN_STAKE)} to {formatArenaCurrency(MAX_STAKE)}. Refunded if they decline or the challenge expires.
+                  {formatArenaCurrency(MIN_STAKE)} to {formatArenaCurrency(MAX_STAKE)}{MAX_STAKE < STAKE_MAX ? ' (verify your ID for up to KES 2,000)' : ''}. Back to your play balance if they decline or it expires.
                 </p>
               </div>
 

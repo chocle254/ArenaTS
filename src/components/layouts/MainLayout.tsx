@@ -263,7 +263,7 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
           <Link to="/wallet" onClick={() => onOpenChange(false)} className="flex items-center gap-3 rounded-2xl border border-gold/25 bg-gold/[0.06] p-3">
             <Coins className="h-5 w-5 shrink-0 text-gold" />
             <span className="min-w-0">
-              <span className="block font-score text-lg font-bold leading-tight text-gold">{formatArenaAmount(ac)} AC</span>
+              <span className="block font-score text-lg font-bold leading-tight text-gold">KES {formatArenaAmount(ac)}</span>
               <span className="block text-xs text-muted-foreground">Wallet</span>
             </span>
           </Link>
@@ -378,11 +378,11 @@ function TopBar({ onSearch, onSignOut }: { onSearch: () => void; onSignOut: () =
           <Link
             to="/wallet"
             className="flex h-9 items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 pl-2 pr-3 text-gold transition-colors hover:bg-gold/15"
-            aria-label={`Arena Currency balance: ${ac} AC`}
+            aria-label={`Play balance: KES ${ac}`}
           >
             <Coins className="h-4 w-4" />
             <span className="font-score text-base leading-none">{formatArenaAmount(ac)}</span>
-            <span className="hidden text-[11px] font-semibold text-gold/70 sm:inline">AC</span>
+            <span className="hidden text-[11px] font-semibold text-gold/70 sm:inline">KES</span>
           </Link>
 
           <NotificationDropdown />

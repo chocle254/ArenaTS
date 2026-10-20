@@ -7,27 +7,30 @@ export function formatCompactNumber(number: number): string {
   return formatLargeNumber(number);
 }
 
-/**
- * Format Arena Currency as "1,250 AC" / "12.4K AC" (100 AC = $1).
- * Previously rendered as "A$1250", which read as Australian dollars and
- * didn't match the "AC" used on the wallet packs.
- */
+/** Kenyan shillings: "KES 1,250", "KES 12.4K". All balances, fees and prizes are in KES. */
 export function formatArenaCurrency(amount: number): string {
   const safe = Number.isFinite(Number(amount)) ? Number(amount) : 0;
-  const roundedAmount = Math.floor(safe);
-  if (Math.abs(roundedAmount) < 1000) {
-    return `${roundedAmount.toLocaleString()} AC`;
-  }
-  return `${roundedAmount < 0 ? '-' : ''}${formatLargeNumber(Math.abs(roundedAmount))} AC`;
+  const rounded = Math.round(safe);
+  const sign = rounded < 0 ? '-' : '';
+  if (Math.abs(rounded) < 100_000) return `${sign}KES ${Math.abs(rounded).toLocaleString('en-KE')}`;
+  return `${sign}KES ${formatLargeNumber(Math.abs(rounded))}`;
 }
 
-/** Number part only, for places that render the AC unit separately (e.g. with a coin icon). */
+/** Same as formatArenaCurrency without the unit, for layouts that render "KES" separately. */
 export function formatArenaAmount(amount: number): string {
   const safe = Number.isFinite(Number(amount)) ? Number(amount) : 0;
-  const roundedAmount = Math.floor(safe);
-  if (Math.abs(roundedAmount) < 1000) return roundedAmount.toLocaleString();
-  return `${roundedAmount < 0 ? '-' : ''}${formatLargeNumber(Math.abs(roundedAmount))}`;
+  const rounded = Math.round(safe);
+  if (Math.abs(rounded) < 100_000) return rounded.toLocaleString('en-KE');
+  return `${rounded < 0 ? '-' : ''}${formatLargeNumber(Math.abs(rounded))}`;
 }
+
+/** Exact KES with cents when present, for receipts and the wallet. */
+export function formatKES(amount: number | null | undefined): string {
+  const v = Number(amount) || 0;
+  return `KES ${v.toLocaleString('en-KE', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+}
+
+export const CURRENCY = 'KES';
 
 /**
  * Check if user has sufficient Arena Currency
@@ -64,14 +67,7 @@ export function calculateFinalPrizePool(
   return { totalPool, platformFee, finalPool };
 }
 
-/**
- * Lifetime cash winnings (profiles.total_earnings). Payout functions credit this
- * alongside the withdrawable USD balance, so it is shown in dollars.
- */
+/** Lifetime winnings (profiles.total_earnings), in KES. */
 export function formatEarnings(amount: number | null | undefined): string {
-  const value = Number(amount) || 0;
-  if (Math.abs(value) >= 10_000) {
-    return `$${new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}`;
-  }
-  return `$${value.toLocaleString('en-US', { minimumFractionDigits: value % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+  return formatArenaCurrency(Number(amount) || 0);
 }

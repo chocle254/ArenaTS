@@ -29,7 +29,7 @@ const TermsAndConditions = () => {
       id: "tournament-participation",
       title: "3. Tournament Participation",
       icon: <Trophy className="w-5 h-5" />,
-      content: `3.1 Entry: Participation in tournaments requires payment of the applicable entry fee in Arena Currency. Entry fees are non-refundable once a tournament begins, except where required by law or where the tournament is cancelled by us.
+      content: `3.1 Entry: Participation in tournaments requires payment of the applicable entry fee in KES from your play balance. Entry fees are non-refundable once a tournament begins, except where required by law or where the tournament is cancelled by us.
 
 3.2 Skill-Based Contests: All contests hosted on the Platform are Games of Skill. Outcomes are determined predominantly by skill, knowledge, and ability rather than chance.
 
@@ -59,17 +59,21 @@ const TermsAndConditions = () => {
       id: "aml-kyc",
       title: "5. AML/KYC Compliance",
       icon: <Info className="w-5 h-5" />,
-      content: `5.1 Verification Requirement: To comply with Anti-Money Laundering (AML) and Know Your Customer (KYC) regulations, identity verification is mandatory before any withdrawal of funds. You must provide a valid government-issued ID and proof of address upon request.
+      content: `5.1 Verification Requirement: To comply with Anti-Money Laundering (AML) and Know Your Customer (KYC) rules, your first two withdrawals of up to KES 2,000 each may be made before identity verification. All further withdrawals, and quick-match stakes above KES 500, require a verified government-issued ID.
       
-      5.2 Fund Holds: We reserve the right to hold funds for up to 30 days to complete match integrity checks and identity verification. Suspicious activity may result in indefinite holds and reporting to relevant financial authorities.`
+      5.2 Closed loop: Deposits come from, and withdrawals go only to, the one M-Pesa number linked to your account. A number can be linked to one account only. Deposits (play balance) cannot be withdrawn; only winnings can.
+      
+      5.3 Holds and reviews: Winnings are held for 24 hours before they can be withdrawn. Large withdrawals, new accounts and unusual patterns (for example repeated money matches against the same opponent, or deposits lost straight away to one player) are reviewed manually and may be held for up to 30 days. Confirmed laundering or collusion results in forfeiture of the affected winnings, account closure and reporting to the relevant authorities.
+      
+      5.4 Limits: Quick-match stakes are KES 50 to KES 2,000. The same two players may play for money at most 3 times a day and KES 6,000 a week. Deposits and withdrawals are KES 50 to KES 70,000 each, up to KES 150,000 a day.`
     },
     {
       id: "currency",
-      title: "6. Arena Currency & Financial Security",
+      title: "6. Payments & Financial Security",
       icon: <CreditCard className="w-5 h-5" />,
-      content: `6.1 Arena Currency (AC): AC is the internal digital currency used on the Platform (1 USD = 100 AC). 
+      content: `6.1 Currency: All balances, entry fees, stakes and prizes are in Kenyan shillings (KES).
       
-      6.2 Stripe Protocols: All transactions are processed via Stripe. We reserve the right to hold payments during fraud investigations. 
+      6.2 M-Pesa: Deposits and withdrawals are processed through M-Pesa via our payment partner. A 4.5% collection fee applies to deposits and M-Pesa transfer charges apply to withdrawals. We may hold payments during fraud investigations. 
       
       6.3 Chargebacks: Any user who initiates an unauthorized chargeback will have their account permanently suspended, and all remaining balances will be forfeited to cover administrative and penalty costs.`
     },

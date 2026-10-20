@@ -471,7 +471,7 @@ export default function TournamentDetail() {
       const currentBalance = latestProfile?.arena_currency || 0;
 
       if (totalTeamFee > 0 && currentBalance < totalTeamFee) {
-        throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(totalTeamFee)} to register a team.`);
+        throw new Error(`Not enough in your play balance. You need ${formatArenaCurrency(totalTeamFee)} to register a team.`);
       }
 
       // NO MANUAL DEDUCTION HERE - Handled by database trigger on tournament_participants table
@@ -572,7 +572,7 @@ export default function TournamentDetail() {
     if (totalTeamFee > 0) {
       const userBalance = profile?.arena_currency || 0;
       if (userBalance < totalTeamFee) {
-        toast.error(`Insufficient Arena Currency. You need ${formatArenaCurrency(totalTeamFee)} to register a team.`);
+        toast.error(`Not enough in your play balance. You need ${formatArenaCurrency(totalTeamFee)} to register a team.`);
         return;
       }
 
@@ -601,7 +601,7 @@ export default function TournamentDetail() {
       const currentBalance = latestProfile?.arena_currency || 0;
 
       if (entryFee > 0 && currentBalance < entryFee) {
-        throw new Error(`Insufficient Arena Currency. You need ${formatArenaCurrency(entryFee)} to join.`);
+        throw new Error(`Not enough in your play balance. You need ${formatArenaCurrency(entryFee)} to join.`);
       }
 
       // NO MANUAL DEDUCTION HERE - Handled by database trigger tr_tournament_join_fee on tournament_participants table
@@ -703,13 +703,13 @@ export default function TournamentDetail() {
     if (entryFee > 0) {
       const userBalance = profile?.arena_currency || 0;
       if (userBalance < entryFee) {
-        toast.error(`Insufficient Arena Currency. You need ${formatArenaCurrency(entryFee)} to join.`);
+        toast.error(`Not enough in your play balance. You need ${formatArenaCurrency(entryFee)} to join.`);
         return;
       }
 
       setConsentConfig({
         title: `Join Tournament: ${tournament.name}`,
-        description: `You are about to join this tournament. An entry fee will be deducted from your Arena Currency balance.`,
+        description: `You are about to join this tournament. The entry fee comes out of your play balance.`,
         amount: entryFee,
         onConfirm: () => executeJoinTournament(entryFee)
       });

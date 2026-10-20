@@ -371,7 +371,7 @@ function FeaturedCarousel({
                     <p className="text-[11px] text-muted-foreground">Prize pool</p>
                     <p className="font-score text-3xl font-bold leading-none text-gold sm:text-4xl">
                       {formatArenaAmount(t.prize_pool)}
-                      <span className="ml-1 text-base text-gold/70">AC</span>
+                      <span className="ml-1 text-base text-gold/70">KES</span>
                     </p>
                   </div>
                   <div>

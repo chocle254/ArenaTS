@@ -84,7 +84,7 @@ export default function PaymentSuccess() {
           <CardContent className="space-y-6">
             <p className="text-muted-foreground">
               {status === 'success' 
-                ? 'Your Arena Currency has been added to your wallet successfully.' 
+                ? 'Your deposit has been added to your play balance.' 
                 : 'Something went wrong while verifying your payment. Please contact support if the issue persists.'}
             </p>
 

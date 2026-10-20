@@ -76,7 +76,7 @@ export function FinishedTournamentList({ tournaments, className }: { tournaments
               <div className="shrink-0 text-right">
                 <p className={cn('font-score text-lg font-bold leading-none', cancelled ? 'text-muted-foreground line-through' : 'text-gold')}>
                   {formatArenaAmount(t.prize_pool)}
-                  <span className="ml-0.5 text-[11px] font-semibold opacity-70">AC</span>
+                  <span className="ml-0.5 text-[11px] font-semibold opacity-70">KES</span>
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">{t.current_players || 0} players</p>
               </div>

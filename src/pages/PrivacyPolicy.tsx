@@ -51,7 +51,7 @@ const PrivacyPolicy = () => {
       id: "sharing",
       title: "5. Sharing Information with Third Parties",
       icon: <Globe className="w-5 h-5" />,
-      content: `5.1 Payment Processors: We share data with Stripe for payment processing and withdrawal fulfillment. We do not store raw credit card details; all financial transactions are handled via Stripe's secure infrastructure.
+      content: `5.1 Payment Processors: We share your M-Pesa number and transaction amounts with our payment partner (UpesiPay) and Safaricom to process deposits and withdrawals. We do not store M-Pesa PINs.
       
       5.2 Identity Verification: We may use third-party KYC providers to verify the authenticity of government documents provided by users.
       
@@ -79,7 +79,7 @@ const PrivacyPolicy = () => {
       icon: <UserCheck className="w-5 h-5" />,
       content: `8.1 Global Rights: You may request access to, correction of, or deletion of your personal data, subject to our legal retention obligations.
       
-      8.2 EU/UK Consumer Protection: Digital content (Arena Currency) is provided immediately upon purchase. Pursuant to regional laws, the statutory 14-day cooling-off period is waived upon execution of the digital delivery.
+      8.2 EU/UK Consumer Protection: Deposits are credited to your play balance immediately. Pursuant to regional laws, the statutory 14-day cooling-off period is waived upon execution of the digital delivery.
       
       8.3 Governing Venue: All data disputes are subject to the exclusive jurisdiction of the state and federal courts located in Delaware, USA.`
     }

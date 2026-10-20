@@ -195,8 +195,8 @@ export default function FinanceAnalytics() {
     rows.transactions.forEach(tx => {
       const b = findBucket(tx.created_at);
       if (!b) return;
-      // AC deposits are stored in AC units (100 AC = $1); everything else USD.
-      const usd = tx.currency === 'AC' ? tx.amount / 100 : tx.amount;
+      // Everything is stored in KES; withdrawals are negative rows
+      const usd = Math.abs(Number(tx.amount) || 0);
       if (tx.type === 'deposit') b.deposits += usd;
       if (tx.type === 'withdrawal') b.withdrawals += usd;
     });
@@ -227,13 +227,13 @@ export default function FinanceAnalytics() {
     return { buckets: built, totals };
   }, [rows, period]);
 
-  const fmt = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (n: number) => `KES ${Math.round(n).toLocaleString('en-KE')}`;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-xs text-muted-foreground max-w-md">
-          Platform fee revenue, Arena Currency deposits, cash withdrawals, and float top-ups —
+          Platform fee revenue, M-Pesa deposits and withdrawals, in KES —
           all pulled from the same account, bucketed over time.
         </p>
         <div className="flex gap-1 bg-muted/40 p-1 rounded-lg">
@@ -299,7 +299,7 @@ export default function FinanceAnalytics() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} tickFormatter={(v) => `$${v}`} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} tickFormatter={(v) => `${Number(v).toLocaleString('en-KE')}`} />
                   <Tooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
                     formatter={(value: number) => [fmt(value), 'Revenue']}
@@ -325,7 +325,7 @@ export default function FinanceAnalytics() {
                 <BarChart data={buckets} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} tickFormatter={(v) => `$${v}`} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} tickFormatter={(v) => `${Number(v).toLocaleString('en-KE')}`} />
                   <Tooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
                     formatter={(value: number, name: string) => [fmt(value), name]}
@@ -347,7 +347,7 @@ export default function FinanceAnalytics() {
                 <BarChart data={buckets} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} tickFormatter={(v) => `$${v}`} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} tickFormatter={(v) => `${Number(v).toLocaleString('en-KE')}`} />
                   <Tooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
                     formatter={(value: number) => [fmt(value), 'Float deposited']}

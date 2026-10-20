@@ -112,7 +112,7 @@ export function TournamentCard({
             <p className="text-xs text-muted-foreground">Prize pool</p>
             <p className="font-score text-3xl leading-none text-gold">
               {formatArenaAmount(tournament.prize_pool)}
-              <span className="ml-1 text-sm text-gold/70">AC</span>
+              <span className="ml-1 text-sm text-gold/70">KES</span>
             </p>
           </div>
           <div className="text-right">
@@ -121,7 +121,7 @@ export function TournamentCard({
               {(tournament.entry_fee || 0) > 0 ? (
                 <>
                   {formatArenaAmount(tournament.entry_fee)}
-                  <span className="ml-1 text-xs text-muted-foreground">AC</span>
+                  <span className="ml-1 text-xs text-muted-foreground">KES</span>
                 </>
               ) : (
                 'Free'

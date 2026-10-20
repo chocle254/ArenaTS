@@ -1,3 +1,4 @@
+import { TopUpDialog } from '@/components/wallet/TopUpDialog';
 import { FinishedTournamentList } from '@/components/arena/FinishedTournamentList';
 import { defaultRuleGroups, parseCustomRules } from '@/components/arena/TournamentRules';
 import { ArrowLeft, CalendarClock, ChevronDown, Plus } from 'lucide-react';
@@ -220,6 +221,7 @@ function CreateTournamentDialog({
   const [loading, setLoading] = useState(false);
   const [numWinners, setNumWinners] = useState<'1' | '2' | '3'>('3');
   const [consentOpen, setConsentOpen] = useState(false);
+  const [topUpOpen, setTopUpOpen] = useState(false);
   const [arenaDeduction, setArenaDeduction] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
@@ -366,7 +368,10 @@ function CreateTournamentDialog({
     // Creator always pays the whole prize pool upfront.
     const deduction = prizePoolValue;
     if (arenaCurrency < deduction) {
-      toast.error(`You need ${formatArenaCurrency(deduction)} to fund this prize pool`);
+      toast.error(`You need ${formatArenaCurrency(deduction - arenaCurrency)} more in your play balance`, {
+        action: { label: 'Top up', onClick: () => setTopUpOpen(true) },
+      });
+      setTopUpOpen(true);
       return;
     }
 
@@ -494,37 +499,39 @@ function CreateTournamentDialog({
           {/* Entry Fee and Prize Pool */}
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="entryFee">Entry Fee ($)</Label>
+              <Label htmlFor="entryFee">Entry fee (KES per player)</Label>
               <Input
                 id="entryFee"
                 type="number"
-                step="0.01"
+                inputMode="numeric"
+                step="1"
                 min="0"
-                placeholder="0.00 for free tournament"
+                placeholder="0 for a free tournament"
                 value={formData.entryFee}
                 onChange={(e) => setFormData({ ...formData, entryFee: e.target.value })}
                 required
               />
               <p className="text-xs text-muted-foreground font-light">
-                Set to 0 for free tournaments
+                Entry fees go to you after the event, minus a 10% platform fee.
               </p>
             </div>
             
             {/* Always show prize pool input */}
             <div className="space-y-2">
-              <Label htmlFor="prizePool">Prize Pool ($)</Label>
+              <Label htmlFor="prizePool">Prize pool (KES)</Label>
               <Input
                 id="prizePool"
                 type="number"
-                step="0.01"
+                inputMode="numeric"
+                step="1"
                 min="0"
-                placeholder="100.00"
+                placeholder="1000"
                 value={formData.prizePool}
                 onChange={(e) => setFormData({ ...formData, prizePool: e.target.value })}
                 required
               />
               <p className="text-xs text-muted-foreground font-light">
-                Total prize pool you are providing. 10% platform fee will be deducted when distributing prizes to winner(s).
+                Paid from your play balance when you create the tournament. Winners get it minus a 10% platform fee. You can't play in your own tournament.
               </p>
             </div>
           </div>
@@ -677,6 +684,11 @@ function CreateTournamentDialog({
             </Button>
           </div>
         </form>
+        <TopUpDialog
+          open={topUpOpen}
+          onOpenChange={setTopUpOpen}
+          suggested={Math.max(0, (parseFloat(formData.prizePool) || 0) - arenaCurrency)}
+        />
         {consentOpen && (
           <ConsentModal
             open={consentOpen}

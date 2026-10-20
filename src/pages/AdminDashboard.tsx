@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgeCheck, CheckCircle2, ChevronRight, Gavel, Loader2, Radio, ShieldCheck, Timer, Trophy, Users } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, CheckCircle2, ChevronRight, Gavel, Loader2, Radio, ShieldCheck, ShieldAlert, Timer, Trophy, Users, Wallet } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -32,12 +32,14 @@ interface Snapshot {
   openTournaments: number;
   kycPending: number;
   refereeApps: number;
+  payoutReviews: number;
+  amlFlags: number;
   revenueMonth: number;
   revenueTotal: number;
   revenueBalance: number;
 }
 
-const EMPTY: Snapshot = { players: 0, online: 0, newThisWeek: 0, liveMatches: 0, openTournaments: 0, kycPending: 0, refereeApps: 0, revenueMonth: 0, revenueTotal: 0, revenueBalance: 0 };
+const EMPTY: Snapshot = { players: 0, online: 0, newThisWeek: 0, liveMatches: 0, openTournaments: 0, kycPending: 0, refereeApps: 0, payoutReviews: 0, amlFlags: 0, revenueMonth: 0, revenueTotal: 0, revenueBalance: 0 };
 
 function TaskTile({ icon, count, label, action, onClick, to, urgent = true }: { icon: ReactNode; count: number; label: string; action: string; onClick?: () => void; to?: string; urgent?: boolean }) {
   const body = (
@@ -125,7 +127,7 @@ export default function AdminDashboard() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const head = { count: 'exact' as const, head: true };
-    const [players, online, fresh, liveQ, liveT, openT, kyc, apps, finishedT, doneQ, settings] = await Promise.all([
+    const [players, online, fresh, liveQ, liveT, openT, kyc, apps, finishedT, doneQ, settings, reviews, aml] = await Promise.all([
       supabase.from('profiles').select('id', head),
       supabase.from('profiles').select('id', head).gte('last_seen_at', new Date(Date.now() - 5 * 60_000).toISOString()),
       supabase.from('profiles').select('id', head).gte('created_at', new Date(Date.now() - 7 * 86_400_000).toISOString()),
@@ -137,6 +139,8 @@ export default function AdminDashboard() {
       supabase.from('tournaments').select('id, name, game, prize_pool, platform_fee_percentage, start_time, current_players').eq('status', 'completed').order('start_time', { ascending: false }).limit(500),
       supabase.from('challenges').select('platform_fee, completed_at').eq('status', 'completed').limit(5000),
       supabase.from('platform_settings').select('maintenance_balance').maybeSingle(),
+      supabase.from('mpesa_withdrawals').select('id', head).eq('status', 'review'),
+      supabase.from('aml_flags').select('id', head).is('resolved_at', null).neq('severity', 'info'),
     ]);
 
     const rows: TournamentRevenue[] = ((finishedT.data || []) as any[]).map((t) => ({
@@ -161,6 +165,8 @@ export default function AdminDashboard() {
       openTournaments: openT.count || 0,
       kycPending: kyc.count || 0,
       refereeApps: apps.count || 0,
+      payoutReviews: reviews.count || 0,
+      amlFlags: aml.count || 0,
       revenueMonth: month,
       revenueTotal: total,
       revenueBalance: Number((settings.data as { maintenance_balance?: number } | null)?.maintenance_balance || 0),
@@ -197,7 +203,7 @@ export default function AdminDashboard() {
   if (!isAdmin || !user) return null;
 
   const disputeCount = quick.length + bracket.length;
-  const allClear = disputeCount + snap.kycPending + snap.refereeApps === 0;
+  const allClear = disputeCount + snap.kycPending + snap.refereeApps + snap.payoutReviews + snap.amlFlags === 0;
 
   return (
     <div className="space-y-6">
@@ -241,6 +247,7 @@ export default function AdminDashboard() {
           >
             {t.label}
             {t.id === 'disputes' && disputeCount > 0 && <span className="rounded-full bg-live px-1.5 font-score text-xs text-white">{disputeCount}</span>}
+            {t.id === 'money' && snap.payoutReviews + snap.amlFlags > 0 && <span className="rounded-full bg-gold px-1.5 font-score text-xs text-black">{snap.payoutReviews + snap.amlFlags}</span>}
           </button>
         ))}
       </div>
@@ -251,13 +258,15 @@ export default function AdminDashboard() {
             <h2 className="text-xl">Needs you</h2>
             {allClear && !loading ? (
               <p className="flex items-center gap-2 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-5 w-5 text-success" /> All clear. No disputes, KYC reviews or referee applications waiting.
+                <CheckCircle2 className="h-5 w-5 text-success" /> All clear. No disputes, payouts, flags, KYC reviews or referee applications waiting.
               </p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 <TaskTile icon={<AlertTriangle className="h-5 w-5" />} count={disputeCount} label="disputes" action="Decide who won" onClick={() => setTab('disputes')} />
                 <TaskTile icon={<BadgeCheck className="h-5 w-5" />} count={snap.kycPending} label="KYC reviews" action="Check ID documents" to="/admin/kyc" />
                 <TaskTile icon={<Gavel className="h-5 w-5" />} count={snap.refereeApps} label="referee applications" action="Approve or decline" to="/admin/referees" />
+                <TaskTile icon={<Wallet className="h-5 w-5" />} count={snap.payoutReviews} label="withdrawals to review" action="Approve or decline" onClick={() => setTab('money')} />
+                <TaskTile icon={<ShieldAlert className="h-5 w-5" />} count={snap.amlFlags} label="laundering flags" action="Review frozen winnings" onClick={() => setTab('money')} />
               </div>
             )}
           </section>
@@ -292,7 +301,7 @@ export default function AdminDashboard() {
       {tab === 'disputes' && <AdminDisputes quick={quick} bracket={bracket} names={names} currentUserId={user.id} onChanged={loadAll} />}
       {tab === 'players' && <AdminPlayers />}
       {tab === 'tournaments' && <AdminTournaments />}
-      {tab === 'money' && <AdminMoney revenueBalance={snap.revenueBalance} tournaments={revenueRows} onRevenueChanged={loadSnapshot} />}
+      {tab === 'money' && <AdminMoney revenueBalance={snap.revenueBalance} tournaments={revenueRows} currentUserId={user.id} onChanged={loadSnapshot} />}
       {tab === 'analytics' && <FinanceAnalytics />}
     </div>
   );

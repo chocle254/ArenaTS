@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const STEPS = [
   { title: 'Pick an opponent', text: 'Anyone online below, or a friend from Chats.' },
-  { title: 'Set the stake', text: 'Both players stake the same. Winner takes 90% of the pot.' },
+  { title: 'Set the stake', text: 'KES 50 to 2,000 each. Winner takes 90% of the pot.' },
   { title: 'Play and report', text: 'Both report the winner with a screenshot. Clashes go to a referee.' },
 ];
 
@@ -33,7 +33,7 @@ export default function QuickMatch() {
     <div className="space-y-7">
       <div>
         <h1 className="text-4xl">Quick match</h1>
-        <p className="text-muted-foreground">Challenge a player right now and play for Arena Currency.</p>
+        <p className="text-muted-foreground">Challenge a player right now and play for KES.</p>
       </div>
 
       <ol className="grid gap-2 sm:grid-cols-3">
@@ -67,7 +67,7 @@ export default function QuickMatch() {
             items={[
               'Start your Twitch stream before you press “I’m ready”. Matches without a stream can be voided.',
               'Screenshot evidence is required for every result.',
-              'Stakes are held until the winner is confirmed, and refunded if the challenge is declined or expires.',
+              'Stakes are held until the winner is confirmed, and go back to your play balance if the challenge is declined or expires.',
               'If the two reports disagree, a referee reviews the evidence and decides.',
             ]}
           />

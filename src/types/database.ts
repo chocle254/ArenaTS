@@ -67,6 +67,9 @@ export interface Profile {
   pubg_id?: string | null;
   // KYC 
   kyc_status?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  /** Linked M-Pesa number (2547XXXXXXXX). Deposits come from it, winnings go to it. */
+  mpesa_phone?: string | null;
+  mpesa_phone_locked_until?: string | null;
   kyc_rejection_reason?: string | null;
   kyc_id_front_path?: string | null;
   kyc_id_back_path?: string | null;
