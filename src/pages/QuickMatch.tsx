@@ -1,108 +1,92 @@
-import { Swords, Users } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, Swords, Users } from 'lucide-react';
 import { ActiveChallengesList } from '@/components/ActiveChallengesList';
+import { TeamManager } from '@/components/arena/TeamManager';
 import { OnlinePlayers } from '@/components/OnlinePlayers';
 import { OnlineTeams } from '@/components/OnlineTeams';
 import { PastChallengesList } from '@/components/PastChallengesList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+const STEPS = [
+  { title: 'Pick an opponent', text: 'Anyone online below, or a friend from Chats.' },
+  { title: 'Set the stake', text: 'Both players stake the same. Winner takes 90% of the pot.' },
+  { title: 'Play and report', text: 'Both report the winner with a screenshot. Clashes go to a referee.' },
+];
+
+function Rules({ items }: { items: string[] }) {
+  return (
+    <details className="group surface p-4 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
+        Match rules
+        <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
+        {items.map((r) => (
+          <li key={r}>{r}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
 export default function QuickMatch() {
-  const [activeTab, setActiveTab] = useState('1v1');
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-display font-bold flex items-center gap-3">
-          <Swords className="h-8 w-8 text-primary" />
-          Quick Match
-        </h1>
-        <p className="text-muted-foreground font-light">
-          Find available players or teams online and challenge them to a direct match.
-        </p>
+    <div className="space-y-7">
+      <div>
+        <h1 className="text-4xl">Quick match</h1>
+        <p className="text-muted-foreground">Challenge a player right now and play for Arena Currency.</p>
       </div>
 
-      {/* Active Quick Match Live Cards */}
+      <ol className="grid gap-2 sm:grid-cols-3">
+        {STEPS.map((s, i) => (
+          <li key={s.title} className="flex gap-3 rounded-2xl border border-border bg-card/70 p-3.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 font-score text-base font-bold text-primary-soft">{i + 1}</span>
+            <span>
+              <span className="block text-sm font-semibold">{s.title}</span>
+              <span className="block text-xs text-muted-foreground">{s.text}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      {/* Your challenges in progress */}
       <ActiveChallengesList />
 
-      <Tabs defaultValue="1v1" className="w-full" onValueChange={setActiveTab}>
-        <TabsList className="bg-muted/30 border-border/50 p-1">
+      <Tabs defaultValue="1v1" className="w-full">
+        <TabsList>
           <TabsTrigger value="1v1" className="gap-2">
-            <Users className="h-4 w-4" />
-            1v1 Duels
+            <Swords className="h-4 w-4" /> 1v1 duels
           </TabsTrigger>
           <TabsTrigger value="tdm" className="gap-2">
-            <Users className="h-4 w-4" />
-            Team Deathmatch (5v5)
+            <Users className="h-4 w-4" /> 5v5 squads
           </TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="1v1" className="mt-8 space-y-8">
+
+        <TabsContent value="1v1" className="mt-6 space-y-6">
           <OnlinePlayers />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="glassmorphism-card p-6 space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2 text-primary">
-                1v1 Quick Match
-              </h3>
-              <ul className="space-y-2 text-sm text-muted-foreground list-disc pl-5 font-light">
-                <li>Choose an opponent from the list of online players.</li>
-                <li>Send a challenge with your preferred game and entry fee.</li>
-                <li>If they accept, a match room will be created instantly.</li>
-                <li>Both players report the score after the match is completed.</li>
-              </ul>
-            </div>
-            
-            <div className="glassmorphism-card p-6 space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2 text-amber-500">
-                1v1 Rules
-              </h3>
-              <ul className="space-y-2 text-sm text-muted-foreground list-disc pl-5 font-light">
-                <li>Compulsory Streaming: You MUST start your Twitch stream before pressing 'I\'m Ready'.</li>
-                <li>Screenshot evidence is required for all match reports.</li>
-                <li>Entry fees are held in escrow until a winner is confirmed.</li>
-                <li>Mismatching reports will trigger an automatic dispute.</li>
-              </ul>
-            </div>
-          </div>
+          <Rules
+            items={[
+              'Start your Twitch stream before you press “I’m ready”. Matches without a stream can be voided.',
+              'Screenshot evidence is required for every result.',
+              'Stakes are held until the winner is confirmed, and refunded if the challenge is declined or expires.',
+              'If the two reports disagree, a referee reviews the evidence and decides.',
+            ]}
+          />
         </TabsContent>
 
-        <TabsContent value="tdm" className="mt-8 space-y-8">
+        <TabsContent value="tdm" className="mt-6 space-y-6">
+          <TeamManager />
           <OnlineTeams />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="glassmorphism-card p-6 space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2 text-primary font-display tracking-tight">
-                Team Deathmatch (5v5)
-              </h3>
-              <p className="text-sm text-muted-foreground font-light">
-                Battle other teams in intense 5v5 action. Only teams with 5 members can participate.
-              </p>
-              <ul className="space-y-2 text-sm text-muted-foreground list-disc pl-5 font-light">
-                <li>Register your team of 5 in the Team Management section.</li>
-                <li>Challenge other online teams when all your members are ready.</li>
-                <li>Matches will be automatically canceled if a member goes offline.</li>
-                <li>Prizes are split equally among all 5 team members.</li>
-              </ul>
-            </div>
-            
-            <div className="glassmorphism-card p-6 space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2 text-blue-500 font-display tracking-tight">
-                Team Match Rules
-              </h3>
-              <ul className="space-y-2 text-sm text-muted-foreground list-disc pl-5 font-light">
-                <li>Compulsory Streaming: You MUST start your Twitch stream before pressing 'I\'m Ready'.</li>
-                <li>All 5 team members must check in within 5 minutes of acceptance.</li>
-                <li>Captain handles the challenge and result reporting.</li>
-                <li>Screen recordings are recommended for team matches.</li>
-                <li>Fair play is strictly enforced; cheating leads to team ban.</li>
-              </ul>
-            </div>
-          </div>
+          <Rules
+            items={[
+              'Only full teams of five can send or accept 5v5 challenges. The captain sends the challenge and reports the result.',
+              'All five players check in within 5 minutes of the challenge being accepted.',
+              'Start your Twitch stream before pressing “I’m ready”. Screen recordings are recommended.',
+              'Prizes are split equally between the five players. Cheating gets the whole team banned.',
+            ]}
+          />
         </TabsContent>
       </Tabs>
 
-      {/* Past Challenges Section */}
       <PastChallengesList />
     </div>
   );

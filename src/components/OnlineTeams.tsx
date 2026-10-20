@@ -29,16 +29,16 @@ export function OnlineTeams() {
 
   useEffect(() => {
     fetchOnlineTeams();
-
-    const channel = supabase
-      .channel('online-teams')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchOnlineTeams())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => fetchOnlineTeams())
-      .subscribe();
-
+    // Poll while visible. Listening to every team change on the platform made
+    // each roster edit trigger a refetch on every open Quick Match screen.
+    const tick = () => document.visibilityState === 'visible' && fetchOnlineTeams();
+    const t = setInterval(tick, 60_000);
+    document.addEventListener('visibilitychange', tick);
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', tick);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchOnlineTeams = async () => {
@@ -124,7 +124,7 @@ export function OnlineTeams() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-display font-bold flex items-center gap-2 tracking-tight">
+        <h2 className="flex items-center gap-2 text-2xl">
           <Shield className="h-5 w-5 text-blue-500" />
           Ready Teams (5v5)
           {onlineTeams.length > 0 && (

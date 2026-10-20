@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WinnerSpotlight } from '@/components/WinnerSpotlight';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { debounce } from '@/lib/debounce';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
 import { formatCurrency } from '@/lib/format-number';
 import { formatTimeUntil } from '@/lib/utils';
@@ -390,6 +391,8 @@ export default function TournamentDetail() {
   winnerShownRef.current = !!tournamentWinner;
 
   const subscribeToUpdates = () => {
+    // A busy registration fires many events; refetch once per burst
+    const refetch = debounce(() => fetchTournamentData(), 800, 4000);
     const participantsChannel = supabase
       .channel(`tournament-${id}`)
       .on(
@@ -400,9 +403,7 @@ export default function TournamentDetail() {
           table: 'tournament_participants',
           filter: `tournament_id=eq.${id}`
         },
-        () => {
-          fetchTournamentData();
-        }
+        () => refetch()
       )
       .subscribe();
 
@@ -416,9 +417,7 @@ export default function TournamentDetail() {
           table: 'tournaments',
           filter: `id=eq.${id}`
         },
-        () => {
-          fetchTournamentData();
-        }
+        () => refetch()
       )
       .subscribe();
 
@@ -455,6 +454,7 @@ export default function TournamentDetail() {
       .subscribe();
 
     return () => {
+      refetch.cancel();
       supabase.removeChannel(participantsChannel);
       supabase.removeChannel(tournamentChannel);
       supabase.removeChannel(matchResultsChannel);

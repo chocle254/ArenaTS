@@ -288,72 +288,72 @@ export const GAME_INFO: Record<GameType, { name: string; shortName: string; icon
   codm: {
     name: 'CODM',
     shortName: 'CODM',
-    icon: 'https://i.pinimg.com/736x/3a/dd/18/3add18f29fa91cf8e3db7662e5af1e1a.jpg',
-    banner: 'https://i.pinimg.com/736x/75/f1/58/75f158764ab1ed4a511437f04f610e52.jpg',
-    logo: 'https://i.pinimg.com/736x/3a/dd/18/3add18f29fa91cf8e3db7662e5af1e1a.jpg'
+    icon: '/images/games/codm-icon.webp',
+    banner: '/images/games/codm-banner.webp',
+    logo: '/images/games/codm-icon.webp'
   },
   fortnite: {
     name: 'Fortnite',
     shortName: 'Fortnite',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_9e8510c3-351b-459e-ad57-5727287b2eba.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_787d5c50-b7e0-4e82-b74f-94cccf7eaa69.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_9e8510c3-351b-459e-ad57-5727287b2eba.jpg'
+    icon: '/images/games/fortnite-icon.webp',
+    banner: '/images/games/fortnite-banner.webp',
+    logo: '/images/games/fortnite-icon.webp'
   },
   fifa: {
     name: 'FIFA',
     shortName: 'FIFA',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_66a27ded-4dea-494e-8e9b-a3a144e332a2.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_8f82acd7-52c9-4aa2-9f60-9c1f1aa416bc.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_66a27ded-4dea-494e-8e9b-a3a144e332a2.jpg'
+    icon: '/images/games/fifa-icon.webp',
+    banner: '/images/games/fifa-banner.webp',
+    logo: '/images/games/fifa-icon.webp'
   },
   warzone: {
     name: 'COD Warzone',
     shortName: 'COD Warzone',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_6e1aa5c9-fef3-4e36-8ada-b16b97b9ff28.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_8bfd9e45-cb7c-4d2e-8e30-db8028225514.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_6e1aa5c9-fef3-4e36-8ada-b16b97b9ff28.jpg'
+    icon: '/images/games/warzone-icon.webp',
+    banner: '/images/games/warzone-banner.webp',
+    logo: '/images/games/warzone-icon.webp'
   },
   apex: {
     name: 'Apex Legends',
     shortName: 'Apex',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_79a4c765-cec1-4389-9dc2-7f02352b8476.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_17414ab3-243b-41bb-b8de-7f6e7dc9ce13.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_79a4c765-cec1-4389-9dc2-7f02352b8476.jpg'
+    icon: '/images/games/apex-icon.webp',
+    banner: '/images/games/apex-banner.webp',
+    logo: '/images/games/apex-icon.webp'
   },
   valorant: {
     name: 'Valorant',
     shortName: 'Valorant',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_4d3d0075-819e-48e4-86a1-7dc893eed1d9.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_ef9cc42f-d28e-4d33-89a7-dcc34ff7b4b6.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_4d3d0075-819e-48e4-86a1-7dc893eed1d9.jpg'
+    icon: '/images/games/valorant-icon.webp',
+    banner: '/images/games/valorant-banner.webp',
+    logo: '/images/games/valorant-icon.webp'
   },
   injustice: {
     name: 'Injustice 2',
     shortName: 'Injustice',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_fd50bdf8-1631-4115-84bb-831314f53b6a.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_9c4d9a95-3c62-4f63-9789-cb67c6a5d9a2.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_fd50bdf8-1631-4115-84bb-831314f53b6a.jpg'
+    icon: '/images/games/injustice-icon.webp',
+    banner: '/images/games/injustice-banner.webp',
+    logo: '/images/games/injustice-icon.webp'
   },
   mortal_kombat: {
     name: 'Mortal Kombat 11',
     shortName: 'MK11',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_4c46ec37-0672-43cf-8fb3-39f35a601cd7.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_d03f9e80-744f-464b-8f3c-3a5be5a36ce9.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_4c46ec37-0672-43cf-8fb3-39f35a601cd7.jpg'
+    icon: '/images/games/mortal_kombat-icon.webp',
+    banner: '/images/games/mortal_kombat-banner.webp',
+    logo: '/images/games/mortal_kombat-icon.webp'
   },
   efootball: {
     name: 'eFootball',
     shortName: 'eFootball',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_5bc0a4db-f003-4cb3-8849-8a6ff22f41ef.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_8f82acd7-52c9-4aa2-9f60-9c1f1aa416bc.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_5bc0a4db-f003-4cb3-8849-8a6ff22f41ef.jpg'
+    icon: '/images/games/efootball-icon.webp',
+    banner: '/images/games/efootball-banner.webp',
+    logo: '/images/games/efootball-icon.webp'
   },
   pubg_mobile: {
     name: 'PUBG Mobile',
     shortName: 'PUBGM',
-    icon: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_906443de-043e-45bc-bd1a-50e46c2c4da2.jpg',
-    banner: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_8982654b-2303-4200-b240-4e91852a6a2c.jpg',
-    logo: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_906443de-043e-45bc-bd1a-50e46c2c4da2.jpg'
+    icon: '/images/games/pubg_mobile-icon.webp',
+    banner: '/images/games/pubg_mobile-banner.webp',
+    logo: '/images/games/pubg_mobile-icon.webp'
   }
 };
 

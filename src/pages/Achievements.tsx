@@ -1,17 +1,14 @@
-import { Lock } from 'lucide-react';
+import { ChevronLeft, Lock } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { LevelRing } from '@/components/arena/LevelRing';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@/contexts/AuthContext';
+import { Link } from 'react-router-dom';
 import { usePlayerProgress } from '@/hooks/use-player-progress';
-import { RARITY_STYLES, xpToReachLevel } from '@/lib/progression';
+import { RARITY_STYLES } from '@/lib/progression';
 import { cn } from '@/lib/utils';
 
 const FILTERS = ['All', 'Unlocked', 'In progress'] as const;
 
 export default function Achievements() {
-  const { profile } = useAuth();
-  const { level, achievements, unlockedCount } = usePlayerProgress();
+  const { achievements, unlockedCount } = usePlayerProgress();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('All');
 
   const list = useMemo(() => {
@@ -25,53 +22,17 @@ export default function Achievements() {
 
   return (
     <div className="space-y-8">
-      <section className="surface-raised relative overflow-hidden p-6 md:p-8">
-        <div
-          className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full"
-          style={{ background: 'radial-gradient(circle, hsl(224 100% 60% / 0.22), transparent 70%)' }}
-        />
-        <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
-          <LevelRing level={level.level} progress={level.progress} size={128} stroke={8}>
-            <Avatar className="h-full w-full">
-              <AvatarImage src={profile?.avatar_url || ''} alt="" />
-              <AvatarFallback className="bg-primary/20 font-score text-4xl">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
-            </Avatar>
-          </LevelRing>
-          <div className="flex-1 space-y-3">
-            <div>
-              <p className="text-sm text-muted-foreground">{profile?.gamertag || 'Player'}</p>
-              <h1 className="text-5xl leading-none">Level {level.level}</h1>
-            </div>
-            <div className="max-w-md space-y-1.5">
-              <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-gradient-to-r from-primary-soft to-primary" style={{ width: `${Math.round(level.progress * 100)}%` }} />
-              </div>
-              <p className="flex justify-between text-xs text-muted-foreground">
-                <span>
-                  <span className="font-score text-sm text-foreground">{level.xp.toLocaleString()}</span> XP
-                </span>
-                <span>
-                  {level.toNext.toLocaleString()} XP to level {level.level + 1} ({xpToReachLevel(level.level + 1).toLocaleString()})
-                </span>
-              </p>
-            </div>
-            <p className="text-sm text-muted-foreground">Wins earn 100 XP, losses 25, each tournament 150 and every title 500.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 md:w-64">
-            <div className="rounded-xl border border-border bg-background/40 p-4">
-              <p className="font-score text-3xl leading-none">
-                {unlockedCount}
-                <span className="text-base text-muted-foreground">/{achievements.length}</span>
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">Unlocked</p>
-            </div>
-            <div className="rounded-xl border border-border bg-background/40 p-4">
-              <p className="font-score text-3xl leading-none">{profile?.longest_streak ?? 0}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Best win streak</p>
-            </div>
-          </div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <Link to="/profile" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronLeft className="h-4 w-4" /> Profile
+          </Link>
+          <h1 className="text-4xl">Achievements</h1>
+          <p className="text-muted-foreground">
+            {unlockedCount} of {achievements.length} unlocked. Your level and XP live on your profile.
+          </p>
         </div>
-      </section>
+      </div>
 
       {nextUp && (
         <section className="surface flex items-center gap-4 p-4">
@@ -81,7 +42,7 @@ export default function Achievements() {
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground">Closest to unlocking</p>
             <p className="truncate font-semibold">
-              {nextUp.title} <span className="font-normal text-muted-foreground">— {nextUp.description}</span>
+              {nextUp.title}. <span className="font-normal text-muted-foreground">{nextUp.description}</span>
             </p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(nextUp.progress * 100)}%` }} />
@@ -95,7 +56,7 @@ export default function Achievements() {
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl">Achievements</h2>
+          <h2 className="sr-only">All achievements</h2>
           <div className="flex rounded-xl border border-border p-1" role="tablist" aria-label="Filter achievements">
             {FILTERS.map((f) => (
               <button

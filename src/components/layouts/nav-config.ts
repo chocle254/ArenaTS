@@ -15,6 +15,7 @@ import {
   Wallet,
   Gavel,
   ArrowLeftRight,
+  Bell,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -35,17 +36,22 @@ export const PRIMARY_NAV: NavItem[] = [
 ];
 
 export const SOCIAL_NAV: NavItem[] = [
-  { name: 'World Chat', href: '/world-chat', icon: Globe, badge: 'worldChat', keywords: ['chat'] },
-  { name: 'Messages', href: '/messages', icon: MessageSquare, badge: 'messages', keywords: ['dm', 'inbox'] },
+  { name: 'Chats', href: '/messages', icon: MessageSquare, badge: 'messages', keywords: ['dm', 'inbox', 'messages'] },
+  { name: 'World Chat', href: '/world-chat', icon: Globe, badge: 'worldChat', keywords: ['chat', 'global'] },
   { name: 'Friends', href: '/friends', icon: Users, badge: 'friends', keywords: ['social'] },
 ];
 
 export const ACCOUNT_NAV: NavItem[] = [
-  { name: 'Profile', href: '/profile', icon: User },
-  { name: 'Achievements', href: '/achievements', icon: Award, keywords: ['badges', 'level', 'xp'] },
+  { name: 'Profile', href: '/profile', icon: User, keywords: ['level', 'xp', 'stats'] },
   { name: 'Wallet', href: '/wallet', icon: Wallet, keywords: ['balance', 'deposit', 'withdraw', 'money'] },
-  { name: 'Exchange Rates', href: '/exchange-rates', icon: ArrowLeftRight, keywords: ['currency', 'kes'] },
-  { name: 'Settings', href: '/settings', icon: Settings, keywords: ['password', 'account'] },
+  { name: 'Settings', href: '/settings', icon: Settings, keywords: ['password', 'account', 'twitch', 'game id'] },
+];
+
+/** Reachable from their parent pages; listed here so search can find them. */
+export const SEARCH_ONLY_NAV: NavItem[] = [
+  { name: 'Achievements', href: '/achievements', icon: Award, keywords: ['badges', 'trophies'] },
+  { name: 'Exchange rates', href: '/exchange-rates', icon: ArrowLeftRight, keywords: ['currency', 'kes', 'convert'] },
+  { name: 'Notifications', href: '/notifications', icon: Bell, keywords: ['alerts'] },
 ];
 
 export const STAFF_NAV: NavItem[] = [

@@ -1,371 +1,250 @@
-import { motion } from 'framer-motion';
-import { ArrowLeft, Play, Shield, Users, Volume2, VolumeX, Maximize2, Grid2X2 } from 'lucide-react';
+import { Eye, Radio, Share2, Trophy } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
 import { supabase } from '@/db/supabase';
+import { shareLink } from '@/lib/share';
+import { twitchEmbed, twitchLogin } from '@/lib/twitch';
+import { cn } from '@/lib/utils';
+import { GAME_INFO, type GameType } from '@/types/database';
 
-type ViewMode = 'split' | 'p1' | 'p2';
+interface Player {
+  id: string | null;
+  gamertag: string;
+  avatar_url: string | null;
+  twitch: string | null;
+}
+
+interface MatchInfo {
+  title: string;
+  game: string | null;
+  tournamentId: string | null;
+  players: Player[];
+  finished: boolean;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function loadPlayers(ids: (string | null)[], names: string[]): Promise<Player[]> {
+  const realIds = ids.filter((x): x is string => !!x);
+  let rows: { id: string; gamertag: string | null; avatar_url: string | null; twitch_handle: string | null }[] = [];
+  if (realIds.length) {
+    const { data } = await supabase.from('profiles').select('id, gamertag, avatar_url, twitch_handle').in('id', realIds);
+    rows = data || [];
+  } else if (names.some(Boolean)) {
+    const { data } = await supabase.from('profiles').select('id, gamertag, avatar_url, twitch_handle').in('gamertag', names.filter(Boolean));
+    rows = data || [];
+  }
+  const slots = realIds.length ? ids : names;
+  return slots.map((key, i) => {
+    const r = rows.find((p) => (realIds.length ? p.id === key : p.gamertag === key));
+    return { id: r?.id ?? null, gamertag: r?.gamertag || names[i] || `Player ${i + 1}`, avatar_url: r?.avatar_url ?? null, twitch: twitchLogin(r?.twitch_handle) };
+  });
+}
+
+/** Resolves the match from a quick-match id, a match_results id, or a bracket code + tournament id. */
+async function loadMatch(matchId: string, params: URLSearchParams): Promise<MatchInfo | null> {
+  const kind = params.get('kind');
+  const tid = params.get('tid');
+  const names = [params.get('p1') || '', params.get('p2') || ''];
+
+  if (kind === 'quick') {
+    const { data } = await supabase.from('challenges').select('id, game, challenger_id, opponent_id, status, stake_amount').eq('id', matchId).maybeSingle();
+    if (!data) return null;
+    return { title: 'Quick match', game: data.game, tournamentId: null, players: await loadPlayers([data.challenger_id, data.opponent_id], names), finished: ['completed', 'cancelled', 'expired', 'declined'].includes(data.status) };
+  }
+
+  let q = supabase.from('match_results').select('id, tournament_id, player1_id, player2_id, status, tournaments(name, game)');
+  q = UUID.test(matchId) ? q.eq('id', matchId) : tid ? q.eq('tournament_id', tid).eq('match_id', matchId) : q.eq('id', '00000000-0000-0000-0000-000000000000');
+  const { data } = await q.maybeSingle();
+  if (data) {
+    const t = (Array.isArray(data.tournaments) ? data.tournaments[0] : data.tournaments) as { name?: string; game?: string } | null;
+    return { title: t?.name || 'Tournament match', game: t?.game || null, tournamentId: data.tournament_id, players: await loadPlayers([data.player1_id, data.player2_id], names), finished: data.status === 'confirmed' };
+  }
+  // Older links carry only gamertags
+  if (names.some(Boolean)) {
+    return { title: params.get('tournamentName') || 'Live match', game: params.get('game'), tournamentId: tid, players: await loadPlayers([null, null], names), finished: false };
+  }
+  return null;
+}
 
 export default function LiveStream() {
-  const { matchId } = useParams();
-  const [searchParams] = useSearchParams();
+  const { matchId = '' } = useParams();
+  const [params] = useSearchParams();
   const { user } = useAuth();
-  
-  const challengerName = searchParams.get('p1') || 'Player 1';
-  const opponentName = searchParams.get('p2') || 'Player 2';
-  const streamerName = searchParams.get('streamer') || opponentName;
-  const gameName = searchParams.get('game') || 'Unknown Game';
-  const tournamentId = searchParams.get('tid');
-
-  const [p1Twitch, setP1Twitch] = useState<string | null>(null);
-  const [p2Twitch, setP2Twitch] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>('split');
-  const [p1Muted, setP1Muted] = useState(true);
-  const [p2Muted, setP2Muted] = useState(false);
-  const [spectatorCount, setSpectatorCount] = useState(0);
+  const [info, setInfo] = useState<MatchInfo | null | undefined>(undefined);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [split, setSplit] = useState(false);
+  const [watching, setWatching] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!matchId) return;
-
-    // Track presence for spectator count
-    const presenceChannel = supabase.channel('global-spectators', {
-      config: {
-        presence: {
-          key: user?.id || crypto.randomUUID(),
-        },
-      },
-    });
-
-    presenceChannel
-      .on('presence', { event: 'sync' }, () => {
-        const state = presenceChannel.presenceState();
-        const count = Object.values(state).flat().filter((p: any) => p.match_id === matchId).length;
-        setSpectatorCount(count);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await presenceChannel.track({
-            match_id: matchId,
-            user_id: user?.id || 'anonymous',
-            joined_at: new Date().toISOString(),
-          });
-        }
+    let cancelled = false;
+    setInfo(undefined);
+    loadMatch(matchId, params)
+      .then((m) => !cancelled && setInfo(m))
+      .catch((e) => {
+        console.error('Error loading stream:', e);
+        if (!cancelled) setInfo(null);
       });
-
     return () => {
-      supabase.removeChannel(presenceChannel);
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId, params.toString()]);
+
+  // Spectators: one presence channel per match, so a join only notifies people watching this match
+  useEffect(() => {
+    if (!matchId) return;
+    const channel = supabase.channel(`spectators:${matchId}`, { config: { presence: { key: user?.id || crypto.randomUUID() } } });
+    channel
+      .on('presence', { event: 'sync' }, () => setWatching(Object.keys(channel.presenceState()).length))
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') void channel.track({ at: Date.now() });
+      });
+    return () => {
+      supabase.removeChannel(channel);
     };
   }, [matchId, user?.id]);
 
-  useEffect(() => {
-    async function fetchTwitchHandles() {
-      try {
-        const { data: p1Data } = await supabase
-          .from('profiles')
-          .select('twitch_handle, gamertag')
-          .eq('gamertag', challengerName)
-          .maybeSingle();
-        
-        const { data: p2Data } = await supabase
-          .from('profiles')
-          .select('twitch_handle, gamertag')
-          .eq('gamertag', opponentName)
-          .maybeSingle();
+  const streamers = useMemo(() => (info?.players || []).map((p, i) => ({ p, i })).filter((x) => x.p.twitch), [info]);
+  const active = selected ?? streamers[0]?.i ?? null;
+  const game = info?.game ? GAME_INFO[info.game as GameType] : undefined;
+  const canSplit = streamers.length > 1;
 
-        const sanitizeHandle = (handle: string | null, fallback: string) => {
-          if (!handle) {
-            // If no handle in DB, use the fallback (gamertag)
-            // Strip any spaces and convert to lowercase for Twitch
-            return fallback.replace(/\s+/g, '').toLowerCase();
-          }
-          
-          // If handle exists, sanitize it:
-          // 1. Remove full URL if provided (e.g., https://twitch.tv/user -> user)
-          // 2. Remove leading @ (e.g., @user -> user)
-          let sanitized = handle.trim();
-          if (sanitized.includes('twitch.tv/')) {
-            sanitized = sanitized.split('twitch.tv/').pop()?.split('/')[0] || sanitized;
-          }
-          sanitized = sanitized.replace(/^@/, '');
-          return sanitized.toLowerCase();
-        };
+  if (info === undefined) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-4">
+        <div className="h-8 w-64 animate-pulse rounded bg-secondary" />
+        <div className="aspect-video animate-pulse rounded-2xl bg-card" />
+      </div>
+    );
+  }
 
-        setP1Twitch(sanitizeHandle(p1Data?.twitch_handle, challengerName));
-        setP2Twitch(sanitizeHandle(p2Data?.twitch_handle, opponentName));
-      } catch (err) {
-        console.error('Error fetching twitch handles:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchTwitchHandles();
-  }, [challengerName, opponentName]);
+  if (info === null) {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <Radio className="mx-auto h-10 w-10 text-muted-foreground/50" />
+        <h1 className="mt-4 text-3xl">Stream not found</h1>
+        <p className="mt-2 text-muted-foreground">This match may have finished or the link is out of date.</p>
+        <Button asChild className="mt-6">
+          <Link to="/streams">See live streams</Link>
+        </Button>
+      </div>
+    );
+  }
 
-  const toggleAudio = (target: 'p1' | 'p2') => {
-    if (target === 'p1') {
-      setP1Muted(false);
-      setP2Muted(true);
-    } else {
-      setP1Muted(true);
-      setP2Muted(false);
-    }
-  };
-
-  const parentDomain = window.location.hostname;
-  const devDomains = ['localhost', 'miaoda-gg.com', 'medo.dev'];
-  const parentParams = [parentDomain, ...devDomains]
-    .filter((v, i, a) => v && a.indexOf(v) === i)
-    .map(domain => `&parent=${domain}`)
-    .join('');
+  const [a, b] = info.players;
 
   return (
-    <div className="min-h-screen bg-background font-montserrat p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <Link to={tournamentId ? `/tournaments/${tournamentId}` : '/dashboard'}>
-              <Button variant="ghost" className="gap-2 -ml-2 text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Tournament
-              </Button>
+    <div className="mx-auto max-w-6xl space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            {!info.finished && (
+              <span className="flex items-center gap-1 rounded-md bg-live px-1.5 py-0.5 text-[11px] font-bold text-white">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
+              </span>
+            )}
+            {game?.name ?? info.game ?? 'Match'}
+            {watching !== null && (
+              <span className="flex items-center gap-1">
+                <Eye className="h-3.5 w-3.5" /> {watching} watching
+              </span>
+            )}
+          </p>
+          <h1 className="mt-1 truncate text-3xl sm:text-4xl">
+            {a?.gamertag} <span className="text-muted-foreground">vs</span> {b?.gamertag}
+          </h1>
+          {info.tournamentId ? (
+            <Link to={`/tournaments/${info.tournamentId}`} className="mt-1 inline-flex items-center gap-1.5 text-sm text-primary-soft hover:underline">
+              <Trophy className="h-4 w-4" /> {info.title}
             </Link>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Match Stream</h1>
-              <Badge variant="destructive" className="animate-pulse flex gap-1 uppercase tracking-widest text-[10px]">
-                <div className="w-1 h-1 rounded-full bg-white self-center" />
-                Live
-              </Badge>
-            </div>
-            <p className="text-muted-foreground font-light">
-              Spectating: <span className="font-semibold text-foreground">{challengerName}</span> vs <span className="font-semibold text-foreground">{opponentName}</span>
-            </p>
-          </div>
-
-          <div className="flex items-center gap-4 bg-muted/30 p-4 rounded-xl border border-border/50">
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Streaming Player</span>
-              <span className="font-bold text-primary">{streamerName}</span>
-            </div>
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center border border-primary/20">
-              <Play className="h-6 w-6 text-primary fill-primary" />
-            </div>
-          </div>
+          ) : (
+            <p className="mt-1 text-sm text-muted-foreground">{info.title}</p>
+          )}
         </div>
-
-        {/* View Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-4 py-4 px-6 bg-muted/10 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mr-2">View Mode</span>
-            <div className="flex p-1 bg-background rounded-lg border border-border/50">
-              <Button 
-                variant={viewMode === 'p1' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="h-8 gap-2 text-[10px] uppercase font-bold tracking-tight"
-                onClick={() => setViewMode('p1')}
-              >
-                <Maximize2 className="h-3 w-3" />
-                {challengerName}
-              </Button>
-              <Button 
-                variant={viewMode === 'split' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="h-8 gap-2 text-[10px] uppercase font-bold tracking-tight"
-                onClick={() => setViewMode('split')}
-              >
-                <Grid2X2 className="h-3 w-3" />
-                Split Screen
-              </Button>
-              <Button 
-                variant={viewMode === 'p2' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="h-8 gap-2 text-[10px] uppercase font-bold tracking-tight"
-                onClick={() => setViewMode('p2')}
-              >
-                <Maximize2 className="h-3 w-3" />
-                {opponentName}
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mr-2">Active Audio</span>
-            <div className="flex p-1 bg-background rounded-lg border border-border/50">
-              <Button 
-                variant={!p1Muted ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="h-8 gap-2 text-[10px] uppercase font-bold tracking-tight"
-                onClick={() => toggleAudio('p1')}
-              >
-                {!p1Muted ? <Volume2 className="h-3 w-3 text-primary" /> : <VolumeX className="h-3 w-3" />}
-                {challengerName}
-              </Button>
-              <Button 
-                variant={!p2Muted ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="h-8 gap-2 text-[10px] uppercase font-bold tracking-tight"
-                onClick={() => toggleAudio('p2')}
-              >
-                {!p2Muted ? <Volume2 className="h-3 w-3 text-primary" /> : <VolumeX className="h-3 w-3" />}
-                {opponentName}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Browser Compatibility Note for Firefox Users */}
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex-1 bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            <p className="text-xs text-blue-200">
-              <span className="font-bold">Firefox User?</span> If the stream doesn't load, ensure "Enhanced Tracking Protection" is disabled for this site.
-            </p>
-          </div>
-          
-          <div className="flex-1 bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-amber-500" />
-            <p className="text-xs text-amber-200">
-              <span className="font-bold">Stream Offline?</span> Check if the Twitch username is correct in Settings. Ensure no '@' symbols or extra spaces.
-            </p>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="space-y-8">
-          {/* Streams Grid */}
-          <div className={`grid gap-6 ${viewMode === 'split' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-            {/* Player 1 Stream */}
-            {(viewMode === 'split' || viewMode === 'p1') && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${!p1Muted ? 'bg-primary animate-pulse' : 'bg-muted'}`} />
-                    <span className={`text-sm font-bold tracking-tight ${!p1Muted ? 'text-primary' : ''}`}>{challengerName}</span>
-                  </div>
-                  <Badge variant={!p1Muted ? 'secondary' : 'outline'} className={`text-[8px] uppercase tracking-tighter ${!p1Muted ? 'text-primary' : 'opacity-50'}`}>
-                    {!p1Muted ? 'Audio Active' : 'Muted'}
-                  </Badge>
-                </div>
-                <Card className={`overflow-hidden bg-black relative ring-offset-background transition-all duration-300 ${!p1Muted ? 'ring-2 ring-primary/20 shadow-lg shadow-primary/5' : 'border-border/50'} ${viewMode === 'p1' ? 'aspect-video md:aspect-[21/9]' : 'aspect-video'}`}>
-                  {!loading && p1Twitch ? (
-                    <iframe
-                      src={`https://player.twitch.tv/?channel=${p1Twitch}${parentParams}&autoplay=true&muted=${p1Muted}`}
-                      className="absolute inset-0 w-full h-full border-0"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 space-y-4">
-                      <div className="w-12 h-12 rounded-full border-2 border-primary/10 border-t-primary/40 animate-spin" />
-                    </div>
-                  )}
-                </Card>
-              </div>
-            )}
-
-            {/* Player 2 Stream (Primary Streamer) */}
-            {(viewMode === 'split' || viewMode === 'p2') && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${!p2Muted ? 'bg-primary animate-pulse' : 'bg-muted'}`} />
-                    <span className={`text-sm font-bold tracking-tight ${!p2Muted ? 'text-primary' : ''}`}>{opponentName}</span>
-                  </div>
-                  <Badge variant={!p2Muted ? 'secondary' : 'outline'} className={`text-[8px] uppercase tracking-tighter ${!p2Muted ? 'text-primary' : 'opacity-50'}`}>
-                    {!p2Muted ? 'Audio Active' : 'Muted'}
-                  </Badge>
-                </div>
-                <Card className={`overflow-hidden bg-black relative ring-offset-background transition-all duration-300 ${!p2Muted ? 'ring-2 ring-primary/20 shadow-lg shadow-primary/5' : 'border-border/50'} ${viewMode === 'p2' ? 'aspect-video md:aspect-[21/9]' : 'aspect-video'}`}>
-                  {!loading && p2Twitch ? (
-                    <iframe
-                      src={`https://player.twitch.tv/?channel=${p2Twitch}${parentParams}&autoplay=true&muted=${p2Muted}`}
-                      className="absolute inset-0 w-full h-full border-0"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 space-y-4">
-                      <div className="w-12 h-12 rounded-full border-2 border-primary/10 border-t-primary animate-spin" />
-                    </div>
-                  )}
-                </Card>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-6 bg-muted/20 rounded-2xl border border-border/50 space-y-4">
-                <h3 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-primary" />
-                  Fair Play Monitoring
-                </h3>
-                <p className="text-sm text-muted-foreground font-light leading-relaxed">
-                  This dual-stream is being monitored for integrity. Any unsportsmanlike conduct or violation of {gameName} rules will result in immediate disqualification.
-                </p>
-              </div>
-              <div className="p-6 bg-muted/20 rounded-2xl border border-border/50 space-y-4">
-                <h3 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  Spectator View
-                  <Badge variant="secondary" className="ml-2 font-mono text-[10px] bg-primary/10 text-primary border-primary/20">
-                    {spectatorCount} WATCHING
-                  </Badge>
-                </h3>
-                <p className="text-sm text-muted-foreground font-light leading-relaxed">
-                  You are watching the match from both perspectives. By default, Player 2's audio is active as the primary broadcast.
-                </p>
-              </div>
-            </div>
-
-            <Card className="border-border/50 bg-card/50">
-              <CardContent className="p-6 space-y-6">
-                <div className="space-y-1">
-                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tournament</h4>
-                  <p className="font-bold">{searchParams.get('tournamentName') || 'Standard Arena Cup'}</p>
-                </div>
-                
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Matchup</h4>
-                  <div className="flex flex-col gap-3">
-                    <button 
-                      onClick={() => setViewMode('p1')}
-                      className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${viewMode === 'p1' ? 'bg-primary/20 border-primary' : 'bg-muted/30 border-border/50 hover:bg-muted/50'}`}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">P1</div>
-                      <span className="font-semibold text-sm">{challengerName}</span>
-                    </button>
-                    <button 
-                      onClick={() => setViewMode('p2')}
-                      className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${viewMode === 'p2' ? 'bg-primary/20 border-primary' : 'bg-muted/30 border-border/50 hover:bg-muted/50'}`}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-white">P2</div>
-                      <div className="flex-1 text-left">
-                        <span className="font-semibold text-sm">{opponentName}</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-2">
-                  <Button 
-                    variant={viewMode === 'split' ? 'secondary' : 'outline'} 
-                    className="text-[10px] font-bold tracking-tight uppercase"
-                    onClick={() => setViewMode('split')}
-                  >
-                    <Grid2X2 className="h-3 w-3 mr-2" />
-                    Split Screen View
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <Button
+          variant="outline"
+          onClick={() => shareLink({ title: `${a?.gamertag} vs ${b?.gamertag}`, text: `Watch ${a?.gamertag} vs ${b?.gamertag} live on Arena`, url: window.location.href })}
+        >
+          <Share2 /> Share
+        </Button>
       </div>
+
+      {streamers.length === 0 ? (
+        <div className="flex aspect-video flex-col items-center justify-center rounded-2xl border border-border bg-card p-6 text-center">
+          <Radio className="h-10 w-10 text-muted-foreground/50" />
+          <p className="mt-3 text-lg font-semibold">Neither player is streaming</p>
+          <p className="mt-1 max-w-sm text-sm text-muted-foreground">Players add their Twitch channel in Settings. You can still follow the result on the bracket.</p>
+          {info.tournamentId && (
+            <Button asChild variant="outline" className="mt-5">
+              <Link to={`/tournaments/${info.tournamentId}`}>Open the bracket</Link>
+            </Button>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Point of view: one player at a time keeps phones smooth; split is optional on large screens */}
+          <div className="flex flex-wrap items-center gap-2">
+            {info.players.map((p, i) => (
+              <button
+                key={i}
+                type="button"
+                disabled={!p.twitch}
+                onClick={() => {
+                  setSelected(i);
+                  setSplit(false);
+                }}
+                className={cn(
+                  'flex h-10 items-center gap-2 rounded-full border pl-1 pr-3 text-sm font-semibold disabled:opacity-40',
+                  !split && active === i ? 'border-primary bg-primary/15' : 'border-border text-muted-foreground',
+                )}
+              >
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={p.avatar_url || undefined} alt="" />
+                  <AvatarFallback className="text-xs">{p.gamertag[0]?.toUpperCase()}</AvatarFallback>
+                </Avatar>
+                {p.gamertag}
+                {!p.twitch && <span className="text-xs font-normal">(not streaming)</span>}
+              </button>
+            ))}
+            {canSplit && (
+              <button
+                type="button"
+                onClick={() => setSplit((s) => !s)}
+                aria-pressed={split}
+                className={cn('hidden h-10 rounded-full border px-4 text-sm font-semibold lg:block', split ? 'border-primary bg-primary/15' : 'border-border text-muted-foreground')}
+              >
+                Both views
+              </button>
+            )}
+          </div>
+
+          <div className={cn('grid gap-3', split && canSplit ? 'lg:grid-cols-2' : 'grid-cols-1')}>
+            {(split && canSplit ? streamers : streamers.filter((s) => s.i === active)).map(({ p, i }, k) => (
+              <div key={`${p.twitch}-${i}`} className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
+                <iframe
+                  title={`${p.gamertag} on Twitch`}
+                  src={twitchEmbed(p.twitch as string, { muted: split ? k > 0 : false })}
+                  className="absolute inset-0 h-full w-full"
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  loading="lazy"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Stream not loading? Firefox’s tracking protection can block Twitch embeds. You can also{' '}
+            <a href={`https://www.twitch.tv/${info.players[active ?? 0]?.twitch ?? ''}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary-soft hover:underline">
+              watch on Twitch
+            </a>
+            .
+          </p>
+        </>
+      )}
     </div>
   );
 }

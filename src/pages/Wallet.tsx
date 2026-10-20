@@ -10,7 +10,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -469,8 +469,15 @@ export default function Wallet() {
 
       {/* ── Page Header ── */}
       <div>
-        <h1 className="text-3xl md:text-4xl font-light tracking-tight">Wallet</h1>
-        <p className="text-muted-foreground font-light mt-1">Manage your funds and review your activity</p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-4xl">Wallet</h1>
+            <p className="mt-1 text-muted-foreground">Top up for entries, track winnings, and withdraw.</p>
+          </div>
+          <Link to="/exchange-rates" className="text-sm font-semibold text-primary-soft hover:underline">
+            Exchange rates
+          </Link>
+        </div>
       </div>
 
       {/* ── Balance Overview ── */}

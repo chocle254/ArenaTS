@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/arena/Rail';
+import { LevelPanel, TierBadge } from '@/components/arena/LevelPanel';
 import { LevelRing } from '@/components/arena/LevelRing';
 import { SendChallengePanel } from '@/components/SendChallengePanel';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -236,7 +237,9 @@ export default function Profile() {
               {player.role === 'referee' && <span className="rounded-md bg-gold/10 px-2 py-0.5 text-xs font-semibold text-gold">Referee</span>}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground md:justify-start">
-              <span className="font-score text-base text-foreground">Level {level.level}</span>
+              <span className="flex items-center gap-1.5 font-score text-base text-foreground">
+                Level {level.level} <TierBadge level={level.level} />
+              </span>
               {online ? (
                 <span className="flex items-center gap-1.5 text-success">
                   <span className="h-2 w-2 rounded-full bg-success" /> Online now
@@ -319,20 +322,9 @@ export default function Profile() {
           ))}
         </dl>
 
-        {isOwn && (
-          <div className="relative mt-4">
-            <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-              <span>
-                {formatCompactNumber(level.intoLevel)} / {formatCompactNumber(level.levelSpan)} XP
-              </span>
-              <span>{formatCompactNumber(level.toNext)} XP to level {level.level + 1}</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary-soft" style={{ width: `${Math.max(2, level.progress * 100)}%` }} />
-            </div>
-          </div>
-        )}
       </section>
+
+      {isOwn && <LevelPanel profile={player} />}
 
       {/* Trophy case */}
       <section className="surface p-5 md:p-6" aria-labelledby="trophy-title">

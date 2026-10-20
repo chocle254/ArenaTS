@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { debounce } from '@/lib/debounce';
 import { formatCurrency, formatLargeNumber } from '@/lib/format-number';
 
 const formatCompactNumber = (n: number) => formatLargeNumber(n);
@@ -40,18 +41,22 @@ export default function RefereeDashboard() {
 
   useEffect(() => {
     fetchMatches();
+    // Collapse bursts of result updates into one refetch
+    const refetchMatches = debounce(() => fetchMatches(), 1000, 5000);
     const channel = supabase
       .channel('referee_matches')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'match_results' },
-        () => fetchMatches()
+        () => refetchMatches()
       )
       .subscribe();
 
     return () => {
+      refetchMatches.cancel();
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchMatches = async () => {
