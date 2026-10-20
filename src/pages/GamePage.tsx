@@ -365,6 +365,17 @@ function CreateTournamentDialog({
     if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 5 * 60_000) return void toast.error('Pick a start time at least 5 minutes from now');
     if (Math.abs(split - 100) > 0.01) return void toast.error(`Prize split must add up to 100% (it's ${split}%)`);
 
+    // Money tournaments (same rules as the server, to stop prize pools being used to move money)
+    if (prizePoolValue > 0 || entryFeeValue > 0) {
+      const slots = Math.floor(maxPlayersValue / teamSize);
+      const unit = isTeamBased ? 'teams' : 'players';
+      if (slots < 8) return void toast.error(`Tournaments with money need at least 8 ${unit}`);
+      if (minParticipantsValue < 4) return void toast.error(`Tournaments with money need at least 4 ${unit} to start`);
+      if (start.getTime() < Date.now() + 60 * 60_000) return void toast.error('Tournaments with money must start at least 1 hour from now, so anyone can join');
+      if (prizePoolValue > slots * 500) return void toast.error(`Prize pool can be up to KES ${(slots * 500).toLocaleString()} for ${slots} ${unit} (KES 500 each)`);
+      if (prizePoolValue > 5000 && profile.kyc_status !== 'verified') return void toast.error('Verify your ID to fund a prize pool above KES 5,000');
+    }
+
     // Creator always pays the whole prize pool upfront.
     const deduction = prizePoolValue;
     if (arenaCurrency < deduction) {
@@ -531,7 +542,7 @@ function CreateTournamentDialog({
                 required
               />
               <p className="text-xs text-muted-foreground font-light">
-                Paid from your play balance when you create the tournament. Winners get it minus a 10% platform fee. You can't play in your own tournament.
+                Paid from your play balance when you create it. Winners get it minus a 10% platform fee. Up to KES 500 per slot, at least 8 slots, and you can't play in it.
               </p>
             </div>
           </div>

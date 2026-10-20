@@ -1,4 +1,5 @@
-import { AlertTriangle, ArrowRight, CheckCircle, Clock, MessageCircle, Play, Send, Shield, Trophy, Upload, Users, XCircle } from 'lucide-react';
+import { DisputePanel } from '@/components/disputes/DisputePanel';
+import { AlertTriangle, ArrowRight, CheckCircle, Clock, MessageCircle, Play, Send, Shield, Trophy, Users, XCircle } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -86,7 +87,6 @@ interface MatchChatProps {
 function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }: MatchChatProps) {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Array<{ id: string; user_id: string; user: string; text: string; timestamp: Date; is_referee?: boolean }>>([]);
-  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [isReferee, setIsReferee] = useState(false);
@@ -244,71 +244,6 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
     } catch (error: any) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
-    }
-  };
-
-  const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size must be less than 5MB');
-      return;
-    }
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Only image files are allowed');
-      return;
-    }
-
-    setUploading(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${tournamentId}/${match.id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('tournament_screenshots')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('tournament_screenshots')
-        .getPublicUrl(fileName);
-
-      // Update or create match result with screenshot
-      if (matchResult) {
-        const { error: updateError } = await supabase
-          .from('match_results')
-          .update({ screenshot_url: urlData.publicUrl })
-          .eq('tournament_id', tournamentId)
-          .eq('match_id', match.id);
-
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('match_results')
-          .insert({
-            tournament_id: tournamentId,
-            match_id: match.id,
-            round: match.round,
-            player1_id: match.player1!.user_id,
-            player2_id: match.player2!.user_id,
-            screenshot_url: urlData.publicUrl
-          });
-
-        if (insertError) throw insertError;
-      }
-
-      toast.success('Screenshot uploaded successfully');
-    } catch (error: any) {
-      console.error('Error uploading screenshot:', error);
-      toast.error('Failed to upload screenshot');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -512,38 +447,14 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
           )}
 
           {matchResult.status === 'disputed' && (
-            <div className="space-y-3">
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <p className="text-sm font-semibold text-destructive flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Match Disputed
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  The two reports don't match. A referee who isn't playing will review the evidence and decide.
-                </p>
-              </div>
-              
-              {matchResult.screenshot_url && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Evidence Provided</p>
-                  <div className="relative aspect-video rounded-lg overflow-hidden border border-border group">
-                    <img 
-                      src={matchResult.screenshot_url} 
-                      alt="Match Result Screenshot" 
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Button variant="secondary" size="sm" asChild>
-                        <a href={matchResult.screenshot_url} target="_blank" rel="noopener noreferrer" className="gap-2">
-                          <Upload className="h-3 w-3" />
-                          View Full Size
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <DisputePanel
+              matchResultId={matchResult.id}
+              currentUserId={currentUserId}
+              names={{
+                ...(match.player1 ? { [match.player1.user_id]: match.player1.gamertag || 'Player 1' } : {}),
+                ...(match.player2 ? { [match.player2.user_id]: match.player2.gamertag || 'Player 2' } : {}),
+              }}
+            />
           )}
         </div>
       )}
@@ -689,25 +600,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
             </div>
           </div>
 
-          <div className="p-4 bg-muted/20 rounded-lg border border-dashed border-border">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Upload Screenshot Evidence</h4>
-            <div className="flex flex-col gap-3">
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={handleScreenshotUpload}
-                disabled={uploading}
-                className="bg-background"
-              />
-              {matchResult?.screenshot_url && (
-                <div className="flex items-center gap-2 text-xs text-green-500 font-medium">
-                  <CheckCircle className="h-3 w-3" />
-                  Evidence uploaded successfully
-                </div>
-              )}
-            </div>
-            {uploading && <p className="text-[10px] text-muted-foreground mt-2 animate-pulse">Uploading evidence...</p>}
-          </div>
+          <p className="text-xs text-muted-foreground">If your reports don’t match, you’ll both be asked for a photo or short recording of the final score.</p>
         </div>
       )}
 

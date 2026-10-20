@@ -2,7 +2,8 @@ import { AlertTriangle, BadgeCheck, CheckCircle2, ChevronRight, Gavel, Loader2, 
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AdminDisputes, type BracketDispute, type QuickDispute } from '@/components/admin/AdminDisputes';
+import { AdminDisputes } from '@/components/admin/AdminDisputes';
+import type { Dispute } from '@/components/disputes/evidence';
 import { AdminMoney, type TournamentRevenue } from '@/components/admin/AdminMoney';
 import { AdminPlayers } from '@/components/admin/AdminPlayers';
 import { AdminTournaments } from '@/components/admin/AdminTournaments';
@@ -83,8 +84,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<Tab>('overview');
   const [snap, setSnap] = useState<Snapshot>(EMPTY);
   const [loading, setLoading] = useState(true);
-  const [quick, setQuick] = useState<QuickDispute[]>([]);
-  const [bracket, setBracket] = useState<BracketDispute[]>([]);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [revenueRows, setRevenueRows] = useState<TournamentRevenue[]>([]);
   const [processing, setProcessing] = useState(false);
@@ -100,26 +100,13 @@ export default function AdminDashboard() {
   }, [user, profile, isAdmin, navigate]);
 
   const loadDisputes = useCallback(async () => {
-    const [q, b] = await Promise.all([
-      supabase
-        .from('challenges')
-        .select('id, game, stake_amount, prize_pool, status, challenger_id, opponent_id, challenger_reported_winner, opponent_reported_winner, screenshot_url, updated_at, challenger:challenger_id(gamertag), opponent:opponent_id(gamertag)')
-        .in('status', ['disputed', 'disputed_warning'])
-        .order('updated_at', { ascending: true }),
-      supabase
-        .from('match_results')
-        .select('id, match_id, round, tournament_id, player1_id, player2_id, updated_at, tournaments(name, game)')
-        .eq('status', 'disputed')
-        .order('updated_at', { ascending: true }),
-    ]);
-    const qs = (q.data || []) as unknown as QuickDispute[];
-    const bs = (b.data || []) as unknown as BracketDispute[];
-    setQuick(qs);
-    setBracket(bs);
-    const ids = [...new Set(bs.flatMap((m) => [m.player1_id, m.player2_id]).filter(Boolean))] as string[];
+    const { data } = await supabase.from('disputes').select('*').not('status', 'in', '(decided,void)').order('created_at', { ascending: true }).limit(200);
+    const list = (data || []) as Dispute[];
+    setDisputes(list);
+    const ids = [...new Set(list.flatMap((d) => [d.player1_id, d.player2_id, d.referee_id]).filter(Boolean))] as string[];
     if (ids.length) {
-      const { data } = await supabase.from('profiles').select('id, gamertag').in('id', ids);
-      setNames(Object.fromEntries(((data || []) as { id: string; gamertag: string | null }[]).map((p) => [p.id, p.gamertag || 'Player'])));
+      const { data: people } = await supabase.from('profiles').select('id, gamertag').in('id', ids);
+      setNames(Object.fromEntries(((people || []) as { id: string; gamertag: string | null }[]).map((p) => [p.id, p.gamertag || 'Player'])));
     }
   }, []);
 
@@ -202,7 +189,7 @@ export default function AdminDashboard() {
 
   if (!isAdmin || !user) return null;
 
-  const disputeCount = quick.length + bracket.length;
+  const disputeCount = disputes.filter((d) => d.status === 'human_review').length;
   const allClear = disputeCount + snap.kycPending + snap.refereeApps + snap.payoutReviews + snap.amlFlags === 0;
 
   return (
@@ -262,7 +249,7 @@ export default function AdminDashboard() {
               </p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                <TaskTile icon={<AlertTriangle className="h-5 w-5" />} count={disputeCount} label="disputes" action="Decide who won" onClick={() => setTab('disputes')} />
+                <TaskTile icon={<AlertTriangle className="h-5 w-5" />} count={disputeCount} label="disputes need a person" action="AI wasn’t sure or a player appealed" onClick={() => setTab('disputes')} />
                 <TaskTile icon={<BadgeCheck className="h-5 w-5" />} count={snap.kycPending} label="KYC reviews" action="Check ID documents" to="/admin/kyc" />
                 <TaskTile icon={<Gavel className="h-5 w-5" />} count={snap.refereeApps} label="referee applications" action="Approve or decline" to="/admin/referees" />
                 <TaskTile icon={<Wallet className="h-5 w-5" />} count={snap.payoutReviews} label="withdrawals to review" action="Approve or decline" onClick={() => setTab('money')} />
@@ -298,7 +285,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {tab === 'disputes' && <AdminDisputes quick={quick} bracket={bracket} names={names} currentUserId={user.id} onChanged={loadAll} />}
+      {tab === 'disputes' && <AdminDisputes disputes={disputes} names={names} />}
       {tab === 'players' && <AdminPlayers />}
       {tab === 'tournaments' && <AdminTournaments />}
       {tab === 'money' && <AdminMoney revenueBalance={snap.revenueBalance} tournaments={revenueRows} currentUserId={user.id} onChanged={loadSnapshot} />}
