@@ -285,8 +285,7 @@ END;
 $function$;
 
 -- "a_" so it runs before the other BEFORE triggers and sees only the caller's changes
-DROP TRIGGER IF EXISTS a_guard_match_results_write ON public.match_results;
-CREATE TRIGGER a_guard_match_results_write
+CREATE OR REPLACE TRIGGER a_guard_match_results_write
   BEFORE INSERT OR UPDATE ON public.match_results
   FOR EACH ROW EXECUTE FUNCTION public.guard_match_results_write();
 
@@ -395,8 +394,7 @@ BEGIN
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS a_guard_challenges_write ON public.challenges;
-CREATE TRIGGER a_guard_challenges_write
+CREATE OR REPLACE TRIGGER a_guard_challenges_write
   BEFORE INSERT OR UPDATE ON public.challenges
   FOR EACH ROW EXECUTE FUNCTION public.guard_challenges_write();
 
@@ -462,7 +460,6 @@ BEGIN
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS a_guard_tournaments_write ON public.tournaments;
-CREATE TRIGGER a_guard_tournaments_write
+CREATE OR REPLACE TRIGGER a_guard_tournaments_write
   BEFORE INSERT OR UPDATE ON public.tournaments
   FOR EACH ROW EXECUTE FUNCTION public.guard_tournaments_write();
