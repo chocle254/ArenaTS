@@ -36,7 +36,7 @@ export function DisputePanel({
   const decidedRef = useRef(false);
 
   const load = useCallback(async () => {
-    let q = supabase.from('disputes').select('*');
+    let q = supabase.from('match_disputes').select('*');
     q = matchResultId ? q.eq('match_result_id', matchResultId) : q.eq('challenge_id', challengeId!);
     const { data } = await q.maybeSingle();
     const d = data as Dispute | null;

@@ -35,7 +35,7 @@ SECURITY DEFINER
 SET search_path TO 'private', 'public'
 AS $$ SELECT value FROM private.app_secrets WHERE name = p_name $$;
 
-CREATE TABLE IF NOT EXISTS public.disputes (
+CREATE TABLE IF NOT EXISTS public.match_disputes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   match_kind text NOT NULL CHECK (match_kind IN ('tournament', 'quick')),
   match_result_id uuid UNIQUE REFERENCES public.match_results(id) ON DELETE CASCADE,
@@ -62,12 +62,12 @@ CREATE TABLE IF NOT EXISTS public.disputes (
   decided_at timestamptz,
   CHECK ((match_result_id IS NOT NULL) <> (challenge_id IS NOT NULL))
 );
-CREATE INDEX IF NOT EXISTS disputes_open_idx ON public.disputes (status) WHERE status NOT IN ('decided', 'void');
-CREATE INDEX IF NOT EXISTS disputes_referee_idx ON public.disputes (referee_id) WHERE status = 'human_review';
+CREATE INDEX IF NOT EXISTS match_disputes_open_idx ON public.match_disputes (status) WHERE status NOT IN ('decided', 'void');
+CREATE INDEX IF NOT EXISTS match_disputes_referee_idx ON public.match_disputes (referee_id) WHERE status = 'human_review';
 
 CREATE TABLE IF NOT EXISTS public.dispute_evidence (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  dispute_id uuid NOT NULL REFERENCES public.disputes(id) ON DELETE CASCADE,
+  dispute_id uuid NOT NULL REFERENCES public.match_disputes(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES public.profiles(id),
   kind text NOT NULL CHECK (kind IN ('image', 'video')),
   path text NOT NULL,
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS public.dispute_evidence (
 );
 CREATE INDEX IF NOT EXISTS dispute_evidence_dispute_idx ON public.dispute_evidence (dispute_id);
 
-ALTER TABLE public.disputes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.match_disputes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dispute_evidence ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION public.can_view_dispute(p_uid uuid, p_dispute uuid)
@@ -88,7 +88,7 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
   SELECT EXISTS (
-    SELECT 1 FROM disputes d
+    SELECT 1 FROM match_disputes d
     WHERE d.id = p_dispute
       AND (p_uid IN (d.player1_id, d.player2_id)
            OR (d.referee_id = p_uid AND d.status = 'human_review')
@@ -98,8 +98,8 @@ $$;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'disputes' AND policyname = 'Players, referee and admins read disputes') THEN
-    CREATE POLICY "Players, referee and admins read disputes" ON public.disputes FOR SELECT TO authenticated USING (can_view_dispute(auth.uid(), id));
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'match_disputes' AND policyname = 'Players, referee and admins read disputes') THEN
+    CREATE POLICY "Players, referee and admins read disputes" ON public.match_disputes FOR SELECT TO authenticated USING (can_view_dispute(auth.uid(), id));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'dispute_evidence' AND policyname = 'Players, referee and admins read evidence') THEN
     CREATE POLICY "Players, referee and admins read evidence" ON public.dispute_evidence FOR SELECT TO authenticated USING (can_view_dispute(auth.uid(), dispute_id));
@@ -119,7 +119,7 @@ BEGIN
       bucket_id = 'match-evidence'
       AND (storage.foldername(name))[2] = auth.uid()::text
       AND EXISTS (
-        SELECT 1 FROM public.disputes d
+        SELECT 1 FROM public.match_disputes d
         WHERE d.id::text = (storage.foldername(name))[1]
           AND auth.uid() IN (d.player1_id, d.player2_id)
           AND d.status IN ('collecting', 'proposed')
@@ -146,17 +146,17 @@ DECLARE
 BEGIN
   IF NEW.status = 'disputed' AND OLD.status IS DISTINCT FROM 'disputed' AND NEW.player1_id IS NOT NULL AND NEW.player2_id IS NOT NULL THEN
     SELECT game::text INTO v_game FROM tournaments WHERE id = NEW.tournament_id;
-    INSERT INTO disputes (match_kind, match_result_id, tournament_id, game, player1_id, player2_id)
+    INSERT INTO match_disputes (match_kind, match_result_id, tournament_id, game, player1_id, player2_id)
     VALUES ('tournament', NEW.id, NEW.tournament_id, v_game, NEW.player1_id, NEW.player2_id)
     ON CONFLICT (match_result_id) DO UPDATE SET status = 'collecting', evidence_deadline = now() + interval '15 minutes',
       ai_verdict = NULL, ai_winner = NULL, ai_confidence = NULL, appeal_deadline = NULL, appealed_by = NULL, appeal_reason = NULL,
       referee_id = NULL, referee_assigned_at = NULL, decided_winner = NULL, decided_by = NULL, decided_by_user = NULL, decided_at = NULL
-      WHERE disputes.status IN ('decided', 'void');
+      WHERE match_disputes.status IN ('decided', 'void');
     PERFORM create_notification(u, 'match', 'Result disputed', 'Upload a photo or short video of the final score within 15 minutes. The AI referee reviews it next.', '/tournaments/' || NEW.tournament_id || '?match=' || NEW.match_id)
     FROM unnest(ARRAY[NEW.player1_id, NEW.player2_id]) u;
   ELSIF NEW.status = 'confirmed' AND OLD.status IS DISTINCT FROM 'confirmed' THEN
     -- Settled some other way (players agreed, no-show): close any open dispute
-    UPDATE disputes SET status = CASE WHEN status = 'decided' THEN status ELSE 'void' END, decided_at = COALESCE(decided_at, now())
+    UPDATE match_disputes SET status = CASE WHEN status = 'decided' THEN status ELSE 'void' END, decided_at = COALESCE(decided_at, now())
     WHERE match_result_id = NEW.id AND status NOT IN ('decided', 'void');
   END IF;
   RETURN NEW;
@@ -175,13 +175,13 @@ SET search_path TO 'public'
 AS $$
 BEGIN
   IF NEW.status IN ('disputed', 'disputed_warning') AND OLD.status NOT IN ('disputed', 'disputed_warning') THEN
-    INSERT INTO disputes (match_kind, challenge_id, game, player1_id, player2_id)
+    INSERT INTO match_disputes (match_kind, challenge_id, game, player1_id, player2_id)
     VALUES ('quick', NEW.id, NEW.game, NEW.challenger_id, NEW.opponent_id)
     ON CONFLICT (challenge_id) DO NOTHING;
     PERFORM create_notification(u, 'match', 'Result disputed', 'Upload a photo or short video of the final score within 15 minutes. The AI referee reviews it next.', '/quick-match')
     FROM unnest(ARRAY[NEW.challenger_id, NEW.opponent_id]) u;
   ELSIF NEW.status IN ('completed', 'cancelled', 'expired', 'declined') AND OLD.status IS DISTINCT FROM NEW.status THEN
-    UPDATE disputes SET status = CASE WHEN status = 'decided' THEN status ELSE 'void' END, decided_at = COALESCE(decided_at, now())
+    UPDATE match_disputes SET status = CASE WHEN status = 'decided' THEN status ELSE 'void' END, decided_at = COALESCE(decided_at, now())
     WHERE challenge_id = NEW.id AND status NOT IN ('decided', 'void');
   END IF;
   RETURN NEW;
@@ -202,9 +202,9 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
-  d disputes%ROWTYPE;
+  d match_disputes%ROWTYPE;
 BEGIN
-  SELECT * INTO d FROM disputes WHERE id = p_dispute FOR UPDATE;
+  SELECT * INTO d FROM match_disputes WHERE id = p_dispute FOR UPDATE;
   IF NOT FOUND OR d.status IN ('decided', 'void') THEN
     RAISE EXCEPTION 'This dispute is already closed';
   END IF;
@@ -213,7 +213,7 @@ BEGIN
   END IF;
 
   -- Close the dispute first so the match triggers don't void it
-  UPDATE disputes SET status = 'decided', decided_winner = p_winner, decided_by = p_by, decided_by_user = p_user,
+  UPDATE match_disputes SET status = 'decided', decided_winner = p_winner, decided_by = p_by, decided_by_user = p_user,
     decision_note = left(p_note, 1000), decided_at = now()
   WHERE id = p_dispute;
 
@@ -249,10 +249,10 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
-  d disputes%ROWTYPE;
+  d match_disputes%ROWTYPE;
   v_ref uuid;
 BEGIN
-  SELECT * INTO d FROM disputes WHERE id = p_dispute FOR UPDATE;
+  SELECT * INTO d FROM match_disputes WHERE id = p_dispute FOR UPDATE;
   SELECT ra.user_id INTO v_ref
   FROM referee_assignments ra
   JOIN profiles p ON p.id = ra.user_id
@@ -267,11 +267,11 @@ BEGIN
     AND NOT EXISTS (SELECT 1 FROM challenges c WHERE c.created_at > now() - interval '30 days'
                     AND ((c.challenger_id = ra.user_id AND c.opponent_id IN (d.player1_id, d.player2_id))
                       OR (c.opponent_id = ra.user_id AND c.challenger_id IN (d.player1_id, d.player2_id))))
-  ORDER BY (SELECT count(*) FROM disputes x WHERE x.referee_id = ra.user_id AND x.status = 'human_review'),
+  ORDER BY (SELECT count(*) FROM match_disputes x WHERE x.referee_id = ra.user_id AND x.status = 'human_review'),
            p.last_seen_at DESC NULLS LAST, random()
   LIMIT 1;
 
-  UPDATE disputes SET status = 'human_review', referee_id = v_ref, referee_assigned_at = CASE WHEN v_ref IS NULL THEN NULL ELSE now() END WHERE id = p_dispute;
+  UPDATE match_disputes SET status = 'human_review', referee_id = v_ref, referee_assigned_at = CASE WHEN v_ref IS NULL THEN NULL ELSE now() END WHERE id = p_dispute;
   IF v_ref IS NOT NULL THEN
     PERFORM create_notification(v_ref, 'referee', 'You''ve been assigned a dispute', 'Review the evidence and decide who won. Your access ends once it''s decided.', '/referee');
   END IF;
@@ -289,11 +289,11 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
-  d disputes%ROWTYPE;
+  d match_disputes%ROWTYPE;
   v_uid uuid := auth.uid();
   v_prefix text;
 BEGIN
-  SELECT * INTO d FROM disputes WHERE id = p_dispute FOR UPDATE;
+  SELECT * INTO d FROM match_disputes WHERE id = p_dispute FOR UPDATE;
   IF NOT FOUND OR v_uid NOT IN (d.player1_id, d.player2_id) THEN
     RAISE EXCEPTION 'Only the players in this match can add evidence' USING ERRCODE = '42501';
   END IF;
@@ -314,7 +314,7 @@ BEGIN
   VALUES (d.id, v_uid, p_kind, p_path, COALESCE(p_frames[1:8], '{}'), left(p_note, 500));
   -- Both players have something in: no need to wait for the full window
   IF (SELECT count(DISTINCT user_id) FROM dispute_evidence WHERE dispute_id = d.id) = 2 THEN
-    UPDATE disputes SET evidence_deadline = LEAST(evidence_deadline, now() + interval '2 minutes') WHERE id = d.id;
+    UPDATE match_disputes SET evidence_deadline = LEAST(evidence_deadline, now() + interval '2 minutes') WHERE id = d.id;
   END IF;
 END;
 $$;
@@ -326,9 +326,9 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
-  d disputes%ROWTYPE;
+  d match_disputes%ROWTYPE;
 BEGIN
-  SELECT * INTO d FROM disputes WHERE id = p_dispute FOR UPDATE;
+  SELECT * INTO d FROM match_disputes WHERE id = p_dispute FOR UPDATE;
   IF NOT FOUND OR auth.uid() NOT IN (d.player1_id, d.player2_id) THEN
     RAISE EXCEPTION 'Only the players in this match can appeal' USING ERRCODE = '42501';
   END IF;
@@ -338,7 +338,7 @@ BEGIN
   IF length(coalesce(trim(p_reason), '')) < 10 THEN
     RAISE EXCEPTION 'Tell the referee what the AI got wrong (at least 10 characters)';
   END IF;
-  UPDATE disputes SET appealed_by = auth.uid(), appeal_reason = left(p_reason, 1000) WHERE id = d.id;
+  UPDATE match_disputes SET appealed_by = auth.uid(), appeal_reason = left(p_reason, 1000) WHERE id = d.id;
   PERFORM _assign_referee(d.id);
 END;
 $$;
@@ -352,11 +352,11 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
-  d disputes%ROWTYPE;
+  d match_disputes%ROWTYPE;
   v_uid uuid := auth.uid();
   v_admin boolean := has_role(auth.uid(), 'admin');
 BEGIN
-  SELECT * INTO d FROM disputes WHERE id = p_dispute;
+  SELECT * INTO d FROM match_disputes WHERE id = p_dispute;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Dispute not found';
   END IF;
@@ -378,14 +378,14 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Claims disputes ready for review: evidence window over (or both uploaded)
 CREATE OR REPLACE FUNCTION public.ai_claim_disputes(p_limit int DEFAULT 5)
-RETURNS SETOF public.disputes
+RETURNS SETOF public.match_disputes
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
-  UPDATE disputes SET status = 'ai_review'
+  UPDATE match_disputes SET status = 'ai_review'
   WHERE id IN (
-    SELECT id FROM disputes
+    SELECT id FROM match_disputes
     WHERE (status = 'collecting' AND evidence_deadline <= now())
        OR (status = 'ai_review' AND created_at < now() - interval '1 hour') -- retry stuck reviews
     ORDER BY evidence_deadline
@@ -403,20 +403,20 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
-  d disputes%ROWTYPE;
+  d match_disputes%ROWTYPE;
   v_flags int := COALESCE(jsonb_array_length(p_verdict -> 'red_flags'), 0);
 BEGIN
-  SELECT * INTO d FROM disputes WHERE id = p_dispute FOR UPDATE;
+  SELECT * INTO d FROM match_disputes WHERE id = p_dispute FOR UPDATE;
   IF NOT FOUND OR d.status <> 'ai_review' THEN
     RETURN 'skipped';
   END IF;
   IF p_winner IS NOT NULL AND p_winner NOT IN (d.player1_id, d.player2_id) THEN
     p_winner := NULL;
   END IF;
-  UPDATE disputes SET ai_verdict = p_verdict, ai_winner = p_winner, ai_confidence = p_confidence WHERE id = d.id;
+  UPDATE match_disputes SET ai_verdict = p_verdict, ai_winner = p_winner, ai_confidence = p_confidence WHERE id = d.id;
 
   IF p_winner IS NOT NULL AND p_confidence >= 0.85 AND v_flags = 0 THEN
-    UPDATE disputes SET status = 'proposed', appeal_deadline = now() + interval '10 minutes' WHERE id = d.id;
+    UPDATE match_disputes SET status = 'proposed', appeal_deadline = now() + interval '10 minutes' WHERE id = d.id;
     PERFORM create_notification(u, 'match', 'AI referee decision',
       (SELECT gamertag FROM profiles WHERE id = p_winner) || ' won, based on the evidence. You have 10 minutes to appeal.',
       CASE WHEN d.match_kind = 'tournament' THEN '/tournaments/' || d.tournament_id ELSE '/quick-match' END)
@@ -446,7 +446,7 @@ DECLARE
   r record;
   n int := 0;
 BEGIN
-  FOR r IN SELECT id, ai_winner, ai_verdict FROM disputes WHERE status = 'proposed' AND appeal_deadline <= now() FOR UPDATE SKIP LOCKED LOOP
+  FOR r IN SELECT id, ai_winner, ai_verdict FROM match_disputes WHERE status = 'proposed' AND appeal_deadline <= now() FOR UPDATE SKIP LOCKED LOOP
     PERFORM _apply_dispute_decision(r.id, r.ai_winner, 'ai', NULL, r.ai_verdict ->> 'reasoning');
     n := n + 1;
   END LOOP;
@@ -476,7 +476,7 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
   SELECT has_role(p_uid, 'admin')
-      OR EXISTS (SELECT 1 FROM disputes d WHERE d.tournament_id = p_tournament_id AND d.referee_id = p_uid AND d.status = 'human_review');
+      OR EXISTS (SELECT 1 FROM match_disputes d WHERE d.tournament_id = p_tournament_id AND d.referee_id = p_uid AND d.status = 'human_review');
 $$;
 
 -- Old override path: admins (not playing) or the referee assigned to this match's dispute
@@ -492,7 +492,7 @@ AS $function$
 DECLARE
   v_uid uuid := auth.uid();
   v_row match_results%ROWTYPE;
-  v_d disputes%ROWTYPE;
+  v_d match_disputes%ROWTYPE;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'Not signed in' USING ERRCODE = '28000';
@@ -501,7 +501,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Match not found';
   END IF;
-  SELECT * INTO v_d FROM disputes WHERE match_result_id = v_row.id;
+  SELECT * INTO v_d FROM match_disputes WHERE match_result_id = v_row.id;
   IF v_d.id IS NOT NULL AND v_d.status NOT IN ('decided', 'void') THEN
     PERFORM referee_decide(v_d.id, p_winner_id, 'Decided from the match room');
     RETURN json_build_object('status', 'confirmed', 'message', 'Decision applied.');

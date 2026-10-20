@@ -36,7 +36,7 @@ export default function RefereeDashboard() {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    let q = supabase.from('disputes').select('*').order('created_at', { ascending: false }).limit(100);
+    let q = supabase.from('match_disputes').select('*').order('created_at', { ascending: false }).limit(100);
     if (tab === 'mine') q = q.eq('referee_id', user.id).eq('status', 'human_review');
     if (tab === 'open') q = q.eq('status', 'human_review');
     if (tab === 'ai') q = q.in('status', ['collecting', 'ai_review', 'proposed']);

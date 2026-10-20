@@ -220,7 +220,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
     try {
       if (isAdmin && (winnerId === 'cancel' || winnerId === challenge.challenger_id || winnerId === challenge.opponent_id)) {
         // Admin decision goes through the dispute so it's recorded
-        const { data: dispute } = await supabase.from('disputes').select('id, status').eq('challenge_id', challenge.id).maybeSingle();
+        const { data: dispute } = await supabase.from('match_disputes').select('id, status').eq('challenge_id', challenge.id).maybeSingle();
         if (dispute && !['decided', 'void'].includes(dispute.status)) {
           const { error } = await supabase.rpc('referee_decide', { p_dispute: dispute.id, p_winner: winnerId === 'cancel' ? null : winnerId, p_note: 'Decided by an admin from the match room' });
           if (error) throw error;

@@ -100,7 +100,7 @@ export default function AdminDashboard() {
   }, [user, profile, isAdmin, navigate]);
 
   const loadDisputes = useCallback(async () => {
-    const { data } = await supabase.from('disputes').select('*').not('status', 'in', '(decided,void)').order('created_at', { ascending: true }).limit(200);
+    const { data } = await supabase.from('match_disputes').select('*').not('status', 'in', '(decided,void)').order('created_at', { ascending: true }).limit(200);
     const list = (data || []) as Dispute[];
     setDisputes(list);
     const ids = [...new Set(list.flatMap((d) => [d.player1_id, d.player2_id, d.referee_id]).filter(Boolean))] as string[];
