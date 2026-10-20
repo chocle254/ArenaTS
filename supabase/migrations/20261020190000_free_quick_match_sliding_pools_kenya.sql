@@ -596,6 +596,16 @@ $function$;
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.profiles ALTER COLUMN location SET DEFAULT 'Kenya';
 ALTER TABLE public.profiles ALTER COLUMN timezone SET DEFAULT 'Africa/Nairobi';
+-- Old demo defaults: every new account got 5,000 free play money in "USD".
+-- Play money now only comes from M-Pesa deposits.
+ALTER TABLE public.profiles ALTER COLUMN arena_currency SET DEFAULT 0;
+ALTER TABLE public.profiles ALTER COLUMN currency SET DEFAULT 'KES';
+UPDATE public.profiles SET currency = 'KES' WHERE currency IS DISTINCT FROM 'KES';
+-- Accounts created after the KES switch that only hold the demo 5,000
+UPDATE public.profiles p SET arena_currency = 0
+WHERE p.arena_currency = 5000
+  AND NOT EXISTS (SELECT 1 FROM public.mpesa_deposits d WHERE d.user_id = p.id AND d.status = 'completed')
+  AND NOT EXISTS (SELECT 1 FROM public.transactions t WHERE t.user_id = p.id);
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
