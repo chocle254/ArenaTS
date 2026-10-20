@@ -22,15 +22,67 @@ import type { Profile } from '@/types/database';
 /* Levels                                                              */
 /* ------------------------------------------------------------------ */
 
-/** XP is derived from match history, so it can't drift from real results. */
+/** What earns XP. Kept in one place so the UI can explain it. */
+export const XP_RULES = {
+  win: 100,
+  loss: 25,
+  tournamentEntered: 150,
+} as const;
+
+/**
+ * XP is derived from the match history the database keeps on the profile
+ * (wins, losses, tournaments entered), so it can't drift from real results
+ * and every screen computes the same level for the same player. Only
+ * columns that are public on every profile are used, for that reason.
+ */
 export function computeXp(profile: Partial<Profile> | null | undefined): number {
-  if (!profile) return 0;
-  const p = profile as Partial<Profile> & { tournaments_won?: number };
-  const wins = Number(p.wins) || 0;
-  const losses = Number(p.losses) || 0;
-  const played = Number(p.tournaments_played) || 0;
-  const titles = Number(p.tournaments_won) || 0;
-  return wins * 100 + losses * 25 + played * 150 + titles * 500;
+  return xpBreakdown(profile).reduce((sum, row) => sum + row.xp, 0);
+}
+
+export interface XpRow {
+  key: keyof typeof XP_RULES;
+  label: string;
+  count: number;
+  each: number;
+  xp: number;
+}
+
+export function xpBreakdown(profile: Partial<Profile> | null | undefined): XpRow[] {
+  const p = profile || {};
+  const rows: [XpRow['key'], string, number][] = [
+    ['win', 'Match wins', Number(p.wins) || 0],
+    ['loss', 'Matches lost', Number(p.losses) || 0],
+    ['tournamentEntered', 'Tournaments entered', Number(p.tournaments_played) || 0],
+  ];
+  return rows.map(([key, label, count]) => ({ key, label, count, each: XP_RULES[key], xp: count * XP_RULES[key] }));
+}
+
+/* Tiers give levels a name players can brag about */
+export interface Tier {
+  name: string;
+  minLevel: number;
+  /** Tailwind text colour */
+  text: string;
+  /** Tailwind background tint */
+  bg: string;
+}
+
+export const TIERS: Tier[] = [
+  { name: 'Rookie', minLevel: 1, text: 'text-muted-foreground', bg: 'bg-white/5' },
+  { name: 'Contender', minLevel: 5, text: 'text-success', bg: 'bg-success/10' },
+  { name: 'Pro', minLevel: 10, text: 'text-primary-soft', bg: 'bg-primary/15' },
+  { name: 'Elite', minLevel: 20, text: 'text-fuchsia-300', bg: 'bg-fuchsia-500/10' },
+  { name: 'Legend', minLevel: 35, text: 'text-gold', bg: 'bg-gold/10' },
+];
+
+export function getTier(level: number): Tier {
+  let tier = TIERS[0];
+  for (const t of TIERS) if (level >= t.minLevel) tier = t;
+  return tier;
+}
+
+export function nextTier(level: number): Tier | null {
+  return TIERS.find((t) => t.minLevel > level) ?? null;
 }
 
 /** Total XP needed to *reach* a level. Level 2 = 150, level 5 = 1,500, level 10 = 6,750. */

@@ -11,11 +11,11 @@ export function ActiveChallengesList() {
   if (!user || activeChallenges.length === 0) return null;
 
   return (
-    <div className="space-y-4 mb-8">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-          <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-          Active Challenges
+        <h2 className="flex items-center gap-2 text-2xl">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+          Your active challenges
         </h2>
       </div>
       

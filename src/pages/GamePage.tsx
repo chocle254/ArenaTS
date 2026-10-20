@@ -34,16 +34,16 @@ import { GAME_INFO, GAME_MODES, MODE_TEAM_SIZES } from '@/types/database';
 
 // Game-specific backgrounds
 const GAME_BACKGROUNDS: Record<GameType, string> = {
-  codm: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_42cf2029-e1d2-4b37-b250-15c152c2bdfc.jpg',
-  fortnite: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_af5260f1-9906-4f99-a72d-bf3b4e1908c0.jpg',
-  fifa: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_7f73e1f8-3414-497a-9f66-479cd54c8a9e.jpg',
-  warzone: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_c83dbe31-afc4-4f91-b53b-826cac8d9d3b.jpg',
-  apex: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_aced58db-30f2-485e-a99b-5e3652c9db6c.jpg',
-  valorant: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_d635fa9b-5466-43ca-b134-5cb4b8f77d12.jpg',
-  injustice: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_4da429fb-85b8-4558-8f59-e45c6695ecad.jpg',
-  mortal_kombat: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_a3b7774a-1c77-4958-ac02-212fe022519b.jpg',
-  efootball: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_7f73e1f8-3414-497a-9f66-479cd54c8a9e.jpg',
-  pubg_mobile: 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_8982654b-2303-4200-b240-4e91852a6a2c.jpg'
+  codm: '/images/games/codm-bg.webp',
+  fortnite: '/images/games/fortnite-bg.webp',
+  fifa: '/images/games/fifa-bg.webp',
+  warzone: '/images/games/warzone-bg.webp',
+  apex: '/images/games/apex-bg.webp',
+  valorant: '/images/games/valorant-bg.webp',
+  injustice: '/images/games/injustice-bg.webp',
+  mortal_kombat: '/images/games/mortal_kombat-bg.webp',
+  efootball: '/images/games/fifa-bg.webp',
+  pubg_mobile: '/images/games/pubg_mobile-bg.webp'
 };
 
 export default function GamePage() {

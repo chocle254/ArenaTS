@@ -1,5 +1,5 @@
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
-import { Coins, Download, Home, LogOut, Menu, MessageSquare, Search, Settings, Swords, Trophy } from 'lucide-react';
+import { ChevronLeft, Coins, Download, Home, LogOut, Menu, MessageSquare, Search, Settings, Swords, Trophy } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -18,7 +18,7 @@ import { formatArenaAmount } from '@/lib/arena-currency';
 import { getLevelInfo } from '@/lib/progression';
 import { cn } from '@/lib/utils';
 import { CommandSearch } from './CommandSearch';
-import { ACCOUNT_NAV, isActivePath, type NavItem, PRIMARY_NAV, SOCIAL_NAV, STAFF_NAV } from './nav-config';
+import { ACCOUNT_NAV, isActivePath, type NavItem, PRIMARY_NAV, SEARCH_ONLY_NAV, SOCIAL_NAV, STAFF_NAV } from './nav-config';
 
 /** Routes that render full-screen without the app chrome. */
 const BARE_ROUTES = ['/', '/sign-in', '/sign-up', '/auth/callback'];
@@ -189,7 +189,7 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
               <Swords className="h-6 w-6" />
             </Link>
           </div>
-          {tab('/messages', 'Social', MessageSquare, socialCount)}
+          {tab('/messages', 'Chats', MessageSquare, socialCount)}
           <button
             type="button"
             onClick={onMenu}
@@ -311,9 +311,24 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
 /* Top bar                                                             */
 /* ------------------------------------------------------------------ */
 
+/** Detail pages get a back arrow on phones; the value is where "back" goes with no history. */
+function parentOf(pathname: string): string | null {
+  if (/^\/tournaments\/[^/]+/.test(pathname)) return '/tournaments';
+  if (/^\/game\/[^/]+/.test(pathname)) return '/tournaments';
+  if (/^\/live\/[^/]+/.test(pathname)) return '/streams';
+  if (/^\/profile\/[^/]+/.test(pathname)) return '/leaderboard';
+  if (pathname === '/achievements') return '/profile';
+  if (pathname === '/exchange-rates') return '/wallet';
+  if (pathname === '/notifications' || pathname === '/settings') return '/dashboard';
+  if (pathname.startsWith('/admin/')) return '/admin';
+  return null;
+}
+
 function TopBar({ onSearch, onSignOut }: { onSearch: () => void; onSignOut: () => void }) {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const backTo = parentOf(pathname);
   const level = getLevelInfo(profile);
   const ac = Number(profile?.arena_currency ?? 0);
   const { canInstall, install } = useInstallPrompt();
@@ -321,9 +336,24 @@ function TopBar({ onSearch, onSignOut }: { onSearch: () => void; onSignOut: () =
   return (
     <header className="glassmorphism-topbar sticky top-0 z-30" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <div className="flex h-16 items-center gap-3 px-4 md:px-6 xl:px-8">
-        <Link to="/dashboard" className="md:hidden" aria-label="Arena Royal home">
-          <img src="/images/crest-128.webp" alt="" className="h-9 w-9" width={36} height={36} />
-        </Link>
+        {backTo ? (
+          <button
+            type="button"
+            onClick={() => {
+              const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+              if (idx > 0) navigate(-1);
+              else navigate(backTo);
+            }}
+            className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-foreground hover:bg-white/5 md:hidden"
+            aria-label="Back"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+        ) : (
+          <Link to="/dashboard" className="md:hidden" aria-label="Arena home">
+            <img src="/images/crest-128.webp" alt="" className="h-9 w-9" width={36} height={36} />
+          </Link>
+        )}
 
         <button
           type="button"
@@ -450,7 +480,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   const searchPages = useMemo(() => {
     const staff = STAFF_NAV.filter((i) => i.roles?.includes(profile?.role as 'admin' | 'referee'));
-    return [...PRIMARY_NAV, ...SOCIAL_NAV, ...ACCOUNT_NAV, ...staff];
+    return [...PRIMARY_NAV, ...SOCIAL_NAV, ...ACCOUNT_NAV, ...SEARCH_ONLY_NAV, ...staff];
   }, [profile?.role]);
 
   // Ctrl/⌘ + K opens search

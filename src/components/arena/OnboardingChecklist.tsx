@@ -1,13 +1,15 @@
-import { Check, ChevronRight, X } from 'lucide-react';
+import { ChevronRight, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePlayerProgress } from '@/hooks/use-player-progress';
-import { cn } from '@/lib/utils';
 
 const dismissKey = (uid: string) => `arena:onboarding-dismissed:${uid}`;
 
-/** First-week checklist. Each step is derived from real account data. */
+/**
+ * New-player setup, one step at a time: only the next unfinished step is
+ * shown, so the home screen stays about playing.
+ */
 export function OnboardingChecklist() {
   const { user, profile } = useAuth();
   const { counts, friendsCount, loading } = usePlayerProgress();
@@ -22,14 +24,15 @@ export function OnboardingChecklist() {
   if (!user || loading || dismissed) return null;
 
   const steps = [
-    { done: (counts?.gameAccounts ?? 0) > 0, label: 'Add your in-game ID', hint: 'So opponents can find you in the lobby', to: '/settings' },
-    { done: (counts?.tournamentsJoined ?? 0) > 0, label: 'Join your first tournament', hint: 'Free and paid brackets every day', to: '/tournaments' },
-    { done: (counts?.challengesPlayed ?? 0) > 0, label: 'Play a quick match', hint: 'Challenge someone who is online now', to: '/quick-match' },
-    { done: friendsCount > 0, label: 'Add a friend', hint: 'Squad up and message each other', to: '/world-chat' },
-    { done: profile?.kyc_status === 'verified', label: 'Verify your identity', hint: 'Needed before you can withdraw winnings', to: '/wallet' },
+    { done: (counts?.gameAccounts ?? 0) > 0, label: 'Add your in-game ID', hint: 'Opponents and referees use it to find you in the lobby.', to: '/settings', cta: 'Add ID' },
+    { done: (counts?.tournamentsJoined ?? 0) > 0, label: 'Join your first tournament', hint: 'Pick an open bracket below and lock in your spot.', to: '/tournaments?tab=upcoming', cta: 'Browse' },
+    { done: (counts?.challengesPlayed ?? 0) > 0, label: 'Play a quick match', hint: 'Challenge someone who is online right now.', to: '/quick-match', cta: 'Find a match' },
+    { done: friendsCount > 0, label: 'Add a friend', hint: 'Find players in World Chat and squad up.', to: '/world-chat', cta: 'Find players' },
+    { done: profile?.kyc_status === 'verified', label: 'Verify your identity', hint: 'Needed before you can withdraw winnings.', to: '/wallet', cta: 'Verify' },
   ];
   const doneCount = steps.filter((s) => s.done).length;
-  if (doneCount === steps.length) return null;
+  const next = steps.find((s) => !s.done);
+  if (!next) return null;
 
   const dismiss = () => {
     try {
@@ -41,48 +44,26 @@ export function OnboardingChecklist() {
   };
 
   return (
-    <section className="surface p-5" aria-labelledby="onboarding-title">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 id="onboarding-title" className="text-xl">Get match-ready</h2>
-          <p className="text-sm text-muted-foreground">
-            {doneCount} of {steps.length} done
-          </p>
-        </div>
-        <button type="button" onClick={dismiss} className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground" aria-label="Hide checklist">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(doneCount / steps.length) * 100}%` }} />
-      </div>
-      <ol className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        {steps.map((step, i) => (
-          <li key={step.label}>
-            <Link
-              to={step.to}
-              className={cn(
-                'flex h-full items-center gap-3 rounded-xl border p-3 transition-colors',
-                step.done ? 'border-success/30 bg-success/5' : 'border-border hover:border-primary/50',
-              )}
-            >
-              <span
-                className={cn(
-                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-score text-sm',
-                  step.done ? 'bg-success text-white' : 'bg-muted text-muted-foreground',
-                )}
-              >
-                {step.done ? <Check className="h-4 w-4" /> : i + 1}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className={cn('block text-sm font-semibold leading-tight', step.done && 'text-muted-foreground line-through decoration-1')}>{step.label}</span>
-                <span className="block text-xs text-muted-foreground">{step.hint}</span>
-              </span>
-              {!step.done && <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-            </Link>
-          </li>
-        ))}
-      </ol>
+    <section className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/[0.07] p-3 pl-4" aria-label="Account setup">
+      <span className="relative flex h-10 w-10 shrink-0 items-center justify-center" aria-hidden>
+        <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+          <circle cx="18" cy="18" r="15" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${(doneCount / steps.length) * 94.2} 94.2`} />
+        </svg>
+        <span className="font-score text-sm font-bold">
+          {doneCount}/{steps.length}
+        </span>
+      </span>
+      <Link to={next.to} className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold">Next step: {next.label}</span>
+        <span className="block truncate text-xs text-muted-foreground">{next.hint}</span>
+      </Link>
+      <Link to={next.to} className="hidden h-9 shrink-0 items-center gap-1 rounded-lg bg-primary px-3 text-sm font-semibold text-white sm:flex">
+        {next.cta} <ChevronRight className="h-4 w-4" />
+      </Link>
+      <button type="button" onClick={dismiss} className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-foreground" aria-label="Hide setup steps">
+        <X className="h-4 w-4" />
+      </button>
     </section>
   );
 }

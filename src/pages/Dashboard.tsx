@@ -1,64 +1,35 @@
-import { motion, useReducedMotion } from 'framer-motion';
-import { Bell, CalendarClock, ChevronRight, Crown, Flame, Share2, Swords, Trophy, Users } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useReducedMotion } from 'framer-motion';
+import { CalendarClock, ChevronRight, Plus, Radio, Swords, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LevelRing } from '@/components/arena/LevelRing';
 import { OnboardingChecklist } from '@/components/arena/OnboardingChecklist';
 import { EmptyState, Rail, SectionHeader } from '@/components/arena/Rail';
+import { StreamCard } from '@/components/arena/StreamCard';
 import { getTournamentPhase, TournamentCard, TournamentCardSkeleton } from '@/components/arena/TournamentCard';
 import { ConsentModal } from '@/components/ConsentModal';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { CountdownTimer } from '@/components/ui/countdown-timer';
-import { LiveBadge } from '@/components/ui/live-badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { useJoinTournament } from '@/hooks/use-join-tournament';
-import { usePlayerProgress } from '@/hooks/use-player-progress';
-import { formatArenaAmount, formatArenaCurrency, formatEarnings } from '@/lib/arena-currency';
-import { recordVisit, type VisitStreak } from '@/lib/progression';
-import { shareLink } from '@/lib/share';
+import { useLiveMatches } from '@/hooks/use-live-streams';
+import { formatArenaAmount, formatArenaCurrency } from '@/lib/arena-currency';
+import { recordVisit } from '@/lib/progression';
 import { cn } from '@/lib/utils';
 import type { GameType, Tournament } from '@/types/database';
 import { GAME_INFO } from '@/types/database';
 
-const GAMES: GameType[] = ['codm', 'efootball', 'pubg_mobile', 'fifa', 'warzone', 'fortnite', 'valorant', 'apex', 'mortal_kombat', 'injustice'];
-
-interface TopPlayer {
-  id: string;
-  gamertag: string | null;
-  avatar_url: string | null;
-  wins: number | null;
-  total_earnings: number | null;
-}
-
-interface Champion {
-  tournament: Tournament;
-  winner: { id: string; gamertag: string | null; avatar_url: string | null } | null;
-}
-
-const greeting = () => {
-  const h = new Date().getHours();
-  if (h < 5) return 'Late night grind';
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-};
-
 export default function Dashboard() {
-  const { user, profile } = useAuth();
-  const { level } = usePlayerProgress();
+  const { user } = useAuth();
   const { startJoin, joiningId, consent, setConsent } = useJoinTournament();
-  const reduce = useReducedMotion();
+  const { matches: liveMatches } = useLiveMatches();
 
   const [loading, setLoading] = useState(true);
   const [joined, setJoined] = useState<Tournament[]>([]);
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Tournament[]>([]);
   const [live, setLive] = useState<Tournament[]>([]);
-  const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
-  const [champions, setChampions] = useState<Champion[]>([]);
-  const [streak, setStreak] = useState<VisitStreak | null>(null);
+  const [gameFilter, setGameFilter] = useState<GameType | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const prevJoining = useRef<string | null>(null);
 
@@ -69,179 +40,175 @@ export default function Dashboard() {
   }, [joiningId]);
 
   useEffect(() => {
-    if (user) setStreak(recordVisit(user.id));
+    if (user) recordVisit(user.id);
   }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-
     (async () => {
-      // Only show skeletons on first load; refreshes update in place
       if (refreshTick === 0) setLoading(true);
-      // Status maintenance runs in the background. (.then() is required:
-      // an un-awaited Supabase query builder is never sent.)
+      // Background status maintenance (.then() is required or the request is never sent)
       supabase
         .rpc('check_and_update_tournament_status')
         .then(() => supabase.rpc('check_and_cancel_insufficient_tournaments'))
         .then(() => undefined, () => undefined);
 
       const nowIso = new Date().toISOString();
-      const since = new Date(Date.now() - 14 * 86_400_000).toISOString();
-
-      const [participations, upcoming, inPlay, leaders, finished] = await Promise.all([
+      const [participations, upcoming, inPlay] = await Promise.all([
         supabase.from('tournament_participants').select('tournament_id, tournaments(*)').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
-        supabase.from('tournaments').select('*').eq('status', 'open').gt('start_time', nowIso).order('start_time', { ascending: true }).limit(16),
-        supabase.from('tournaments').select('*').in('status', ['active', 'open']).lte('start_time', nowIso).order('start_time', { ascending: false }).limit(10),
-        supabase.from('profiles').select('id, gamertag, avatar_url, wins, total_earnings').order('total_earnings', { ascending: false }).limit(5),
-        supabase.from('tournaments').select('*').eq('status', 'completed').not('winner_id', 'is', null).gte('start_time', since).order('start_time', { ascending: false }).limit(4),
+        supabase.from('tournaments').select('*').eq('status', 'open').gt('start_time', nowIso).order('start_time', { ascending: true }).limit(30),
+        supabase.from('tournaments').select('*').in('status', ['active', 'open']).lte('start_time', nowIso).order('start_time', { ascending: false }).limit(12),
       ]);
       if (cancelled) return;
 
-      const mine = ((participations.data || []) as Array<{ tournament_id: string; tournaments: Tournament | Tournament[] | null }>)
-        .map((p) => (Array.isArray(p.tournaments) ? p.tournaments[0] : p.tournaments))
-        .filter((t): t is Tournament => !!t);
-      setJoinedIds(new Set(((participations.data || []) as Array<{ tournament_id: string }>).map((p) => p.tournament_id)));
-      setJoined(mine);
-
-      // "Started but still open" counts as live only within the last 3 hours
-      const liveList = ((inPlay.data || []) as Tournament[]).filter(
-        (t) => t.status === 'active' || Date.now() - new Date(t.start_time).getTime() < 3 * 3_600_000,
-      );
-      setLive(liveList);
+      const rows = (participations.data || []) as Array<{ tournament_id: string; tournaments: Tournament | Tournament[] | null }>;
+      setJoinedIds(new Set(rows.map((p) => p.tournament_id)));
+      setJoined(rows.map((p) => (Array.isArray(p.tournaments) ? p.tournaments[0] : p.tournaments)).filter((t): t is Tournament => !!t));
+      setLive(((inPlay.data || []) as Tournament[]).filter((t) => t.status === 'active' || Date.now() - new Date(t.start_time).getTime() < 3 * 3_600_000));
       setOpen((upcoming.data || []) as Tournament[]);
-      setTopPlayers((leaders.data || []) as TopPlayer[]);
-
-      const done = (finished.data || []) as Tournament[];
-      if (done.length) {
-        const ids = [...new Set(done.map((t) => t.winner_id).filter(Boolean))] as string[];
-        const { data: winners } = await supabase.from('profiles').select('id, gamertag, avatar_url').in('id', ids);
-        if (!cancelled) {
-          setChampions(done.map((t) => ({ tournament: t, winner: (winners || []).find((w) => w.id === t.winner_id) || null })));
-        }
-      } else {
-        setChampions([]);
-      }
       setLoading(false);
     })().catch((error) => {
-      console.error('Error loading dashboard:', error);
+      console.error('Error loading home:', error);
       if (!cancelled) setLoading(false);
     });
-
     return () => {
       cancelled = true;
     };
   }, [user?.id, refreshTick]);
 
-  // Next match: the soonest live or upcoming tournament you're registered for
-  const nextUp = useMemo(() => {
-    const active = joined.filter((t) => ['live', 'open', 'starting'].includes(getTournamentPhase(t)));
-    return active.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0] || null;
-  }, [joined]);
+  // Your soonest registered match that hasn't finished
+  const nextUp = useMemo(
+    () =>
+      joined
+        .filter((t) => ['live', 'open', 'starting'].includes(getTournamentPhase(t)))
+        .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0] || null,
+    [joined],
+  );
 
-  const featured = useMemo(() => {
-    if (nextUp) return null;
-    return [...open].filter((t) => !joinedIds.has(t.id)).sort((a, b) => Number(b.featured) - Number(a.featured) || b.prize_pool - a.prize_pool)[0] || null;
-  }, [nextUp, open, joinedIds]);
+  // Promoted tournaments: admin-featured first, then the biggest prize pools
+  const featured = useMemo(
+    () => [...open].filter((t) => !joinedIds.has(t.id)).sort((a, b) => Number(b.featured) - Number(a.featured) || Number(b.prize_pool) - Number(a.prize_pool)).slice(0, 5),
+    [open, joinedIds],
+  );
 
-  const openSorted = useMemo(() => [...open].sort((a, b) => Number(joinedIds.has(b.id)) - Number(joinedIds.has(a.id))), [open, joinedIds]);
-
-  const wins = profile?.wins ?? 0;
-  const losses = profile?.losses ?? 0;
-  const winRate = wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0;
+  const gamesWithOpen = useMemo(() => [...new Set(open.map((t) => t.game as GameType))].filter((g) => GAME_INFO[g]), [open]);
+  const upcoming = useMemo(() => (gameFilter ? open.filter((t) => t.game === gameFilter) : open), [open, gameFilter]);
+  const streams = useMemo(() => (liveMatches || []).filter((m) => m.streamer).slice(0, 12), [liveMatches]);
+  const liveMatchCount = liveMatches?.length ?? 0;
 
   return (
-    <div className="space-y-10">
-      {/* ── Greeting + progress ─────────────────────────────── */}
-      <section className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
-        <HeroMatch
-          loading={loading}
-          tournament={nextUp || featured}
-          isRegistered={!!nextUp}
-          onJoin={(t) => startJoin(t)}
-          joining={!!featured && joiningId === featured.id}
-          name={profile?.gamertag}
-          reduceMotion={!!reduce}
-        />
+    <div className="space-y-9">
+      <h1 className="sr-only">Home</h1>
 
-        <div className="surface flex flex-col gap-5 p-5">
-          <div className="flex items-center gap-4">
-            <LevelRing level={level.level} progress={level.progress} size={84} stroke={6}>
-              <Avatar className="h-full w-full">
-                <AvatarImage src={profile?.avatar_url || ''} alt="" />
-                <AvatarFallback className="bg-primary/20 font-score text-2xl">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
-              </Avatar>
-            </LevelRing>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-muted-foreground">Level {level.level}</p>
-              <p className="truncate font-score text-2xl leading-tight">{profile?.gamertag || 'Player'}</p>
-              <p className="text-xs text-muted-foreground">
-                <span className="font-score text-sm text-foreground">{level.toNext.toLocaleString()}</span> XP to level {level.level + 1}
-              </p>
-            </div>
-            <Link to="/achievements" className="hidden shrink-0 text-sm font-semibold text-primary-soft hover:underline sm:block">
-              Achievements
-            </Link>
-          </div>
+      {nextUp && <NextMatch tournament={nextUp} />}
 
-          <dl className="grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-background/40">
-            <div className="p-3 text-center">
-              <dt className="text-[11px] text-muted-foreground">Wins</dt>
-              <dd className="font-score text-2xl leading-tight">{wins}</dd>
-            </div>
-            <div className="p-3 text-center">
-              <dt className="text-[11px] text-muted-foreground">Win rate</dt>
-              <dd className="font-score text-2xl leading-tight">{winRate}%</dd>
-            </div>
-            <div className="p-3 text-center">
-              <dt className="text-[11px] text-muted-foreground">Streak</dt>
-              <dd className="flex items-center justify-center gap-1 font-score text-2xl leading-tight">
-                {(profile?.current_streak ?? 0) > 1 && <Flame className="h-4 w-4 text-gold" />}
-                {profile?.current_streak ?? 0}
-              </dd>
-            </div>
-          </dl>
-
-          {streak && (
-            <div>
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Daily visits</span>
-                <span className="font-semibold">
-                  {streak.current > 1 ? (
-                    <span className="text-gold">{streak.current}-day streak</span>
-                  ) : (
-                    'Come back tomorrow to start a streak'
-                  )}
-                </span>
-              </div>
-              <ol className="grid grid-cols-7 gap-1.5" aria-label="Visits in the last 7 days">
-                {streak.week.map((d, i) => (
-                  <li key={i} className="flex flex-col items-center gap-1">
-                    <span
-                      className={cn(
-                        'h-2 w-full rounded-full',
-                        d.visited ? (d.isToday ? 'bg-gold' : 'bg-primary') : 'bg-muted',
-                      )}
-                      title={d.visited ? 'Visited' : 'Missed'}
-                    />
-                    <span className={cn('text-[10px]', d.isToday ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{d.label}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-        </div>
-      </section>
+      <FeaturedCarousel loading={loading} tournaments={featured} onJoin={startJoin} joiningId={joiningId} />
 
       <OnboardingChecklist />
 
-      {/* ── Live now ───────────────────────────────────────── */}
+      {/* Live on Twitch: the best players in matches right now */}
+      {(streams.length > 0 || liveMatchCount > 0) && (
+        <section className="space-y-4">
+          <SectionHeader
+            title="Live on Twitch"
+            description={streams.length ? 'Top players in matches right now.' : `${liveMatchCount} match${liveMatchCount === 1 ? '' : 'es'} in progress. Nobody is streaming yet.`}
+            icon={<Radio className="ml-1 inline h-5 w-5 text-live" />}
+            action={
+              <Link to="/streams" className="inline-flex items-center gap-1 text-sm font-semibold text-primary-soft hover:underline">
+                All streams <ChevronRight className="h-4 w-4" />
+              </Link>
+            }
+          />
+          {streams.length > 0 && (
+            <Rail label="Live streams">
+              {streams.map((m) => (
+                <StreamCard key={`${m.kind}-${m.id}`} match={m} />
+              ))}
+            </Rail>
+          )}
+        </section>
+      )}
+
+      {/* Upcoming tournaments */}
+      <section className="space-y-4">
+        <SectionHeader
+          title="Upcoming tournaments"
+          description="Register before check-in opens."
+          action={
+            <Link to="/tournaments?tab=upcoming" className="inline-flex items-center gap-1 text-sm font-semibold text-primary-soft hover:underline">
+              See all <ChevronRight className="h-4 w-4" />
+            </Link>
+          }
+        />
+        {gamesWithOpen.length > 1 && (
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-hide md:mx-0 md:px-0" role="tablist" aria-label="Filter by game">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!gameFilter}
+              onClick={() => setGameFilter(null)}
+              className={cn('h-9 shrink-0 rounded-full border px-3.5 text-sm font-semibold', !gameFilter ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground')}
+            >
+              All games
+            </button>
+            {gamesWithOpen.map((g) => (
+              <button
+                key={g}
+                type="button"
+                role="tab"
+                aria-selected={gameFilter === g}
+                onClick={() => setGameFilter(gameFilter === g ? null : g)}
+                className={cn(
+                  'flex h-9 shrink-0 items-center gap-2 rounded-full border pl-1 pr-3.5 text-sm font-semibold',
+                  gameFilter === g ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground',
+                )}
+              >
+                <img src={GAME_INFO[g].icon} alt="" className="h-7 w-7 rounded-full object-cover" loading="lazy" />
+                {GAME_INFO[g].shortName}
+              </button>
+            ))}
+          </div>
+        )}
+        {loading ? (
+          <Rail label="Loading tournaments">
+            {[0, 1, 2, 3].map((i) => (
+              <TournamentCardSkeleton key={i} layout="rail" />
+            ))}
+          </Rail>
+        ) : upcoming.length === 0 ? (
+          <EmptyState
+            icon={<CalendarClock className="h-5 w-5" />}
+            title={gameFilter ? `No upcoming ${GAME_INFO[gameFilter].shortName} tournaments` : 'No upcoming tournaments yet'}
+            description="New brackets go up throughout the day. You can also host your own and invite your squad."
+            action={
+              <Button asChild>
+                <Link to={`/game/${gameFilter || 'codm'}`}>
+                  <Plus /> Host a tournament
+                </Link>
+              </Button>
+            }
+          />
+        ) : (
+          <Rail label="Upcoming tournaments">
+            {upcoming.map((t) => (
+              <TournamentCard key={t.id} tournament={t} layout="rail" joined={joinedIds.has(t.id)} joining={joiningId === t.id} onJoin={startJoin} />
+            ))}
+          </Rail>
+        )}
+      </section>
+
+      {/* Happening now */}
       {live.length > 0 && (
         <section className="space-y-4">
           <SectionHeader
-            title="Live now"
-            icon={<LiveBadge size="sm" className="ml-1 align-middle" />}
-            action={<Link to="/streams" className="text-sm font-semibold text-primary-soft hover:underline">Watch streams</Link>}
+            title="Happening now"
+            description="Brackets in progress. Follow along live."
+            action={
+              <Link to="/tournaments?tab=live" className="inline-flex items-center gap-1 text-sm font-semibold text-primary-soft hover:underline">
+                See all <ChevronRight className="h-4 w-4" />
+              </Link>
+            }
           />
           <Rail label="Live tournaments">
             {live.map((t) => (
@@ -250,130 +217,6 @@ export default function Dashboard() {
           </Rail>
         </section>
       )}
-
-      {/* ── Open tournaments ───────────────────────────────── */}
-      <section className="space-y-4">
-        <SectionHeader
-          title="Open for registration"
-          description="Lock in your spot before check-in opens."
-          action={
-            <Link to="/tournaments" className="inline-flex items-center gap-1 text-sm font-semibold text-primary-soft hover:underline">
-              All tournaments <ChevronRight className="h-4 w-4" />
-            </Link>
-          }
-        />
-        {loading ? (
-          <Rail label="Loading tournaments">
-            {[0, 1, 2, 3].map((i) => (
-              <TournamentCardSkeleton key={i} layout="rail" />
-            ))}
-          </Rail>
-        ) : openSorted.length === 0 ? (
-          <EmptyState
-            icon={<CalendarClock className="h-5 w-5" />}
-            title="No open tournaments right now"
-            description="New brackets go up throughout the day. Host your own and invite your squad."
-            action={
-              <Button asChild>
-                <Link to="/game/codm">Create a tournament</Link>
-              </Button>
-            }
-          />
-        ) : (
-          <Rail label="Open tournaments">
-            {openSorted.map((t) => (
-              <TournamentCard
-                key={t.id}
-                tournament={t}
-                layout="rail"
-                joined={joinedIds.has(t.id)}
-                joining={joiningId === t.id}
-                onJoin={startJoin}
-              />
-            ))}
-          </Rail>
-        )}
-      </section>
-
-      {/* ── Browse by game ─────────────────────────────────── */}
-      <section className="space-y-4">
-        <SectionHeader title="Browse by game" />
-        <Rail label="Games">
-          {GAMES.map((g) => {
-            const info = GAME_INFO[g];
-            return (
-              <Link
-                key={g}
-                to={`/game/${g}`}
-                className="group interactive-lift relative aspect-[3/4] w-[120px] shrink-0 snap-start overflow-hidden rounded-2xl border border-border sm:w-[148px]"
-              >
-                <img src={info.banner} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
-                <span className="absolute inset-x-2 bottom-2 text-center font-score text-base leading-tight">{info.name}</span>
-              </Link>
-            );
-          })}
-        </Rail>
-      </section>
-
-      {/* ── Leaders + champions ────────────────────────────── */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="surface p-5">
-          <SectionHeader
-            title="Top earners"
-            action={<Link to="/leaderboard" className="text-sm font-semibold text-primary-soft hover:underline">Leaderboard</Link>}
-          />
-          <ol className="mt-4 space-y-1">
-            {topPlayers.length === 0 && !loading && <li className="py-6 text-center text-sm text-muted-foreground">Rankings appear after the first payouts.</li>}
-            {topPlayers.map((p, i) => (
-              <li key={p.id}>
-                <Link to={p.id === user?.id ? '/profile' : `/profile/${p.id}`} className="flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.04]">
-                  <span className={cn('w-6 text-center font-score text-lg', i === 0 ? 'text-gold' : 'text-muted-foreground')}>{i + 1}</span>
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={p.avatar_url || ''} alt="" />
-                    <AvatarFallback className="bg-primary/20 text-xs">{p.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
-                  </Avatar>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">
-                      {p.gamertag || 'Player'}
-                      {p.id === user?.id && <span className="ml-1.5 text-xs font-normal text-primary-soft">you</span>}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">{p.wins || 0} wins</span>
-                  </span>
-                  <span className="font-score text-base text-gold">{formatEarnings(p.total_earnings)}</span>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <div className="surface p-5">
-          <SectionHeader title="Recent champions" />
-          <ul className="mt-4 space-y-2">
-            {champions.length === 0 && !loading && (
-              <li className="py-6 text-center text-sm text-muted-foreground">No tournaments finished in the last two weeks.</li>
-            )}
-            {champions.map(({ tournament: t, winner }) => (
-              <li key={t.id}>
-                <Link to={`/tournaments/${t.id}`} className="flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.04]">
-                  <span className="relative">
-                    <Avatar className="h-10 w-10 ring-2 ring-gold/50">
-                      <AvatarImage src={winner?.avatar_url || ''} alt="" />
-                      <AvatarFallback className="bg-gold/15 text-gold">{winner?.gamertag?.[0]?.toUpperCase() || '?'}</AvatarFallback>
-                    </Avatar>
-                    <Crown className="absolute -right-1.5 -top-2 h-4 w-4 rotate-12 text-gold" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{winner?.gamertag || 'Champion'}</span>
-                    <span className="block truncate text-xs text-muted-foreground">won {t.name}</span>
-                  </span>
-                  <span className="font-score text-sm text-gold">{formatArenaCurrency(t.prize_pool)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
 
       {consent && (
         <ConsentModal
@@ -391,141 +234,183 @@ export default function Dashboard() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero: your next match as a scoreboard                                */
+/* Your next match: a compact, always-first reminder                   */
 /* ------------------------------------------------------------------ */
 
-function HeroMatch({
+function NextMatch({ tournament }: { tournament: Tournament }) {
+  const game = GAME_INFO[tournament.game as GameType];
+  const phase = getTournamentPhase(tournament);
+  return (
+    <Link
+      to={`/tournaments/${tournament.id}`}
+      className="flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/10 p-3 transition-colors hover:bg-primary/15"
+    >
+      <img src={game?.icon} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold text-primary-soft">{phase === 'live' ? 'You’re playing now' : 'Your next match'}</p>
+        <p className="truncate font-semibold">{tournament.name}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <CountdownTimer targetDate={new Date(tournament.start_time)} status={tournament.status} className="text-xl leading-none" />
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{phase === 'open' ? 'Check-in opens 15 min before' : 'Open the bracket'}</p>
+      </div>
+      <ChevronRight className="hidden h-5 w-5 shrink-0 text-muted-foreground sm:block" />
+    </Link>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Featured tournaments: the promo box                                 */
+/* ------------------------------------------------------------------ */
+
+function FeaturedCarousel({
   loading,
-  tournament,
-  isRegistered,
+  tournaments,
   onJoin,
-  joining,
-  name,
-  reduceMotion,
+  joiningId,
 }: {
   loading: boolean;
-  tournament: Tournament | null;
-  isRegistered: boolean;
+  tournaments: Tournament[];
   onJoin: (t: Tournament) => void;
-  joining: boolean;
-  name?: string | null;
-  reduceMotion: boolean;
+  joiningId: string | null;
 }) {
-  if (loading) {
-    return <div className="surface-raised min-h-[260px] animate-pulse" aria-busy="true" />;
-  }
+  const reduce = useReducedMotion();
+  const scroller = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+  const paused = useRef(false);
+  const count = tournaments.length;
 
-  if (!tournament) {
+  const goTo = useCallback((i: number) => {
+    const el = scroller.current;
+    if (!el) return;
+    el.scrollTo({ left: i * el.clientWidth, behavior: reduce ? 'auto' : 'smooth' });
+  }, [reduce]);
+
+  // Track which slide is showing as the player swipes
+  const onScroll = () => {
+    const el = scroller.current;
+    if (!el || !el.clientWidth) return;
+    setIndex(Math.round(el.scrollLeft / el.clientWidth));
+  };
+
+  // Auto-advance every 7 s unless the player is interacting or prefers less motion
+  useEffect(() => {
+    if (count < 2 || reduce) return;
+    const t = setInterval(() => {
+      if (paused.current || document.visibilityState !== 'visible') return;
+      goTo((index + 1) % count);
+    }, 7000);
+    return () => clearInterval(t);
+  }, [count, index, goTo, reduce]);
+
+  if (loading) return <div className="h-[230px] animate-pulse rounded-3xl bg-card sm:h-[280px]" aria-busy="true" />;
+
+  if (count === 0) {
     return (
-      <div className="surface-raised relative flex min-h-[260px] flex-col justify-end overflow-hidden p-6">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full" style={{ background: 'radial-gradient(circle, hsl(224 100% 60% / 0.22), transparent 70%)' }} />
-        <p className="text-sm text-muted-foreground">{greeting()}{name ? `, ${name}` : ''}</p>
-        <h1 className="mt-1 text-4xl leading-none sm:text-5xl">Find your next match</h1>
-        <p className="mt-2 max-w-md text-muted-foreground">Challenge someone who is online right now, or start a tournament for your squad.</p>
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 sm:p-8" aria-label="Get started">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-primary/20 blur-3xl" aria-hidden />
+        <p className="text-sm font-semibold text-primary-soft">Be the first today</p>
+        <h2 className="mt-1 max-w-lg text-4xl leading-[0.95] sm:text-5xl">Host a tournament or jump into a 1v1</h2>
+        <p className="mt-2 max-w-md text-muted-foreground">No open brackets right now. Start one for your squad, or challenge someone who is online.</p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button asChild size="lg">
+            <Link to="/game/codm">
+              <Plus /> Host a tournament
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
             <Link to="/quick-match">
               <Swords /> Quick match
             </Link>
           </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link to="/tournaments">Browse tournaments</Link>
-          </Button>
         </div>
-      </div>
+      </section>
     );
   }
 
-  const game = GAME_INFO[tournament.game as GameType];
-  const phase = getTournamentPhase(tournament);
-  const share = () =>
-    shareLink({
-      title: tournament.name,
-      text: `${isRegistered ? "I'm playing in" : 'Join me in'} ${tournament.name} on Arena — ${formatArenaCurrency(tournament.prize_pool)} prize pool.`,
-      url: `${window.location.origin}/tournaments/${tournament.id}`,
-    });
-
   return (
-    <motion.article
-      initial={reduceMotion ? false : { opacity: 0, scale: 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="relative min-h-[260px] overflow-hidden rounded-2xl border border-primary/30"
+    <section
+      aria-roledescription="carousel"
+      aria-label="Featured tournaments"
+      className="relative"
+      onPointerEnter={() => (paused.current = true)}
+      onPointerLeave={() => (paused.current = false)}
+      onTouchStart={() => (paused.current = true)}
+      onFocus={() => (paused.current = true)}
+      onBlur={() => (paused.current = false)}
     >
-      <img src={game?.banner} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/30" />
-      <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent" />
-
-      <div className="relative flex h-full flex-col gap-5 p-6">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            {greeting()}
-            {name ? `, ${name}` : ''}
-          </p>
-          <button
-            type="button"
-            onClick={share}
-            className="flex h-9 items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3 text-xs font-semibold backdrop-blur-sm hover:bg-black/50"
-          >
-            <Share2 className="h-3.5 w-3.5" />
-            Share
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          <p className="flex items-center gap-2 text-sm font-semibold text-primary-soft">
-            {isRegistered ? 'Your next match' : 'Featured tournament'}
-            {phase === 'live' && <LiveBadge size="sm" />}
-          </p>
-          <h1 className="max-w-xl text-4xl leading-[0.95] sm:text-5xl">
-            <Link to={`/tournaments/${tournament.id}`} className="hover:underline decoration-2 underline-offset-4">
-              {tournament.name}
-            </Link>
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {game?.name ?? tournament.game}
-            {(tournament.team_size || 1) > 1 ? ` · ${tournament.team_size}v${tournament.team_size}` : ' · Solo'}
-            {' · '}
-            <Users className="-mt-0.5 inline h-3.5 w-3.5" /> {tournament.current_players}/{tournament.max_players}
-          </p>
-        </div>
-
-        {/* Scoreboard strip */}
-        <div className="mt-auto flex flex-wrap items-end gap-x-8 gap-y-4">
-          <div>
-            <p className="text-xs text-muted-foreground">{phase === 'open' ? 'Starts in' : 'Status'}</p>
-            <CountdownTimer targetDate={new Date(tournament.start_time)} status={tournament.status} className="text-4xl leading-none sm:text-5xl" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Prize pool</p>
-            <p className="font-score text-4xl leading-none text-gold sm:text-5xl">
-              {formatArenaAmount(tournament.prize_pool)}
-              <span className="ml-1 text-lg text-gold/70">AC</span>
-            </p>
-          </div>
-          <div className="ml-auto flex gap-2">
-            {isRegistered ? (
-              <Button asChild size="lg">
-                <Link to={`/tournaments/${tournament.id}`}>
-                  {phase === 'open' ? (
-                    <>
-                      <Bell /> Check-in details
-                    </>
-                  ) : (
-                    <>
-                      <Trophy /> Open bracket
-                    </>
-                  )}
-                </Link>
-              </Button>
-            ) : (
-              <Button size="lg" onClick={() => onJoin(tournament)} disabled={joining}>
-                {joining ? 'Joining…' : (tournament.entry_fee || 0) > 0 ? `Join · ${formatArenaCurrency(tournament.entry_fee)}` : 'Join free'}
-              </Button>
-            )}
-          </div>
-        </div>
+      <div ref={scroller} onScroll={onScroll} className="flex snap-x snap-mandatory overflow-x-auto rounded-3xl scrollbar-hide">
+        {tournaments.map((t, i) => {
+          const game = GAME_INFO[t.game as GameType];
+          const fee = Number(t.entry_fee) || 0;
+          const spotsLeft = Math.max(0, (t.max_players || 0) - (t.current_players || 0));
+          return (
+            <article
+              key={t.id}
+              className="relative h-[250px] w-full shrink-0 snap-center overflow-hidden rounded-3xl border border-border sm:h-[280px]"
+              aria-roledescription="slide"
+              aria-label={`${i + 1} of ${count}: ${t.name}`}
+            >
+              <img src={game?.banner} alt="" className="absolute inset-0 h-full w-full object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
+              <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent" />
+              <div className="relative flex h-full flex-col p-5 sm:p-7">
+                <p className="flex items-center gap-2 text-xs font-semibold">
+                  <span className="rounded-md bg-gold/15 px-2 py-0.5 text-gold">{t.featured ? 'Featured' : i === 0 ? 'Biggest prize' : 'Coming up'}</span>
+                  <span className="text-muted-foreground">
+                    {game?.name ?? t.game}, {(t.team_size || 1) > 1 ? `${t.team_size}v${t.team_size}` : 'solo'}
+                  </span>
+                </p>
+                <h2 className="mt-2 max-w-[18ch] text-3xl leading-[0.95] sm:max-w-xl sm:text-5xl">
+                  <Link to={`/tournaments/${t.id}`} className="hover:underline decoration-2 underline-offset-4">
+                    {t.name}
+                  </Link>
+                </h2>
+                <div className="mt-auto flex flex-wrap items-end gap-x-6 gap-y-3">
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">Prize pool</p>
+                    <p className="font-score text-3xl font-bold leading-none text-gold sm:text-4xl">
+                      {formatArenaAmount(t.prize_pool)}
+                      <span className="ml-1 text-base text-gold/70">AC</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">Starts in</p>
+                    <CountdownTimer targetDate={new Date(t.start_time)} status={t.status} className="text-3xl leading-none sm:text-4xl" />
+                  </div>
+                  <p className="flex items-center gap-1 pb-1 text-xs text-muted-foreground">
+                    <Users className="h-3.5 w-3.5" /> {spotsLeft} spot{spotsLeft === 1 ? '' : 's'} left
+                  </p>
+                  <div className="ml-auto flex gap-2">
+                    <Button asChild variant="outline" className="hidden bg-background/40 backdrop-blur sm:inline-flex">
+                      <Link to={`/tournaments/${t.id}`}>Details</Link>
+                    </Button>
+                    <Button onClick={() => onJoin(t)} disabled={joiningId === t.id || spotsLeft === 0}>
+                      {joiningId === t.id ? 'Joining…' : spotsLeft === 0 ? 'Full' : fee > 0 ? `Join for ${formatArenaCurrency(fee)}` : 'Join free'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
-    </motion.article>
+
+      {count > 1 && (
+        <div className="mt-3 flex items-center justify-center gap-1.5" role="tablist" aria-label="Choose featured tournament">
+          {tournaments.map((t, i) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={index === i}
+              aria-label={`Show ${t.name}`}
+              onClick={() => goTo(i)}
+              className={cn('h-1.5 rounded-full transition-all', index === i ? 'w-6 bg-primary' : 'w-1.5 bg-muted-foreground/40 hover:bg-muted-foreground')}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

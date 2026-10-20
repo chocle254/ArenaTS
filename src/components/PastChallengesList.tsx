@@ -36,24 +36,15 @@ export function PastChallengesList() {
   useEffect(() => {
     fetchPastChallenges();
     
-    // Subscribe to challenge changes to refresh past list
+    if (!user) return;
+    // Only this player's challenges reach this client (filtered server-side)
+    const onChange = (payload: { new: { status?: string } }) => {
+      if (['completed', 'cancelled', 'expired', 'declined'].includes(payload.new.status || '')) fetchPastChallenges();
+    };
     const channel = supabase
-      .channel('past-challenges-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'challenges',
-        },
-        (payload) => {
-          const isRelevant = payload.new.challenger_id === user?.id || payload.new.opponent_id === user?.id;
-          const isPast = ['completed', 'cancelled', 'expired', 'declined'].includes(payload.new.status);
-          if (isRelevant && isPast) {
-            fetchPastChallenges();
-          }
-        }
-      )
+      .channel(`past-challenges-${user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'challenges', filter: `challenger_id=eq.${user.id}` }, onChange)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'challenges', filter: `opponent_id=eq.${user.id}` }, onChange)
       .subscribe();
 
     return () => {
@@ -81,11 +72,11 @@ export function PastChallengesList() {
   if (!user || (pastChallenges.length === 0 && !loading)) return null;
 
   return (
-    <div className="space-y-4 mt-12 pb-8">
+    <div className="space-y-3 pb-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-          <History className="h-4 w-4" />
-          Past Challenges
+        <h2 className="flex items-center gap-2 text-2xl">
+          <History className="h-5 w-5 text-muted-foreground" />
+          Past challenges
         </h2>
         {pastChallenges.length > 0 && (
           <Button 

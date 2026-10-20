@@ -53,12 +53,15 @@ function useOnlineCount() {
 
 export default function WorldChat() {
   const { user } = useAuth();
-  const { messages, loading, sendMessage, markAsRead } = useWorldChat();
+  const { messages, loading, sendMessage, markAsRead, goLive } = useWorldChat();
   const navigate = useNavigate();
   const online = useOnlineCount();
   const [text, setText] = useState('');
   const [selected, setSelected] = useState<ChatProfile | null>(null);
   const [mentions, setMentions] = useState<{ id: string; gamertag: string }[]>([]);
+
+  // Stream messages live only while this screen is open
+  useEffect(() => goLive(), [goLive]);
 
   useEffect(() => {
     if (user) markAsRead();

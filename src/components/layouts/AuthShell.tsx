@@ -1,7 +1,7 @@
 import type React from 'react';
 import { Link } from 'react-router-dom';
 
-const ART = 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_4246118f-7c56-4af3-bc4d-6569d919b747.jpg';
+const ART = '/images/auth-art.webp';
 
 /**
  * Full-screen layout for sign in / sign up. One background image (not a
