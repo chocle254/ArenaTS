@@ -70,6 +70,9 @@ export interface Profile {
   /** Linked M-Pesa number (2547XXXXXXXX). Deposits come from it, winnings go to it. */
   mpesa_phone?: string | null;
   mpesa_phone_locked_until?: string | null;
+  /** Sponsors, brands and event hosts approved by an admin: no prize caps */
+  organizer_verified?: boolean;
+  organizer_name?: string | null;
   kyc_rejection_reason?: string | null;
   kyc_id_front_path?: string | null;
   kyc_id_back_path?: string | null;

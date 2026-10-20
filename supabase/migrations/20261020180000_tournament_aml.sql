@@ -5,11 +5,12 @@
 -- players, have an accomplice join fast, lose on purpose. The creator's
 -- deposit (not withdrawable) becomes the accomplice's winnings (withdrawable).
 --
--- Rules for tournaments with a prize pool or entry fee (non-admins):
---   * at least 8 slots (teams count as one slot) and a minimum of 4 to start;
---     below the minimum it auto-cancels and the creator is refunded minus 10%
---   * registration open at least 1 hour before start
---   * prize pool at most KES 500 per slot; over KES 5,000 needs verified ID
+-- Rules for tournaments with a prize pool or entry fee (non-admins, unless the
+-- creator is a verified organizer such as a sponsor or brand):
+--   * at least 5 players/teams to start; below that it auto-cancels and the
+--     creator is refunded minus 10%
+--   * registration open at least 30 minutes before start
+--   * prize pool up to KES 2,000 per slot; over KES 20,000 needs verified ID
 -- At payout every prize is checked against the creator: friends, DMs, money
 -- matches, same team, shared payment network -> prize frozen for review.
 -- New accounts (< 7 days) winning KES 10,000+ are frozen too.
@@ -93,25 +94,25 @@ BEGIN
       RAISE EXCEPTION 'Platform fee cannot be lowered' USING ERRCODE = '42501';
     END IF;
 
-    IF COALESCE(NEW.prize_pool, 0) > 0 OR COALESCE(NEW.entry_fee, 0) > 0 THEN
+    -- Money tournaments. Verified organizers (sponsors, brands, event hosts)
+    -- skip the caps; everyone still gets the linked-winner check at payout.
+    IF (COALESCE(NEW.prize_pool, 0) > 0 OR COALESCE(NEW.entry_fee, 0) > 0)
+       AND NOT EXISTS (SELECT 1 FROM profiles WHERE id = v_uid AND organizer_verified) THEN
       v_team := GREATEST(COALESCE(NEW.team_size, 1), 1);
       v_slots := COALESCE(NEW.max_players, 0) / v_team;
       v_min_slots := COALESCE(NEW.min_participants, 0) / v_team;
-      IF v_slots < 8 THEN
-        RAISE EXCEPTION 'Money tournaments need at least 8 % slots', CASE WHEN v_team > 1 THEN 'team' ELSE 'player' END;
+      IF v_min_slots < 5 OR v_slots < 5 THEN
+        RAISE EXCEPTION 'Tournaments with prizes need at least 5 % to start', CASE WHEN v_team > 1 THEN 'teams' ELSE 'players' END;
       END IF;
-      IF v_min_slots < 4 THEN
-        RAISE EXCEPTION 'Money tournaments need a minimum of at least 4 % to start', CASE WHEN v_team > 1 THEN 'teams' ELSE 'players' END;
+      IF NEW.start_time < now() + interval '30 minutes' THEN
+        RAISE EXCEPTION 'Give players at least 30 minutes to join before a prize tournament starts';
       END IF;
-      IF NEW.start_time < now() + interval '1 hour' THEN
-        RAISE EXCEPTION 'Money tournaments must start at least 1 hour from now so anyone can join';
-      END IF;
-      IF COALESCE(NEW.prize_pool, 0) > 500 * v_slots THEN
-        RAISE EXCEPTION 'Prize pool can be at most KES % for % slots (KES 500 per slot)', 500 * v_slots, v_slots;
+      IF COALESCE(NEW.prize_pool, 0) > 2000 * v_slots THEN
+        RAISE EXCEPTION 'Prize pool can be up to KES % for % slots. Need bigger prizes? Ask us to verify you as an organizer.', 2000 * v_slots, v_slots;
       END IF;
       SELECT kyc_status INTO v_kyc FROM profiles WHERE id = v_uid;
-      IF COALESCE(NEW.prize_pool, 0) > 5000 AND COALESCE(v_kyc, '') <> 'verified' THEN
-        RAISE EXCEPTION 'Verify your ID to fund prize pools above KES 5,000';
+      IF COALESCE(NEW.prize_pool, 0) > 20000 AND COALESCE(v_kyc, '') <> 'verified' THEN
+        RAISE EXCEPTION 'Verify your ID to fund prize pools above KES 20,000, or ask us to verify you as an organizer';
       END IF;
     END IF;
     RETURN NEW;

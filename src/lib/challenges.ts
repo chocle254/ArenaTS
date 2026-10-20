@@ -48,4 +48,3 @@ export async function acceptChallenge(args: AcceptArgs): Promise<void> {
 /** Quick-match stake limits (KES), mirrored from the database. */
 export const STAKE_MIN = 50;
 export const STAKE_MAX = 2000;
-export const STAKE_MAX_UNVERIFIED = 500;

@@ -1,7 +1,10 @@
 // AI referee. Deploy with JWT verification OFF (pg_cron calls it).
 // Auth: header x-cron-key must match private.app_secrets 'ai_referee_cron',
 //       or a signed-in admin (to run a sweep by hand).
-// Secrets: ANTHROPIC_API_KEY (required), AI_REFEREE_MODEL (optional).
+// Secrets: AI_API_KEY (required). Defaults to Groq's free plan.
+//   AI_BASE_URL  default https://api.groq.com/openai/v1  (any OpenAI-compatible API,
+//                e.g. NVIDIA: https://integrate.api.nvidia.com/v1)
+//   AI_MODEL     default qwen/qwen3.8-27b (Groq vision model, max 3 images per request)
 //
 // What it does each sweep
 //   1. applies AI decisions whose appeal window has passed
@@ -13,9 +16,11 @@
 //      anything else -> a human referee.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const MODEL = Deno.env.get('AI_REFEREE_MODEL') || 'claude-sonnet-5-5';
+const MODEL = Deno.env.get('AI_MODEL') || 'qwen/qwen3.8-27b';
+const BASE_URL = (Deno.env.get('AI_BASE_URL') || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
+const MAX_IMAGES = Number(Deno.env.get('AI_MAX_IMAGES') || 3);
 
-const SYSTEM = `You are the referee for Arena, a mobile esports platform in Kenya. Two players reported different winners for a 1v1 or team match. Decide who really won using ONLY the evidence images (screenshots and frames from screen recordings).
+const SYSTEM = `You are the referee for Arena, a mobile esports platform in Kenya. Two players reported different winners for a 1v1 or team match. Decide who really won using ONLY the evidence images (screenshots and frames from screen recordings). You see at most 3 images, chosen as the most decisive from each player.
 
 How to judge
 - Look for the final result screen: scoreboard, "Victory"/"Defeat", final score, kill counts, placement.
@@ -49,7 +54,7 @@ async function inGameNames(db: Admin, userId: string, game: string | null) {
 }
 
 async function review(db: Admin, d: Record<string, any>) {
-  const key = Deno.env.get('ANTHROPIC_API_KEY');
+  const key = Deno.env.get('AI_API_KEY') || Deno.env.get('GROQ_API_KEY');
   const [p1, p2] = await Promise.all([inGameNames(db, d.player1_id, d.game), inGameNames(db, d.player2_id, d.game)]);
 
   let reports = { p1: null as string | null, p2: null as string | null };
@@ -82,36 +87,52 @@ Dispute opened: ${d.created_at}.
 Evidence follows. Each item says who uploaded it.`,
     },
   ];
-  let images = 0;
-  for (const it of items) {
+  // Pick the most decisive images: each player's last video frame or latest
+  // screenshot first, then their earlier ones, alternating players.
+  const queues: Record<string, { path: string; label: string }[]> = { player1: [], player2: [] };
+  for (const it of [...items].reverse()) {
     const who = it.user_id === d.player1_id ? 'player1' : 'player2';
-    const paths = it.kind === 'image' ? [it.path] : it.frames;
-    if (!paths.length) {
-      content.push({ type: 'text', text: `${who} uploaded a video with no extracted frames (cannot be viewed).` });
-      continue;
-    }
-    content.push({ type: 'text', text: `From ${who} (${it.kind === 'video' ? `${paths.length} frames from a screen recording, in order` : 'screenshot'}, uploaded ${it.created_at})${it.note ? `. Their note: "${it.note.slice(0, 300)}"` : ''}:` });
-    for (const path of paths.slice(0, 8)) {
-      if (images >= 16) break;
-      const { data: signed } = await db.storage.from('match-evidence').createSignedUrl(path, 600);
-      if (signed?.signedUrl) {
-        content.push({ type: 'image', source: { type: 'url', url: signed.signedUrl } });
-        images++;
-      }
+    const paths = it.kind === 'image' ? [it.path] : [...it.frames].reverse();
+    paths.forEach((path, i) => queues[who].push({ path, label: `${who}, ${it.kind === 'video' ? `screen recording frame ${it.frames.length - i} of ${it.frames.length}` : 'screenshot'}, uploaded ${it.created_at}${it.note ? `. Their note: "${it.note.slice(0, 300)}"` : ''}` }));
+  }
+  const picked: { path: string; label: string }[] = [];
+  while (picked.length < MAX_IMAGES && (queues.player1.length || queues.player2.length)) {
+    for (const who of ['player1', 'player2']) {
+      const next = queues[who].shift();
+      if (next && picked.length < MAX_IMAGES) picked.push(next);
     }
   }
+  let images = 0;
+  for (const p of picked) {
+    const { data: signed } = await db.storage.from('match-evidence').createSignedUrl(p.path, 600);
+    if (!signed?.signedUrl) continue;
+    content.push({ type: 'text', text: `Image ${images + 1}: from ${p.label}` });
+    content.push({ type: 'image_url', image_url: { url: signed.signedUrl } });
+    images++;
+  }
+  const notShown = items.length && queues.player1.length + queues.player2.length;
+  if (notShown) content.push({ type: 'text', text: `(${notShown} more images were uploaded but not shown.)` });
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: 'POST',
-    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, max_tokens: 800, system: SYSTEM, messages: [{ role: 'user', content }] }),
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      max_tokens: 800,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content },
+      ],
+    }),
     signal: AbortSignal.timeout(45_000),
   });
   const out = await res.json().catch(() => null);
   if (!res.ok || !out) {
     return { winner: null, confidence: 0, verdict: { reasoning: 'AI review failed; sent to a human referee.', red_flags: ['ai error'], error: out?.error?.message || res.status } };
   }
-  const text = (out.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+  const text = String(out.choices?.[0]?.message?.content || '');
   let parsed: any = null;
   try {
     parsed = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatKES } from '@/lib/arena-currency';
-import { UNVERIFIED_WITHDRAW_MAX, UNVERIFIED_WITHDRAWALS, WITHDRAW_MAX, WITHDRAW_MIN, maskPhone, requestWithdrawal } from './mpesa';
+import { UNVERIFIED_MONTHLY_MAX, UNVERIFIED_WITHDRAW_MAX, WITHDRAW_MAX, WITHDRAW_MIN, maskPhone, requestWithdrawal } from './mpesa';
 
 export function WithdrawDialog({
   open,
@@ -18,7 +18,7 @@ export function WithdrawDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** Withdrawals already made without verified ID */
+  /** KES withdrawn in the last 30 days (counts toward the no-ID monthly limit) */
   usedWithoutKyc: number;
   onVerify: () => void;
   onDone?: () => void;
@@ -27,8 +27,8 @@ export function WithdrawDialog({
   const p = profile as (typeof profile & { mpesa_phone?: string | null }) | null;
   const winnings = Number(p?.available_balance || 0);
   const verified = p?.kyc_status === 'verified';
-  const left = Math.max(0, UNVERIFIED_WITHDRAWALS - usedWithoutKyc);
-  const cap = verified ? Math.min(WITHDRAW_MAX, winnings) : Math.min(UNVERIFIED_WITHDRAW_MAX, winnings);
+  const left = Math.max(0, UNVERIFIED_MONTHLY_MAX - usedWithoutKyc);
+  const cap = verified ? Math.min(WITHDRAW_MAX, winnings) : Math.min(UNVERIFIED_WITHDRAW_MAX, winnings, left);
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ status: string; message?: string } | null>(null);
@@ -41,7 +41,7 @@ export function WithdrawDialog({
   }, [open]);
 
   const value = Math.round(Number(amount)) || 0;
-  const blocked = !p?.mpesa_phone || (!verified && left === 0);
+  const blocked = !p?.mpesa_phone || (!verified && left < WITHDRAW_MIN);
   const valid = !blocked && value >= WITHDRAW_MIN && value <= cap;
 
   const submit = async () => {
@@ -99,9 +99,9 @@ export function WithdrawDialog({
                 <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-soft" />
                 <div className="space-y-2">
                   <p>
-                    {left > 0
-                      ? `${left} of ${UNVERIFIED_WITHDRAWALS} withdrawals left before ID verification, up to ${formatKES(UNVERIFIED_WITHDRAW_MAX)} each.`
-                      : 'Verify your ID to keep withdrawing.'}
+                    {left >= WITHDRAW_MIN
+                      ? `No ID needed for up to ${formatKES(UNVERIFIED_WITHDRAW_MAX)} at a time (${formatKES(left)} left this month). Verify your ID any time for bigger withdrawals.`
+                      : 'You’ve reached this month’s limit without ID. Verify your ID to keep withdrawing.'}
                   </p>
                   <Button size="sm" variant="outline" onClick={onVerify}>
                     Verify ID
@@ -118,7 +118,7 @@ export function WithdrawDialog({
                   Max
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">M-Pesa charges a small transfer fee. Large or unusual withdrawals are checked first.</p>
+              <p className="text-xs text-muted-foreground">M-Pesa charges a small transfer fee. Very large withdrawals can take a little longer.</p>
             </div>
 
             <Button className="h-12 w-full text-base" onClick={submit} disabled={!valid || busy}>

@@ -6,8 +6,9 @@ export const DEPOSIT_MIN = 50;
 export const DEPOSIT_MAX = 70000;
 export const WITHDRAW_MIN = 50;
 export const WITHDRAW_MAX = 70000;
-export const UNVERIFIED_WITHDRAWALS = 2;
-export const UNVERIFIED_WITHDRAW_MAX = 2000;
+/** Without ID: per withdrawal and per rolling 30 days (mirrors the server) */
+export const UNVERIFIED_WITHDRAW_MAX = 5000;
+export const UNVERIFIED_MONTHLY_MAX = 20000;
 
 async function call<T>(body: Record<string, unknown>): Promise<T> {
   const token = (await supabase.auth.getSession()).data.session?.access_token;

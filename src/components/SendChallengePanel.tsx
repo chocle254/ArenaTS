@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { invalidatePlayerProgress } from '@/hooks/use-player-progress';
 import { formatArenaCurrency } from '@/lib/arena-currency';
-import { createChallenge, friendlyChallengeError, STAKE_MAX, STAKE_MAX_UNVERIFIED, STAKE_MIN } from '@/lib/challenges';
+import { createChallenge, friendlyChallengeError, STAKE_MAX, STAKE_MIN } from '@/lib/challenges';
 import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
 import { ConsentModal } from './ConsentModal';
@@ -45,8 +45,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
 
   const parsedCustom = customStake ? Number(customStake) : NaN;
   const stake = customStake ? (Number.isFinite(parsedCustom) ? Math.round(parsedCustom) : 0) : selectedStake;
-  // Until ID is verified the cap is lower (matches the server rule)
-  const MAX_STAKE = profile?.kyc_status === 'verified' ? STAKE_MAX : STAKE_MAX_UNVERIFIED;
+  const MAX_STAKE = STAKE_MAX;
   const stakeValid = stake >= MIN_STAKE && stake <= MAX_STAKE;
   const balance = Number(profile?.arena_currency || 0);
   const pot = stake * 2;
@@ -266,7 +265,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
                   />
                 </div>
                 <p className={cn('text-xs', customStake && !stakeValid ? 'text-destructive' : 'text-muted-foreground')}>
-                  {formatArenaCurrency(MIN_STAKE)} to {formatArenaCurrency(MAX_STAKE)}{MAX_STAKE < STAKE_MAX ? ' (verify your ID for up to KES 2,000)' : ''}. Back to your play balance if they decline or it expires.
+                  {formatArenaCurrency(MIN_STAKE)} to {formatArenaCurrency(MAX_STAKE)}. Back to your play balance if they decline or it expires.
                 </p>
               </div>
 

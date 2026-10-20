@@ -30,7 +30,10 @@ ALTER TABLE public.platform_settings
 
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS mpesa_phone text,
-  ADD COLUMN IF NOT EXISTS mpesa_phone_locked_until timestamptz;
+  ADD COLUMN IF NOT EXISTS mpesa_phone_locked_until timestamptz,
+  -- Companies, brands and event hosts approved by an admin: no prize caps
+  ADD COLUMN IF NOT EXISTS organizer_verified boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS organizer_name text;
 
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_mpesa_phone_key ON public.profiles (mpesa_phone) WHERE mpesa_phone IS NOT NULL;
 
@@ -204,7 +207,8 @@ DECLARE
     'tournaments_won', 'tournaments_played', 'is_suspended', 'suspension_until', 'banned_until', 'ban_reason', 'rating',
     'is_flagged_fraud', 'fraud_flag_reason', 'fraud_flagged_at', 'fraud_resolved_at', 'fraud_resolved_by',
     'kyc_reviewed_at', 'kyc_reviewed_by', 'kyc_rejection_reason', 'mpesa_phone', 'mpesa_phone_locked_until',
-    'stripe_customer_id', 'stripe_connect_account_id', 'disputes_filed', 'disputes_won', 'currency'
+    'stripe_customer_id', 'stripe_connect_account_id', 'disputes_filed', 'disputes_won', 'currency',
+    'organizer_verified', 'organizer_name'
   ];
 BEGIN
   IF current_setting('app.bypass_profile_protection', true) = 'true' THEN
@@ -282,6 +286,17 @@ BEGIN
   END IF;
   SELECT COALESCE(winnings_hold_hours, 24) INTO v_hours FROM platform_settings LIMIT 1;
   PERFORM set_config('app.bypass_profile_protection', 'true', true);
+  -- Everyday wins under KES 1,000 are withdrawable straight away (unless frozen
+  -- for review or the account has an open flag)
+  IF p_status = 'held' AND p_amount < 1000
+     AND NOT EXISTS (SELECT 1 FROM aml_flags f WHERE f.user_id = p_user AND f.resolved_at IS NULL AND f.severity <> 'info')
+     AND NOT EXISTS (SELECT 1 FROM profiles WHERE id = p_user AND COALESCE(is_flagged_fraud, false)) THEN
+    UPDATE profiles SET available_balance = COALESCE(available_balance, 0) + p_amount WHERE id = p_user;
+    INSERT INTO held_winnings (user_id, amount, source, source_id, status, reason, release_at, released_at)
+    VALUES (p_user, p_amount, p_source, p_source_id, 'released', 'Under KES 1,000: paid instantly', now(), now())
+    RETURNING id INTO v_id;
+    RETURN v_id;
+  END IF;
   UPDATE profiles SET pending_balance = COALESCE(pending_balance, 0) + p_amount WHERE id = p_user;
   INSERT INTO held_winnings (user_id, amount, source, source_id, status, reason, release_at)
   VALUES (p_user, p_amount, p_source, p_source_id, p_status, p_reason, now() + make_interval(hours => COALESCE(v_hours, 24)))
@@ -368,7 +383,7 @@ $$;
 -- 6. Quick matches: limits, payouts on hold, refunds to play balance only
 -- ---------------------------------------------------------------------------
 -- Limits (KES)
---   stake 50 to 2,000 per player; 500 max until KYC is verified
+--   stake 50 to 2,000 per player
 --   same two players: at most 3 matches per 24h and KES 6,000 staked per 7 days
 CREATE OR REPLACE FUNCTION public._check_pair_limits(p_a uuid, p_b uuid, p_stake numeric)
 RETURNS void
@@ -384,12 +399,8 @@ BEGIN
   IF p_stake IS NULL OR p_stake < 50 OR p_stake > 2000 THEN
     RAISE EXCEPTION 'Stake must be between KES 50 and KES 2,000';
   END IF;
-  SELECT kyc_status INTO v_kyc FROM profiles WHERE id = p_a;
-  IF COALESCE(v_kyc, '') <> 'verified' AND p_stake > 500 THEN
-    RAISE EXCEPTION 'Verify your ID to stake more than KES 500';
-  END IF;
   IF EXISTS (SELECT 1 FROM profiles WHERE id IN (p_a, p_b) AND (COALESCE(is_flagged_fraud, false) OR COALESCE(is_suspended, false))) THEN
-    RAISE EXCEPTION 'One of these accounts is under review. Try again later.';
+    RAISE EXCEPTION 'This match can''t be played for money right now. Try another opponent.';
   END IF;
   SELECT count(*) FILTER (WHERE created_at > now() - interval '24 hours'), COALESCE(sum(stake_amount), 0)
   INTO v_day, v_week
@@ -398,10 +409,10 @@ BEGIN
     AND status NOT IN ('declined', 'expired', 'cancelled')
     AND created_at > now() - interval '7 days';
   IF v_day >= 3 THEN
-    RAISE EXCEPTION 'You can play the same opponent for money 3 times a day. Try someone else.';
+    RAISE EXCEPTION 'You''ve played this opponent for money 3 times today. Play someone new, or rematch tomorrow.';
   END IF;
   IF v_week + p_stake > 6000 THEN
-    RAISE EXCEPTION 'Weekly limit with this opponent reached (KES 6,000 staked). Try someone else.';
+    RAISE EXCEPTION 'You''ve hit this week''s money-match limit with this opponent. Play someone new for now.';
   END IF;
 END;
 $$;
@@ -483,10 +494,6 @@ BEGIN
   END IF;
   IF v_challenge.expires_at IS NOT NULL AND v_challenge.expires_at <= now() THEN
     RAISE EXCEPTION 'Challenge expired';
-  END IF;
-  SELECT kyc_status INTO v_kyc FROM profiles WHERE id = v_uid;
-  IF COALESCE(v_kyc, '') <> 'verified' AND v_challenge.stake_amount > 500 THEN
-    RAISE EXCEPTION 'Verify your ID to accept stakes above KES 500';
   END IF;
   IF EXISTS (SELECT 1 FROM profiles WHERE id = v_uid AND (COALESCE(is_flagged_fraud, false) OR COALESCE(is_suspended, false))) THEN
     RAISE EXCEPTION 'Your account is under review. Try again later.';
@@ -923,7 +930,7 @@ $$;
 -- Rules (KES)
 --   only from winnings (available_balance), only to the linked number
 --   50 to 70,000 per withdrawal; 150,000 per day
---   without verified KYC: 2 withdrawals in total, max 2,000 each
+--   without verified KYC: up to 5,000 per withdrawal, 20,000 per 30 days
 --   number changed by support: locked until mpesa_phone_locked_until
 --   goes to manual review when: >= 20,000; account < 3 days old; open flags;
 --   flagged for fraud; most of the amount was won from one opponent this week;
@@ -936,7 +943,7 @@ SET search_path TO 'public'
 AS $$
 DECLARE
   p profiles%ROWTYPE;
-  v_count int;
+  v_count numeric;
   v_today numeric;
   v_flags text[] := '{}';
   v_top_opponent uuid;
@@ -965,13 +972,16 @@ BEGIN
     RAISE EXCEPTION 'You can withdraw up to KES % (winnings only)', COALESCE(p.available_balance, 0);
   END IF;
 
+  -- No ID needed for everyday amounts: up to KES 5,000 per withdrawal and
+  -- KES 20,000 per 30 days. ID unlocks the full limits.
   IF COALESCE(p.kyc_status, '') <> 'verified' THEN
-    SELECT count(*) INTO v_count FROM mpesa_withdrawals WHERE user_id = p_user AND status NOT IN ('rejected', 'failed');
-    IF v_count >= 2 THEN
-      RAISE EXCEPTION 'Verify your ID to keep withdrawing. Your first 2 withdrawals don''t need it.';
+    IF p_amount > 5000 THEN
+      RAISE EXCEPTION 'Without ID verification you can withdraw up to KES 5,000 at a time. Verify your ID for bigger withdrawals.';
     END IF;
-    IF p_amount > 2000 THEN
-      RAISE EXCEPTION 'Until your ID is verified, each withdrawal is up to KES 2,000';
+    SELECT COALESCE(sum(amount), 0) INTO v_count FROM mpesa_withdrawals
+    WHERE user_id = p_user AND status NOT IN ('rejected', 'failed') AND created_at > now() - interval '30 days';
+    IF v_count + p_amount > 20000 THEN
+      RAISE EXCEPTION 'Without ID verification you can withdraw up to KES 20,000 a month (KES % left). Verify your ID to withdraw more.', GREATEST(20000 - v_count, 0);
     END IF;
   END IF;
 

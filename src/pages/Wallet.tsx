@@ -93,7 +93,8 @@ export default function Wallet() {
       supabase.from('mpesa_withdrawals').select('id, amount, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
     ]);
     const ws = (w.data || []) as Omit<Payout, 'kind'>[];
-    setUsedWithoutKyc(ws.filter((x) => !['rejected', 'failed'].includes(x.status)).length);
+    const monthAgo = Date.now() - 30 * 86_400_000;
+    setUsedWithoutKyc(ws.filter((x) => !['rejected', 'failed'].includes(x.status) && new Date(x.created_at).getTime() > monthAgo).reduce((s, x) => s + Number(x.amount), 0));
     setPayouts(
       [...((d.data || []) as Omit<Payout, 'kind'>[]).map((x) => ({ ...x, kind: 'deposit' as const })), ...ws.slice(0, 5).map((x) => ({ ...x, kind: 'withdrawal' as const }))]
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -144,7 +145,7 @@ export default function Wallet() {
             <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               {held > 0 ? (
                 <>
-                  <Clock className="h-3.5 w-3.5" /> {formatKES(held)} on hold, released 24h after each win
+                  <Clock className="h-3.5 w-3.5" /> {formatKES(held)} arriving soon (wins of KES 1,000+ clear in 24h)
                 </>
               ) : (
                 'Withdraw to M-Pesa or use them to play.'
@@ -166,11 +167,11 @@ export default function Wallet() {
         <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card/60 p-4">
           <ShieldCheck className="h-6 w-6 shrink-0 text-primary-soft" />
           <div className="min-w-0 flex-1">
-            <p className="font-semibold">{profile?.kyc_status === 'pending' ? 'ID check in progress' : 'Verify your ID'}</p>
+            <p className="font-semibold">{profile?.kyc_status === 'pending' ? 'ID check in progress' : 'Want bigger withdrawals?'}</p>
             <p className="text-sm text-muted-foreground">
               {profile?.kyc_status === 'pending'
                 ? 'We’ll let you know once it’s approved.'
-                : `Your first 2 withdrawals (up to KES 2,000 each) don’t need it. After that, and for stakes over KES 500, it does.`}
+                : 'You can play and withdraw up to KES 20,000 a month without ID. Verify once to remove the limit.'}
             </p>
           </div>
           {profile?.kyc_status !== 'pending' && (

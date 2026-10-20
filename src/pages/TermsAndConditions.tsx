@@ -59,13 +59,13 @@ const TermsAndConditions = () => {
       id: "aml-kyc",
       title: "5. AML/KYC Compliance",
       icon: <Info className="w-5 h-5" />,
-      content: `5.1 Verification Requirement: To comply with Anti-Money Laundering (AML) and Know Your Customer (KYC) rules, your first two withdrawals of up to KES 2,000 each may be made before identity verification. All further withdrawals, and quick-match stakes above KES 500, require a verified government-issued ID.
+      content: `5.1 Verification: You can play, win and withdraw up to KES 5,000 at a time and KES 20,000 per 30 days without identity verification. Larger withdrawals, and funding prize pools above KES 20,000, require a verified government-issued ID, in line with Anti-Money Laundering (AML) and Know Your Customer (KYC) rules.
       
       5.2 Closed loop: Deposits come from, and withdrawals go only to, the one M-Pesa number linked to your account. A number can be linked to one account only. Deposits (play balance) cannot be withdrawn; only winnings can.
       
-      5.3 Holds and reviews: Winnings are held for 24 hours before they can be withdrawn. Large withdrawals, new accounts and unusual patterns (for example repeated money matches against the same opponent, or deposits lost straight away to one player) are reviewed manually and may be held for up to 30 days. Confirmed laundering or collusion results in forfeiture of the affected winnings, account closure and reporting to the relevant authorities.
+      5.3 Holds and reviews: Wins under KES 1,000 can be withdrawn immediately; larger wins clear after 24 hours. Large withdrawals, new accounts and unusual patterns (for example repeated money matches against the same opponent, or deposits lost straight away to one player) are reviewed manually and may be held for up to 30 days. Confirmed laundering or collusion results in forfeiture of the affected winnings, account closure and reporting to the relevant authorities.
       
-      5.4 Limits: Quick-match stakes are KES 50 to KES 2,000. The same two players may play for money at most 3 times a day and KES 6,000 a week. Deposits and withdrawals are KES 50 to KES 70,000 each, up to KES 150,000 a day.`
+      5.4 Limits: Quick-match stakes are KES 50 to KES 2,000. The same two players may play for money at most 3 times a day and KES 6,000 a week. Tournaments with prizes need at least 5 players and prize pools of up to KES 2,000 per slot, unless hosted by a verified organizer (sponsors, brands and event hosts approved by Arena). Deposits and withdrawals are KES 50 to KES 70,000 each, up to KES 150,000 a day.`
     },
     {
       id: "currency",
