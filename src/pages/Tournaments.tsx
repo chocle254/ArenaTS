@@ -1,3 +1,4 @@
+import { FinishedTournamentList } from '@/components/arena/FinishedTournamentList';
 import { CalendarClock, Plus, Trophy } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -214,6 +215,8 @@ export default function Tournaments() {
             ) : undefined
           }
         />
+      ) : activeTab === 'past' ? (
+        <FinishedTournamentList tournaments={items} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {items.map((t) => (

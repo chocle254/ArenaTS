@@ -1,17 +1,14 @@
+import { TournamentRules } from '@/components/arena/TournamentRules';
 import { 
-  AlertTriangle,
   ArrowLeft, 
   Bell,
   Share2,
   BellOff, 
   Calendar, 
-  CheckCircle,
   Clock,
   DollarSign, 
-  Play,
   Trophy, 
-  Users, 
-  XCircle
+  Users,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -1148,77 +1145,7 @@ export default function TournamentDetail() {
               </TabsContent>
 
               <TabsContent value="rules" className="mt-6">
-                <Card className="surface">
-                  <CardHeader>
-                    <CardTitle className="text-2xl">Tournament Rules</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {tournament.rules && (
-                      <>
-                        <div className="space-y-4">
-                          <h4 className="font-semibold text-lg">Custom Rules</h4>
-                          <div className="space-y-3">
-                            {tournament.rules.split('\n').map((line, index) => {
-                              const trimmedLine = line.trim();
-                              if (!trimmedLine) return null;
-                              
-                              // Check if line is a title (ends with : or is short and uppercase-heavy)
-                              const isTitle = trimmedLine.endsWith(':') || 
-                                            (trimmedLine.length < 50 && !trimmedLine.includes('.') && 
-                                             trimmedLine === trimmedLine.toUpperCase());
-                              
-                              if (isTitle) {
-                                return (
-                                  <h5 key={index} className="font-bold text-base mt-4 first:mt-0">
-                                    {trimmedLine}
-                                  </h5>
-                                );
-                              }
-                              
-                              return (
-                                <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20">
-                                  <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: '#3b82f6', filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.6))' }} />
-                                  <span className="text-base leading-relaxed">{trimmedLine}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <Separator className="bg-border/50" />
-                      </>
-                    )}
-
-                    <div className="space-y-4">
-                      <h4 className="font-semibold text-lg">General Rules</h4>
-                      <ul className="space-y-3">
-                        <li className="flex items-start gap-3 p-3 rounded-lg bg-muted/20">
-                          <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: '#3b82f6', filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.6))' }} />
-                          <span className="text-base">Players must check in {formatCompactNumber(tournament.check_in_window)} minutes before start time</span>
-                        </li>
-                        <li className="flex items-start gap-3 p-3 rounded-lg bg-muted/20">
-                          <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'hsl(var(--primary))' }} />
-                          <span className="text-base">Ready check must be completed within 5 minutes of match start</span>
-                        </li>
-                        <li className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-                          <Play className="h-5 w-5 mt-0.5 flex-shrink-0 text-primary animate-pulse" />
-                          <span className="text-base font-medium">Compulsory Streaming: You MUST start your Twitch stream before pressing 'I\'m Ready'. Matches not streamed will be disqualified.</span>
-                        </li>
-                        <li className="flex items-start gap-3 p-3 rounded-lg bg-muted/20">
-                          <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: '#3b82f6', filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.6))' }} />
-                          <span className="text-base">Match results must be reported within {formatCompactNumber(tournament.match_time_limit)} minutes</span>
-                        </li>
-                        <li className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10">
-                          <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-                          <span className="text-base">Failure to ready up will result in automatic disqualification</span>
-                        </li>
-                        <li className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10">
-                          <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-                          <span className="text-base">Cheating or unsportsmanlike conduct will result in immediate ban</span>
-                        </li>
-                      </ul>
-                    </div>
-                  </CardContent>
-                </Card>
+                <TournamentRules tournament={tournament} />
               </TabsContent>
 
               <TabsContent value="bracket" className="mt-6">

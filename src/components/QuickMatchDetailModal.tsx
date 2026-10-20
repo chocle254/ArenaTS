@@ -48,8 +48,9 @@ const GAME_RULES: Record<string, string[]> = {
 };
 
 export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialChallenge, currentUserId, profiles: entities }: QuickMatchDetailModalProps) {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const { profile } = useAuth();
+  // Admins settle disputes only on matches they aren't playing in
+  const isAdmin = profile?.role === 'admin' && currentUserId !== initialChallenge.challenger_id && currentUserId !== initialChallenge.opponent_id;
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
   const [challenge, setChallenge] = useState(initialChallenge);
@@ -539,7 +540,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                         </div>
                       )}
 
-                      {isAdmin && challenge.status === 'disputed' && (
+                      {isAdmin && (challenge.status === 'disputed' || challenge.status === 'disputed_warning') && (
                         <div className="mt-8 pt-6 border-t border-destructive/20 space-y-4">
                           <div className="flex items-center gap-2 text-destructive">
                             <ShieldAlert className="h-3 w-3" />

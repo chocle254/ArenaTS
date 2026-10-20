@@ -95,6 +95,9 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
   const isPlayer1 = match.player1?.user_id === currentUserId;
   const isPlayer2 = match.player2?.user_id === currentUserId;
   const isParticipant = isPlayer1 || isPlayer2;
+  // An admin or referee who is playing in this match is just a player here.
+  // Someone else has to decide their match (the database enforces this too).
+  const isOfficial = (isAdmin || isReferee) && !isParticipant;
 
   useEffect(() => {
     const checkRefereeStatus = async () => {
@@ -369,7 +372,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
   };
 
   const handleCancelDispute = async () => {
-    if (!isAdmin && !isReferee) return;
+    if (!isOfficial) return;
     if (!matchResult) return;
 
     setSubmitting(true);
@@ -406,7 +409,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
   };
 
   const handleAdminOverride = async (winnerId: string) => {
-    if (!isAdmin && !isReferee) return;
+    if (!isOfficial) return;
     if (!match.player1 || !match.player2) return;
     setSubmitting(true);
     try {
@@ -428,19 +431,19 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
         tournament_id: tournamentId,
         match_id:      match.id,
         user_id:       currentUserId,
-        message: `🛡️ Official Action: Match result confirmed by admin override. Winner: ${winnerGamertag}.`,
+        message: `🛡️ Official decision: ${winnerGamertag} wins this match.`,
       });
       const numRounds = Math.ceil(Math.log2(participants?.length || 2));
       const isFinal   = match.round >= numRounds;
       toast.success(
         isFinal
-          ? 'Override applied. Final confirmed — tournament completed!'
-          : 'Override applied. Winner confirmed and advancing.'
+          ? 'Decision applied. The final is settled and the tournament is complete.'
+          : 'Decision applied. The winner moves to the next round.'
       );
     } catch (error: any) {
       console.error('Error applying override:', error);
       toast.error(
-        `Failed to apply override: ${error.message || 'Check console for details'}`
+        error.message || 'Could not apply the decision. Try again.'
       );
     } finally {
       setSubmitting(false);
@@ -489,13 +492,13 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
               {matchResult.admin_override && (
                 <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
                   <Shield className="h-3 w-3" />
-                  Resolved by Admin Override
+                  Decided by an official
                 </div>
               )}
             </div>
           )}
 
-          {matchResult.status === 'pending' && (
+          {matchResult.status === 'pending' && isParticipant && (
             <div className="text-xs text-muted-foreground space-y-2 p-2 bg-background/50 rounded">
               <div className="flex justify-between items-center">
                 <span>Your report:</span>
@@ -516,7 +519,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
                   Match Disputed
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Results don't match. An admin has been notified and will resolve this shortly.
+                  The two reports don't match. A referee who isn't playing will review the evidence and decide.
                 </p>
               </div>
               
@@ -609,14 +612,21 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
       )}
 
       {/* Admin/Referee Actions */}
-      {(isAdmin || isReferee) && matchResult?.status !== 'confirmed' && (
+      {(isAdmin || isReferee) && isParticipant && matchResult?.status !== 'confirmed' && (
+        <div className="mb-6 flex gap-3 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+          <Shield className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>You're playing in this match, so you report like any other player. If it ends in a dispute, another referee or an admin decides it.</p>
+        </div>
+      )}
+
+      {isOfficial && matchResult?.status !== 'confirmed' && (
         <div className="mb-6 p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-4">
           <div className="flex items-center gap-2 text-primary">
             <Shield className="h-4 w-4" />
-            <h4 className="text-sm font-semibold uppercase tracking-wider">Official Override Controls</h4>
+            <h4 className="text-sm font-semibold">Referee decision</h4>
           </div>
           <p className="text-xs text-muted-foreground">
-            As an official, you can resolve disputes by manually selecting a winner. This decision is final.
+            Check the evidence and chat, then pick the winner. Your decision is final and moves the winner to the next round.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button 
@@ -645,7 +655,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
                 variant="destructive"
                 className="bg-destructive/10 hover:bg-destructive/20 text-destructive border-destructive/30"
               >
-                Cancel Dispute (Reset)
+                Reset reports
               </Button>
             )}
           </div>
@@ -934,7 +944,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
   };
 
   const handleExtendTime = async () => {
-    if (!isAdmin || !matchResult) return;
+    if (!isAdmin || isParticipant || !matchResult) return;
 
     setExtending(true);
 
@@ -1129,7 +1139,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
               deadline={matchResult.match_deadline} 
               onExpire={handleTimerExpire}
             />
-            {isAdmin && (
+            {isAdmin && !isParticipant && (
               <Button
                 variant="ghost"
                 size="sm"
