@@ -35,7 +35,7 @@ ALTER TABLE public.profiles
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_mpesa_phone_key ON public.profiles (mpesa_phone) WHERE mpesa_phone IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
--- 2. One-time conversion of old AC / USD amounts to KES (runs once)
+-- 2. One-time switch to KES (runs once): wallets reset, records converted
 --    100 AC = $1, $1 = KES 129.90 (Trading Economics, 19 Oct 2026)
 -- ---------------------------------------------------------------------------
 DO $$
@@ -50,10 +50,12 @@ BEGIN
 
   PERFORM set_config('app.bypass_profile_protection', 'true', true);
 
+  -- Launch reset (owner's decision): pre-launch wallets held only test money,
+  -- so every wallet starts at KES 0. Lifetime earnings convert for leaderboards.
   UPDATE profiles SET
-    arena_currency    = round(COALESCE(arena_currency, 0) / 100.0 * v_rate, 2),
-    available_balance = round(COALESCE(available_balance, 0) * v_rate, 2),
-    pending_balance   = round(COALESCE(pending_balance, 0) * v_rate, 2),
+    arena_currency    = 0,
+    available_balance = 0,
+    pending_balance   = 0,
     total_earnings    = round(COALESCE(total_earnings, 0) * v_rate, 2),
     currency          = 'KES';
 
@@ -76,7 +78,7 @@ BEGIN
   UPDATE withdrawals SET amount = round(amount * v_rate, 2), currency = 'KES' WHERE COALESCE(currency, 'USD') <> 'KES';
 
   UPDATE platform_settings SET
-    maintenance_balance = round(COALESCE(maintenance_balance, 0) * v_rate, 2),
+    maintenance_balance = 0,
     currency_migrated_kes = true;
 
   PERFORM set_config('app.bypass_profile_protection', 'false', true);
