@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Secure Arena Currency money flows for Quick Match challenges
 -- ============================================================================
--- NOT YET APPLIED. Review, then apply to the ArenaTS project.
+-- Applied to the ArenaTS project on 2026-10-20.
 --
 -- Why
 --   * Challenge stakes are deducted by the browser (UPDATE profiles SET
@@ -36,6 +36,14 @@
 -- migration is safe. Apply this migration and the app deploy together or
 -- app-first: once (1) is live, the old client-side stake deduction is refused.
 -- ============================================================================
+
+-- 0. Quick matches for every game the app offers --------------------------
+-- challenges_game_check predates eFootball and PUBG Mobile, so challenges in
+-- those games were rejected. Widen it to the app's games (keeping legacy 'pubg').
+ALTER TABLE public.challenges DROP CONSTRAINT IF EXISTS challenges_game_check;
+ALTER TABLE public.challenges ADD CONSTRAINT challenges_game_check CHECK (
+  game = ANY (ARRAY['codm', 'fortnite', 'fifa', 'warzone', 'apex', 'valorant', 'injustice', 'mortal_kombat', 'efootball', 'pubg_mobile', 'pubg'])
+);
 
 -- 1. Protection function -----------------------------------------------------
 CREATE OR REPLACE FUNCTION public.protect_profile_sensitive_columns()
