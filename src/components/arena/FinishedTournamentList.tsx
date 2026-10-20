@@ -59,12 +59,12 @@ export function FinishedTournamentList({ tournaments, className }: { tournaments
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-semibold leading-tight">{t.name}</p>
-                <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                <p className="mt-0.5 flex items-center truncate text-xs text-muted-foreground">
                   {cancelled ? (
                     <span className="text-destructive">Cancelled</span>
                   ) : champ ? (
                     <>
-                      <Crown className="h-3.5 w-3.5 shrink-0 text-gold" />
+                      <Crown className="mr-1 h-3.5 w-3.5 shrink-0 text-gold" />
                       <span className="truncate font-medium text-foreground">{champ}</span>
                     </>
                   ) : (

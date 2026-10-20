@@ -207,7 +207,7 @@ export default function RefereeDashboard() {
             const game = r.tournaments ? GAME_INFO[r.tournaments.game] : null;
             const p1 = r.player1_id ? names[r.player1_id] || 'Player' : 'TBD';
             const p2 = r.player2_id ? names[r.player2_id] || 'Player' : 'TBD';
-            const said = (id: string | null) => (id ? (id === r.player1_id ? p1 : p2) : '—');
+            const said = (id: string | null) => (id ? `${id === r.player1_id ? p1 : p2} won` : 'No report yet');
             return (
               <li key={r.id}>
                 <Link
@@ -238,11 +238,11 @@ export default function RefereeDashboard() {
                     <dl className="grid grid-cols-2 gap-2 rounded-xl bg-live/10 p-2.5 text-xs">
                       <div>
                         <dt className="text-muted-foreground">{p1} says</dt>
-                        <dd className="font-semibold">{said(r.player1_reported_winner)} won</dd>
+                        <dd className="font-semibold">{said(r.player1_reported_winner)}</dd>
                       </div>
                       <div className="text-right">
                         <dt className="text-muted-foreground">{p2} says</dt>
-                        <dd className="font-semibold">{said(r.player2_reported_winner)} won</dd>
+                        <dd className="font-semibold">{said(r.player2_reported_winner)}</dd>
                       </div>
                     </dl>
                   )}

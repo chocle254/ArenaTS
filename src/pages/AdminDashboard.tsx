@@ -1,998 +1,299 @@
-import { AlertCircle, Calendar, Check, DollarSign, Download, Loader2, PiggyBank, Shield, ShieldAlert, TrendingUp, Trophy, Users, Wallet, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, BadgeCheck, CheckCircle2, ChevronRight, Gavel, Loader2, Radio, ShieldCheck, Timer, Trophy, Users } from 'lucide-react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AdminDisputes, type BracketDispute, type QuickDispute } from '@/components/admin/AdminDisputes';
+import { AdminMoney, type TournamentRevenue } from '@/components/admin/AdminMoney';
+import { AdminPlayers } from '@/components/admin/AdminPlayers';
+import { AdminTournaments } from '@/components/admin/AdminTournaments';
 import FinanceAnalytics from '@/components/admin/FinanceAnalytics';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { invokeEdgeFunction } from '@/lib/edge-function';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
+import { cn } from '@/lib/utils';
 
-interface TournamentRevenue {
-  id: string;
-  name: string;
-  game: string;
-  prize_pool: number;
-  platform_fee: number;
-  status: string;
-  start_time: string;
-  current_players: number;
+type Tab = 'overview' | 'disputes' | 'players' | 'tournaments' | 'money' | 'analytics';
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'disputes', label: 'Disputes' },
+  { id: 'players', label: 'Players' },
+  { id: 'tournaments', label: 'Tournaments' },
+  { id: 'money', label: 'Money' },
+  { id: 'analytics', label: 'Analytics' },
+];
+
+interface Snapshot {
+  players: number;
+  online: number;
+  newThisWeek: number;
+  liveMatches: number;
+  openTournaments: number;
+  kycPending: number;
+  refereeApps: number;
+  revenueMonth: number;
+  revenueTotal: number;
+  revenueBalance: number;
 }
 
-interface RevenueStats {
-  totalFees: number;
-  monthlyFees: number;
-  yearlyFees: number;
-  completedTournaments: number;
-  totalUsers: number;
-  platformRevenueBalance: number;
+const EMPTY: Snapshot = { players: 0, online: 0, newThisWeek: 0, liveMatches: 0, openTournaments: 0, kycPending: 0, refereeApps: 0, revenueMonth: 0, revenueTotal: 0, revenueBalance: 0 };
+
+function TaskTile({ icon, count, label, action, onClick, to, urgent = true }: { icon: ReactNode; count: number; label: string; action: string; onClick?: () => void; to?: string; urgent?: boolean }) {
+  const body = (
+    <>
+      <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', urgent && count > 0 ? 'bg-live/15 text-live' : urgent ? 'bg-secondary text-muted-foreground' : 'bg-primary/15 text-primary-soft')}>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline gap-2">
+          <span className="font-score text-2xl font-bold leading-none">{count}</span>
+          <span className="truncate text-sm font-semibold">{label}</span>
+        </span>
+        <span className="block text-xs text-muted-foreground">{action}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+    </>
+  );
+  const cls = 'flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  return to ? (
+    <Link to={to} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={cls}>
+      {body}
+    </button>
+  );
 }
 
-interface QueuedWithdrawal {
-  id: string;
-  user_id: string;
-  amount: number;
-  currency: string;
-  status: 'queued' | 'processing' | 'failed';
-  reason: string | null;
-  failure_reason: string | null;
-  created_at: string;
-  profiles: { gamertag: string } | null;
-}
-
-interface PlatformFloat {
-  availableCents: number;
-  pendingCents: number;
-  queuedWithdrawals: QueuedWithdrawal[];
-  queuedTotal: number;
-}
-
-interface DisputedChallenge {
-  id: string;
-  game: string;
-  stake_amount: number;
-  challenger_id: string;
-  opponent_id: string;
-  challenger_reported_winner: string | null;
-  opponent_reported_winner: string | null;
-  challenger: { gamertag: string };
-  opponent: { gamertag: string };
-  created_at: string;
+function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: 'gold' | 'live' }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className={cn('mt-1 font-score text-3xl font-bold leading-none', tone === 'gold' && 'text-gold', tone === 'live' && 'text-live')}>{value}</p>
+      {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
+    </div>
+  );
 }
 
 export default function AdminDashboard() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<RevenueStats>({
-    totalFees: 0,
-    monthlyFees: 0,
-    yearlyFees: 0,
-    completedTournaments: 0,
-    totalUsers: 0,
-    platformRevenueBalance: 0,
-  });
-  const [tournaments, setTournaments] = useState<TournamentRevenue[]>([]);
-  const [disputedChallenges, setDisputedChallenges] = useState<DisputedChallenge[]>([]);
-  const [resolving, setResolving] = useState<string | null>(null);
-  const [platformUsers, setPlatformUsers] = useState<any[]>([]);
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawingRevenue, setWithdrawingRevenue] = useState(false);
-  const [platformFloat, setPlatformFloat] = useState<PlatformFloat>({
-    availableCents: 0,
-    pendingCents: 0,
-    queuedWithdrawals: [],
-    queuedTotal: 0,
-  });
-  const [floatLoading, setFloatLoading] = useState(false);
-  const [retryingId, setRetryingId] = useState<string | null>(null);
-  const [depositFloatOpen, setDepositFloatOpen] = useState(false);
-  const [depositFloatAmount, setDepositFloatAmount] = useState('');
-  const [depositingFloat, setDepositingFloat] = useState(false);
+  const [tab, setTab] = useState<Tab>('overview');
+  const [snap, setSnap] = useState<Snapshot>(EMPTY);
+  const [loading, setLoading] = useState(true);
+  const [quick, setQuick] = useState<QuickDispute[]>([]);
+  const [bracket, setBracket] = useState<BracketDispute[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [revenueRows, setRevenueRows] = useState<TournamentRevenue[]>([]);
+  const [processing, setProcessing] = useState(false);
+
+  const isAdmin = profile?.role === 'admin';
 
   useEffect(() => {
-    if (!user) {
+    if (!user) navigate('/dashboard');
+    else if (profile && !isAdmin) {
+      toast.error('Admins only');
       navigate('/dashboard');
-      return;
     }
+  }, [user, profile, isAdmin, navigate]);
 
-    if (profile) {
-      if (profile.role !== 'admin') {
-        toast.error('Access denied. Admin only.');
-        navigate('/dashboard');
-        return;
-      }
-      
-      // If we have profile but stats are not loaded, we might still want to show a small indicator
-      // but not the full screen loader if possible.
-      // For now, let's just fetch the data.
-      Promise.all([
-        fetchRevenueData(false),
-        fetchDisputedChallenges(),
-        fetchPlatformUsers(),
-        fetchPlatformFloat()
-      ]);
-    }
-  }, [user, profile, navigate]);
-
-  // Handle the redirect back from Stripe Checkout after a float top-up
-  // (create-float-topup-checkout sends the admin to /admin?float_topup=success&session_id=...).
-  // The actual balance update happens server-side via the stripe-webhook, so we just
-  // surface confirmation here and refresh the float numbers a moment later.
-  useEffect(() => {
-    if (!profile || profile.role !== 'admin') return;
-
-    const floatTopup = searchParams.get('float_topup');
-    if (!floatTopup) return;
-
-    if (floatTopup === 'success') {
-      toast.success('Float top-up received — Stripe is settling the payment now.');
-      setTimeout(() => fetchPlatformFloat(), 2500);
-    }
-
-    const next = new URLSearchParams(searchParams);
-    next.delete('float_topup');
-    next.delete('session_id');
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, searchParams]);
-
-  const fetchDisputedChallenges = async () => {
-    try {
-      const { data, error } = await supabase
+  const loadDisputes = useCallback(async () => {
+    const [q, b] = await Promise.all([
+      supabase
         .from('challenges')
-        .select(`
-          *,
-          challenger:challenger_id(gamertag),
-          opponent:opponent_id(gamertag)
-        `)
+        .select('id, game, stake_amount, prize_pool, status, challenger_id, opponent_id, challenger_reported_winner, opponent_reported_winner, screenshot_url, updated_at, challenger:challenger_id(gamertag), opponent:opponent_id(gamertag)')
+        .in('status', ['disputed', 'disputed_warning'])
+        .order('updated_at', { ascending: true }),
+      supabase
+        .from('match_results')
+        .select('id, match_id, round, tournament_id, player1_id, player2_id, updated_at, tournaments(name, game)')
         .eq('status', 'disputed')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setDisputedChallenges(data || []);
-    } catch (error) {
-      console.error('Error fetching disputed challenges:', error);
+        .order('updated_at', { ascending: true }),
+    ]);
+    const qs = (q.data || []) as unknown as QuickDispute[];
+    const bs = (b.data || []) as unknown as BracketDispute[];
+    setQuick(qs);
+    setBracket(bs);
+    const ids = [...new Set(bs.flatMap((m) => [m.player1_id, m.player2_id]).filter(Boolean))] as string[];
+    if (ids.length) {
+      const { data } = await supabase.from('profiles').select('id, gamertag').in('id', ids);
+      setNames(Object.fromEntries(((data || []) as { id: string; gamertag: string | null }[]).map((p) => [p.id, p.gamertag || 'Player'])));
     }
-  };
+  }, []);
 
-  const fetchPlatformFloat = async () => {
-    setFloatLoading(true);
+  const loadSnapshot = useCallback(async () => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const head = { count: 'exact' as const, head: true };
+    const [players, online, fresh, liveQ, liveT, openT, kyc, apps, finishedT, doneQ, settings] = await Promise.all([
+      supabase.from('profiles').select('id', head),
+      supabase.from('profiles').select('id', head).gte('last_seen_at', new Date(Date.now() - 5 * 60_000).toISOString()),
+      supabase.from('profiles').select('id', head).gte('created_at', new Date(Date.now() - 7 * 86_400_000).toISOString()),
+      supabase.from('challenges').select('id', head).eq('status', 'accepted').not('match_started_at', 'is', null),
+      supabase.from('match_results').select('id', head).eq('both_players_ready', true).neq('status', 'confirmed'),
+      supabase.from('tournaments').select('id', head).eq('status', 'open'),
+      supabase.from('profiles').select('id', head).eq('kyc_status', 'pending'),
+      supabase.from('referee_applications').select('id', head).eq('status', 'pending'),
+      supabase.from('tournaments').select('id, name, game, prize_pool, platform_fee_percentage, start_time, current_players').eq('status', 'completed').order('start_time', { ascending: false }).limit(500),
+      supabase.from('challenges').select('platform_fee, completed_at').eq('status', 'completed').limit(5000),
+      supabase.from('platform_settings').select('maintenance_balance').maybeSingle(),
+    ]);
+
+    const rows: TournamentRevenue[] = ((finishedT.data || []) as any[]).map((t) => ({
+      id: t.id,
+      name: t.name,
+      game: t.game,
+      prize_pool: Number(t.prize_pool) || 0,
+      platform_fee: (Number(t.prize_pool) || 0) * ((Number(t.platform_fee_percentage) || 0) / 100),
+      start_time: t.start_time,
+      current_players: t.current_players || 0,
+    }));
+    setRevenueRows(rows);
+    const qFees = (doneQ.data || []) as { platform_fee: number | null; completed_at: string | null }[];
+    const total = rows.reduce((s, t) => s + t.platform_fee, 0) + qFees.reduce((s, c) => s + Number(c.platform_fee || 0), 0);
+    const month = rows.filter((t) => t.start_time >= monthStart).reduce((s, t) => s + t.platform_fee, 0) + qFees.filter((c) => (c.completed_at || '') >= monthStart).reduce((s, c) => s + Number(c.platform_fee || 0), 0);
+
+    setSnap({
+      players: players.count || 0,
+      online: online.count || 0,
+      newThisWeek: fresh.count || 0,
+      liveMatches: (liveQ.count || 0) + (liveT.count || 0),
+      openTournaments: openT.count || 0,
+      kycPending: kyc.count || 0,
+      refereeApps: apps.count || 0,
+      revenueMonth: month,
+      revenueTotal: total,
+      revenueBalance: Number((settings.data as { maintenance_balance?: number } | null)?.maintenance_balance || 0),
+    });
+  }, []);
+
+  const loadAll = useCallback(async () => {
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const { data, error } = await invokeEdgeFunction<PlatformFloat>('get-platform-float', {
-        accessToken: token,
-        body: {},
-      });
-
-      if (error) throw error;
-      if (data) {
-        // The edge function can return partial data (e.g. Stripe not configured);
-        // missing fields used to crash the whole admin page.
-        setPlatformFloat({
-          availableCents: Number(data.availableCents) || 0,
-          pendingCents: Number(data.pendingCents) || 0,
-          queuedTotal: Number(data.queuedTotal) || 0,
-          queuedWithdrawals: Array.isArray(data.queuedWithdrawals) ? data.queuedWithdrawals : [],
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching platform float:', error);
-      toast.error('Failed to load platform float');
-    } finally {
-      setFloatLoading(false);
-    }
-  };
-
-  const retryQueuedWithdrawal = async (queueId: string) => {
-    setRetryingId(queueId);
-    try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const { data, error } = await invokeEdgeFunction<{ amount?: number }>('retry-queued-withdrawal', {
-        accessToken: token,
-        body: { queueId },
-      });
-
-      if (error) throw error;
-
-      toast.success(`Released withdrawal of $${(data?.amount ?? 0).toFixed(2)}`);
-      fetchPlatformFloat();
-    } catch (error: any) {
-      console.error('Error retrying withdrawal:', error);
-      toast.error(error.message || 'Still insufficient funds — try again once the float has topped up');
-    } finally {
-      setRetryingId(null);
-    }
-  };
-
-  const handleDepositFloat = async () => {
-    const amount = parseFloat(depositFloatAmount);
-    if (!amount || amount <= 0) {
-      toast.error('Enter a valid amount to deposit');
-      return;
-    }
-
-    setDepositingFloat(true);
-    try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const { data, error } = await invokeEdgeFunction<{ url?: string; error?: string }>('create-float-topup-checkout', {
-        accessToken: token,
-        body: { amount, currency: 'usd' },
-      });
-
-      if (error) throw error;
-      if (!data?.url) throw new Error(data?.error || 'Stripe did not return a checkout URL');
-
-      toast.success('Redirecting to Stripe to complete the float deposit…');
-      try {
-        if (window.top && window.top !== window) {
-          window.top.location.href = data.url;
-        } else {
-          window.location.href = data.url;
-        }
-      } catch {
-        window.location.href = data.url;
-      }
-    } catch (error: any) {
-      console.error('Error creating float top-up checkout:', error);
-      toast.error(error.message || 'Failed to start float deposit');
-    } finally {
-      setDepositingFloat(false);
-    }
-  };
-
-  const fetchPlatformUsers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) throw error;
-      setPlatformUsers(data || []);
-    } catch (error) {
-      console.error('Error fetching platform users:', error);
-    }
-  };
-
-  const resolveChallenge = async (challengeId: string, winnerId: string | 'cancel') => {
-    setResolving(challengeId);
-    try {
-      if (winnerId === 'cancel') {
-        // Handle cancellation
-        const { error } = await supabase
-          .from('challenges')
-          .update({ 
-            status: 'cancelled',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', challengeId);
-        
-        if (error) throw error;
-        toast.success('Match cancelled and stakes refunded');
-      } else {
-        // Handle picking a winner
-        const { error } = await supabase
-          .from('challenges')
-          .update({ 
-            status: 'completed',
-            winner_id: winnerId,
-            challenger_reported_winner: winnerId,
-            opponent_reported_winner: winnerId,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', challengeId);
-        
-        if (error) throw error;
-        toast.success('Winner confirmed and prize distributed');
-      }
-      
-      await fetchDisputedChallenges();
-    } catch (error) {
-      console.error('Error resolving challenge:', error);
-      toast.error('Failed to resolve challenge');
-    } finally {
-      setResolving(null);
-    }
-  };
-
-  const fetchRevenueData = async (isInitial = false) => {
-    if (isInitial) setLoading(true);
-    try {
-      // Fire status update in the background — don't block data fetching
-      supabase.rpc('check_and_update_tournament_status');
-
-      // Fetch all data in parallel
-      const [
-        { data: completedTournaments, error: tournamentError },
-        { data: completedChallenges, error: challengeError },
-        { count: totalUsers, error: userError },
-        { data: platformSettings, error: settingsError },
-      ] = await Promise.all([
-        supabase
-          .from('tournaments')
-          .select('id, name, game, prize_pool, platform_fee_percentage, status, start_time, current_players')
-          .eq('status', 'completed')
-          .order('start_time', { ascending: false }),
-        supabase
-          .from('challenges')
-          .select('id, platform_fee, completed_at')
-          .eq('status', 'completed'),
-        supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true }),
-        supabase
-          .from('platform_settings')
-          .select('maintenance_balance')
-          .maybeSingle(),
-      ]);
-
-      if (tournamentError) throw tournamentError;
-      if (challengeError) throw challengeError;
-      if (userError) throw userError;
-      if (settingsError) {
-        // Don't let this one silently zero out the revenue balance — surface it.
-        console.error('Error fetching platform_settings:', settingsError);
-        toast.error('Platform revenue balance may be inaccurate — could not load platform_settings.');
-      }
-
-      // Calculate platform fees for each tournament
-      const tournamentsWithFees: TournamentRevenue[] = (completedTournaments || []).map(t => ({
-        id: t.id,
-        name: t.name,
-        game: t.game,
-        prize_pool: t.prize_pool,
-        platform_fee: t.prize_pool * (t.platform_fee_percentage / 100),
-        status: t.status,
-        start_time: t.start_time,
-        current_players: t.current_players
-      }));
-
-      setTournaments(tournamentsWithFees);
-
-      // Calculate total revenue (Tournaments + Challenges)
-      const tournamentFees = tournamentsWithFees.reduce((sum, t) => sum + t.platform_fee, 0);
-      const challengeFees = (completedChallenges || []).reduce((sum, c) => sum + Number(c.platform_fee || 0), 0);
-      const totalFees = tournamentFees + challengeFees;
-      
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
-      
-      // Monthly Revenue
-      const monthlyTournamentFees = tournamentsWithFees
-        .filter((t: TournamentRevenue) => {
-          const date = new Date(t.start_time);
-          return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-        })
-        .reduce((sum, t) => sum + t.platform_fee, 0);
-      
-      const monthlyChallengeFees = (completedChallenges || [])
-        .filter(c => {
-          const date = new Date(c.completed_at!);
-          return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-        })
-        .reduce((sum, c) => sum + Number(c.platform_fee || 0), 0);
-
-      const monthlyFees = monthlyTournamentFees + monthlyChallengeFees;
-      
-      // Yearly Revenue
-      const yearlyTournamentFees = tournamentsWithFees
-        .filter((t: TournamentRevenue) => {
-          const date = new Date(t.start_time);
-          return date.getFullYear() === currentYear;
-        })
-        .reduce((sum, t) => sum + t.platform_fee, 0);
-
-      const yearlyChallengeFees = (completedChallenges || [])
-        .filter(c => {
-          const date = new Date(c.completed_at!);
-          return date.getFullYear() === currentYear;
-        })
-        .reduce((sum, c) => sum + Number(c.platform_fee || 0), 0);
-
-      const yearlyFees = yearlyTournamentFees + yearlyChallengeFees;
-
-      setStats({
-        totalFees,
-        monthlyFees,
-        yearlyFees,
-        completedTournaments: tournamentsWithFees.length,
-        totalUsers: totalUsers || 0,
-        platformRevenueBalance: Number(platformSettings?.maintenance_balance || 0),
-      });
-    } catch (error) {
-      console.error('Error fetching revenue data:', error);
-      toast.error('Failed to load revenue data');
+      await Promise.all([loadSnapshot(), loadDisputes()]);
+    } catch (e) {
+      console.error('Admin load failed:', e);
+      toast.error('Some admin data failed to load');
     } finally {
       setLoading(false);
     }
+  }, [loadSnapshot, loadDisputes]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadAll();
+    const t = setInterval(() => document.visibilityState === 'visible' && loadAll(), 60_000);
+    return () => clearInterval(t);
+  }, [isAdmin, loadAll]);
+
+  const processDeadlines = async () => {
+    setProcessing(true);
+    const { error } = await supabase.rpc('expire_old_challenges');
+    setProcessing(false);
+    if (error) return void toast.error('Could not process deadlines');
+    toast.success('Expired challenges and missed check-ins processed');
+    loadAll();
   };
 
-  const handleWithdrawRevenue = async () => {
-    const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error('Please enter a valid amount');
-      return;
-    }
-    if (amount > stats.platformRevenueBalance) {
-      toast.error('Amount exceeds platform revenue balance');
-      return;
-    }
+  if (!isAdmin || !user) return null;
 
-    setWithdrawingRevenue(true);
-    try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const { data, error } = await invokeEdgeFunction<{ message?: string; usdAmount?: number }>('admin-withdraw-revenue', {
-        accessToken: token,
-        body: { amount: Math.round(amount * 100) / 100 },
-      });
-
-      if (error) {
-        const msg = error.message;
-        if (msg.toLowerCase().includes('insufficient')) {
-          toast.error('Platform revenue balance is too low for this withdrawal');
-        } else {
-          throw error;
-        }
-        return;
-      }
-
-      toast.success(`Platform revenue withdrawal of $${amount.toFixed(2)} initiated`);
-      setWithdrawAmount('');
-      fetchRevenueData(false);
-    } catch (error: any) {
-      console.error('Revenue withdrawal error:', error);
-      toast.error(error.message || 'Failed to withdraw platform revenue');
-    } finally {
-      setWithdrawingRevenue(false);
-    }
-  };
-
-  const exportToCSV = () => {
-    const headers = ['Tournament Name', 'Game', 'Prize Pool', 'Platform Fee (10%)', 'Players', 'Date'];
-    const rows = tournaments.map(t => [
-      t.name,
-      t.game,
-      `${t.prize_pool.toFixed(2)} AC`,
-      `${t.platform_fee.toFixed(2)} AC`,
-      t.current_players,
-      new Date(t.start_time).toLocaleDateString()
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `arena-revenue-report-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    
-    toast.success('Report exported successfully');
-  };
-
-  if (!profile || profile.role !== 'admin') {
-    return null;
-  }
+  const disputeCount = quick.length + bracket.length;
+  const allClear = disputeCount + snap.kycPending + snap.refereeApps === 0;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
-          <div className="space-y-1">
-            <h1 className="admin-header-title uppercase">Admin Control Center</h1>
-            <p className="text-muted-foreground font-inter font-light text-[15px]">Platform revenue, disputes, and tournament analytics</p>
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <button 
-              onClick={async () => {
-                const { error } = await supabase.rpc('expire_old_challenges');
-                if (error) toast.error('Failed to resolve matches');
-                else {
-                  toast.success('Check-in deadlines and expired matches processed');
-                  fetchDisputedChallenges();
-                }
-              }} 
-              className="admin-btn-primary gap-2 flex items-center"
-            >
-              <Shield className="h-4 w-4" />
-              Process Match Deadlines
-            </button>
-            <button onClick={() => navigate('/admin/referees')} className="admin-btn-secondary gap-2 flex items-center">
-              <Users className="h-4 w-4" />
-              Manage Referees
-            </button>
-            <button onClick={() => navigate('/admin/kyc')} className="admin-btn-secondary gap-2 flex items-center">
-              <Shield className="h-4 w-4" />
-              KYC Review
-            </button>
-            <button onClick={exportToCSV} className="admin-btn-secondary gap-2 flex items-center">
-              <Download className="h-4 w-4" />
-              Export
-            </button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl">Admin</h1>
+          <p className="text-muted-foreground">
+            {loading ? 'Loading the latest numbers…' : `${formatCompactNumber(snap.online)} online now, ${formatCompactNumber(snap.liveMatches)} matches live.`}
+          </p>
         </div>
-
-        {/* Stats Row */}
-        <div className="admin-stats-grid">
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">
-              <DollarSign className="h-[18px] w-[18px] text-blue-400" />
-              Total Revenue
-            </div>
-            <div className="admin-stat-value">{formatArenaCurrency(stats.totalFees)}</div>
-            <div className="admin-stat-sub">Platform lifetime</div>
-          </div>
-
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">
-              <Calendar className="h-[18px] w-[18px] text-cyan-400" />
-              Monthly
-            </div>
-            <div className="admin-stat-value">{formatArenaCurrency(stats.monthlyFees)}</div>
-            <div className="admin-stat-sub">Current period</div>
-          </div>
-
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">
-              <TrendingUp className="h-[18px] w-[18px] text-cyan-400" />
-              Yearly
-            </div>
-            <div className="admin-stat-value">{formatArenaCurrency(stats.yearlyFees)}</div>
-            <div className="admin-stat-sub">Annual performance</div>
-          </div>
-
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">
-              <Wallet className="h-[18px] w-[18px] text-emerald-400" />
-              Withdrawable Revenue
-            </div>
-            <div className="admin-stat-value">${stats.platformRevenueBalance.toFixed(2)}</div>
-            <div className="admin-stat-sub">Platform wallet balance</div>
-          </div>
-
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">
-              <Trophy className="h-[18px] w-[18px] text-amber-500" />
-              Tournaments
-            </div>
-            <div className="admin-stat-value">{formatCompactNumber(stats.completedTournaments)}</div>
-            <div className="admin-stat-sub">Events completed</div>
-          </div>
-
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">
-              <Users className="h-[18px] w-[18px] text-primary" />
-              Users
-            </div>
-            <div className="admin-stat-value">{formatCompactNumber(stats.totalUsers)}</div>
-            <div className="admin-stat-sub">Total registered</div>
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={processDeadlines} disabled={processing}>
+            {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Timer className="h-4 w-4" />}
+            Process deadlines
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/referees">
+              <Gavel className="h-4 w-4" /> Referees
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/kyc">
+              <ShieldCheck className="h-4 w-4" /> KYC
+            </Link>
+          </Button>
         </div>
-
-        <Tabs defaultValue="revenue" className="w-full">
-          <TabsList className="referee-tabs-list">
-            <TabsTrigger value="revenue" className="referee-tab uppercase">
-              Revenue Reports
-            </TabsTrigger>
-            <TabsTrigger value="disputes" className="referee-tab uppercase">
-              Challenge Disputes
-              {disputedChallenges.length > 0 && (
-                <span className="ml-2 px-1.5 py-0.5 bg-red-500 text-white text-[10px] rounded-full">
-                  {formatCompactNumber(disputedChallenges.length)}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="users" className="referee-tab uppercase">
-              Platform Users
-            </TabsTrigger>
-            <TabsTrigger value="float" className="referee-tab uppercase">
-              Platform Float
-              {platformFloat.queuedWithdrawals.filter(q => q.status === 'queued').length > 0 && (
-                <span className="ml-2 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] rounded-full">
-                  {formatCompactNumber(platformFloat.queuedWithdrawals.filter(q => q.status === 'queued').length)}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="referee-tab uppercase">
-              Analytics
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="revenue" className="mt-8 space-y-6">
-            {/* Platform Revenue Withdrawal Card */}
-            <Card className="border-border bg-card/50">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Wallet className="h-4 w-4" />
-                  Withdraw Platform Revenue
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-                  <div className="flex-1 w-full">
-                    <p className="text-xs text-muted-foreground mb-1.5">Amount to withdraw</p>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                      <Input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        max={stats.platformRevenueBalance / 100}
-                        placeholder="0.00"
-                        value={withdrawAmount}
-                        onChange={(e) => setWithdrawAmount(e.target.value)}
-                        className="pl-7 font-mono"
-                        disabled={withdrawingRevenue || stats.platformRevenueBalance <= 0}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setWithdrawAmount(stats.platformRevenueBalance.toFixed(2))}
-                      disabled={stats.platformRevenueBalance <= 0}
-                    >
-                      Max
-                    </Button>
-                    <Button
-                      onClick={handleWithdrawRevenue}
-                      disabled={withdrawingRevenue || !withdrawAmount || stats.platformRevenueBalance <= 0}
-                      className="gap-2"
-                    >
-                      {withdrawingRevenue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
-                      Withdraw
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Available platform revenue: <span className="font-mono font-semibold">${stats.platformRevenueBalance.toFixed(2)}</span>.
-                  This is the sum of all platform fees collected from tournaments and challenges. It can be withdrawn to ARENA's Stripe wallet.
-                </p>
-              </CardContent>
-            </Card>
-
-            <div className="admin-table-container">
-              <Table>
-                <TableHeader>
-                  <TableRow className="admin-table-header hover:bg-transparent border-none">
-                    <TableHead className="admin-table-header">Tournament</TableHead>
-                    <TableHead className="admin-table-header">Game</TableHead>
-                    <TableHead className="admin-table-header text-right">Prize Pool</TableHead>
-                    <TableHead className="admin-table-header text-right">Platform Fee</TableHead>
-                    <TableHead className="admin-table-header text-center">Players</TableHead>
-                    <TableHead className="admin-table-header text-right">Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tournaments.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground font-light">
-                        No completed tournaments yet
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    tournaments.map((tournament) => (
-                      <TableRow key={tournament.id} className="admin-table-row">
-                        <TableCell className="text-white font-semibold">{tournament.name}</TableCell>
-                        <TableCell className="text-muted-foreground font-medium capitalize">{tournament.game}</TableCell>
-                        <TableCell className="text-right text-white font-semibold">
-                          {formatArenaCurrency(tournament.prize_pool)}
-                        </TableCell>
-                        <TableCell className="text-right text-[#22c55e] font-bold">
-                          {formatArenaCurrency(tournament.platform_fee)}
-                        </TableCell>
-                        <TableCell className="text-center text-primary-soft font-medium">
-                          {formatCompactNumber(tournament.current_players)}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground font-inter text-[13px]">
-                          {new Date(tournament.start_time).toLocaleDateString()}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="disputes" className="mt-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {disputedChallenges.length === 0 ? (
-                <div className="col-span-full py-20 text-center">
-                  <ShieldAlert className="h-16 w-16 text-muted-foreground opacity-20 mx-auto mb-4" />
-                  <p className="text-muted-foreground font-inter font-light">No disputed challenges found</p>
-                </div>
-              ) : (
-                disputedChallenges.map((challenge) => (
-                  <div key={challenge.id} className="match-card match-card-disputed">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="game-tag">{challenge.game}</span>
-                      <span className="status-pill pill-disputed">DISPUTED</span>
-                    </div>
-
-                    <div className="flex-1">
-                      <h3 className="match-tournament-name truncate">
-                        {challenge.challenger?.gamertag} vs {challenge.opponent?.gamertag}
-                      </h3>
-                      <p className="match-id-text">Amount: {formatArenaCurrency(challenge.stake_amount)}</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2 mt-6">
-                      <button 
-                        onClick={() => resolveChallenge(challenge.id, challenge.challenger_id)}
-                        disabled={resolving === challenge.id}
-                        className="btn-approve text-[11px] py-2"
-                      >
-                        {challenge.challenger?.gamertag} Wins
-                      </button>
-                      <button 
-                        onClick={() => resolveChallenge(challenge.id, challenge.opponent_id)}
-                        disabled={resolving === challenge.id}
-                        className="btn-approve text-[11px] py-2"
-                      >
-                        {challenge.opponent?.gamertag} Wins
-                      </button>
-                      <button 
-                        onClick={() => resolveChallenge(challenge.id, 'cancel')}
-                        disabled={resolving === challenge.id}
-                        className="btn-reject text-[11px] py-2 col-span-2"
-                      >
-                        Cancel & Refund
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="users" className="mt-8">
-            <div className="admin-table-container">
-              <Table>
-                <TableHeader>
-                  <TableRow className="admin-table-header hover:bg-transparent border-none">
-                    <TableHead className="admin-table-header">User</TableHead>
-                    <TableHead className="admin-table-header">Role</TableHead>
-                    <TableHead className="admin-table-header text-right">Balance</TableHead>
-                    <TableHead className="admin-table-header text-right">Earnings</TableHead>
-                    <TableHead className="admin-table-header text-center">Record</TableHead>
-                    <TableHead className="admin-table-header text-right">Joined</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {platformUsers.map((pUser) => (
-                    <TableRow key={pUser.id} className="admin-table-row">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8 border-none bg-white/5">
-                            <AvatarImage src={pUser.avatar_url} />
-                            <AvatarFallback className="bg-white/5 text-[10px]">{pUser.gamertag?.[0]}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-white font-semibold">{pUser.gamertag}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className={pUser.role === 'admin' ? 'admin-badge-admin' : 'admin-badge-user'}>
-                          {pUser.role === 'admin' ? 'Admin' : 'User'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right text-white font-semibold">
-                        {formatArenaCurrency(pUser.arena_currency || 0)}
-                      </TableCell>
-                      <TableCell className="text-right text-[#22c55e] font-bold">
-                        {formatArenaCurrency(pUser.total_earnings || 0)}
-                      </TableCell>
-                      <TableCell className="text-center font-medium">
-                        <span className="text-[#22c55e]">{pUser.wins || 0}W</span>
-                        <span className="text-muted-foreground mx-1">/</span>
-                        <span className="text-[#ef4444]">{pUser.losses || 0}L</span>
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground font-inter text-[13px]">
-                        {new Date(pUser.created_at).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="float" className="mt-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border-border bg-card/50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Wallet className="h-4 w-4" />
-                    Available (Stripe)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-mono">
-                    ${(platformFloat.availableCents / 100).toFixed(2)}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Funds ready to cover withdrawals now</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-card/50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Pending (Stripe)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-mono">
-                    ${(platformFloat.pendingCents / 100).toFixed(2)}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Settling from recent charges, not yet available</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-card/50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    Queued Withdrawals
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-mono text-amber-500">
-                    ${platformFloat.queuedTotal.toFixed(2)}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {platformFloat.queuedWithdrawals.filter(q => q.status === 'queued').length} waiting on float
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <p className="text-xs text-muted-foreground max-w-xl">
-                Stripe's available balance replenishes automatically as customer payments settle. Short on float?
-                Deposit funds directly into the platform's Stripe wallet below — they land in Available (Stripe) and
-                can be used immediately to cover queued withdrawals.
-              </p>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button onClick={() => setDepositFloatOpen(true)} className="gap-2">
-                  <PiggyBank className="h-4 w-4" />
-                  Deposit Float
-                </Button>
-                <Button variant="ghost" size="sm" onClick={fetchPlatformFloat} disabled={floatLoading} className="gap-2">
-                  {floatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Refresh
-                </Button>
-              </div>
-            </div>
-
-            <div className="admin-table-container">
-              <Table>
-                <TableHeader>
-                  <TableRow className="admin-table-header hover:bg-transparent border-none">
-                    <TableHead className="admin-table-header">User</TableHead>
-                    <TableHead className="admin-table-header text-right">Amount</TableHead>
-                    <TableHead className="admin-table-header">Status</TableHead>
-                    <TableHead className="admin-table-header">Queued</TableHead>
-                    <TableHead className="admin-table-header text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {platformFloat.queuedWithdrawals.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground font-light">
-                        No queued withdrawals — the platform float is covering everyone
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    platformFloat.queuedWithdrawals.map((q) => (
-                      <TableRow key={q.id} className="admin-table-row">
-                        <TableCell className="text-white font-semibold">
-                          {q.profiles?.gamertag || q.user_id.slice(0, 8)}
-                        </TableCell>
-                        <TableCell className="text-right text-white font-semibold font-mono">
-                          ${Number(q.amount).toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={
-                              q.status === 'failed'
-                                ? 'admin-badge-admin'
-                                : q.status === 'processing'
-                                ? 'admin-badge-user'
-                                : 'admin-badge-user'
-                            }
-                          >
-                            {q.status === 'queued' ? 'Queued' : q.status === 'processing' ? 'Processing' : 'Failed'}
-                          </span>
-                          {q.failure_reason && (
-                            <p className="text-[11px] text-[#ef4444] mt-1">{q.failure_reason}</p>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground font-inter text-[13px]">
-                          {new Date(q.created_at).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            onClick={() => retryQueuedWithdrawal(q.id)}
-                            disabled={retryingId === q.id || q.status === 'processing'}
-                            className="gap-2"
-                          >
-                            {retryingId === q.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                            Retry
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="mt-8">
-            <FinanceAnalytics />
-          </TabsContent>
-        </Tabs>
       </div>
 
-      <Dialog open={depositFloatOpen} onOpenChange={(open) => { if (!depositingFloat) { setDepositFloatOpen(open); if (!open) setDepositFloatAmount(''); } }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <PiggyBank className="h-5 w-5" />
-              Deposit Platform Float
-            </DialogTitle>
-            <DialogDescription>
-              Pay real funds into ARENA's Stripe wallet via Stripe Checkout. This does not credit any user — it only
-              tops up the balance used to cover withdrawals.
-            </DialogDescription>
-          </DialogHeader>
+      <div role="tablist" aria-label="Admin sections" className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 scrollbar-hide md:mx-0 md:px-0">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            type="button"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={cn(
+              '-mb-px flex h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors',
+              tab === t.id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t.label}
+            {t.id === 'disputes' && disputeCount > 0 && <span className="rounded-full bg-live px-1.5 font-score text-xs text-white">{disputeCount}</span>}
+          </button>
+        ))}
+      </div>
 
-          <div className="space-y-2 py-2">
-            <p className="text-xs text-muted-foreground mb-1.5">Amount to deposit (USD)</p>
-            <Input
-              type="number"
-              min="1"
-              step="0.01"
-              placeholder="0.00"
-              value={depositFloatAmount}
-              onChange={(e) => setDepositFloatAmount(e.target.value)}
-              disabled={depositingFloat}
-            />
-          </div>
+      {tab === 'overview' && (
+        <div className="space-y-8">
+          <section className="space-y-3">
+            <h2 className="text-xl">Needs you</h2>
+            {allClear && !loading ? (
+              <p className="flex items-center gap-2 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-5 w-5 text-success" /> All clear. No disputes, KYC reviews or referee applications waiting.
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-3">
+                <TaskTile icon={<AlertTriangle className="h-5 w-5" />} count={disputeCount} label="disputes" action="Decide who won" onClick={() => setTab('disputes')} />
+                <TaskTile icon={<BadgeCheck className="h-5 w-5" />} count={snap.kycPending} label="KYC reviews" action="Check ID documents" to="/admin/kyc" />
+                <TaskTile icon={<Gavel className="h-5 w-5" />} count={snap.refereeApps} label="referee applications" action="Approve or decline" to="/admin/referees" />
+              </div>
+            )}
+          </section>
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDepositFloatOpen(false)} disabled={depositingFloat}>
-              Cancel
-            </Button>
-            <Button onClick={handleDepositFloat} disabled={depositingFloat || !depositFloatAmount} className="gap-2">
-              {depositingFloat ? <Loader2 className="h-4 w-4 animate-spin" /> : <PiggyBank className="h-4 w-4" />}
-              Continue to Stripe
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <section className="space-y-3">
+            <h2 className="text-xl">Today</h2>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat label="Players" value={formatCompactNumber(snap.players)} note={`${formatCompactNumber(snap.newThisWeek)} joined this week`} />
+              <Stat label="Online now" value={formatCompactNumber(snap.online)} note="Active in the last 5 minutes" />
+              <Stat label="Live matches" value={formatCompactNumber(snap.liveMatches)} note="Quick and tournament" tone={snap.liveMatches > 0 ? 'live' : undefined} />
+              <Stat label="Open tournaments" value={formatCompactNumber(snap.openTournaments)} note="Taking registrations" />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-xl">Revenue</h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Stat label="This month" value={formatArenaCurrency(snap.revenueMonth)} tone="gold" />
+              <Stat label="All time" value={formatArenaCurrency(snap.revenueTotal)} />
+              <Stat label="Ready to withdraw" value={formatArenaCurrency(snap.revenueBalance)} note="Platform wallet" />
+            </div>
+          </section>
+
+          <section className="grid gap-2 sm:grid-cols-3">
+            <TaskTile icon={<Users className="h-5 w-5" />} count={snap.players} label="players" urgent={false} action="Search and review accounts" onClick={() => setTab('players')} />
+            <TaskTile icon={<Trophy className="h-5 w-5" />} count={snap.openTournaments} label="open tournaments" urgent={false} action="Feature on the home page" onClick={() => setTab('tournaments')} />
+            <TaskTile icon={<Radio className="h-5 w-5" />} count={snap.liveMatches} label="live now" urgent={false} action="Watch streams" to="/streams" />
+          </section>
+        </div>
+      )}
+
+      {tab === 'disputes' && <AdminDisputes quick={quick} bracket={bracket} names={names} currentUserId={user.id} onChanged={loadAll} />}
+      {tab === 'players' && <AdminPlayers />}
+      {tab === 'tournaments' && <AdminTournaments />}
+      {tab === 'money' && <AdminMoney revenueBalance={snap.revenueBalance} tournaments={revenueRows} onRevenueChanged={loadSnapshot} />}
+      {tab === 'analytics' && <FinanceAnalytics />}
     </div>
   );
 }
