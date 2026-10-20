@@ -64,7 +64,17 @@ async function load(): Promise<LiveMatch[]> {
   qRows.forEach((r) => [r.challenger_id, r.opponent_id].forEach((x) => x && ids.add(x)));
   if (ids.size === 0) return [];
 
-  const { data: people } = await supabase.from('profiles').select('id, gamertag, avatar_url, wins, twitch_handle').in('id', [...ids]);
+  const [{ data: people }, { data: optIns }] = await Promise.all([
+    supabase.from('profiles').select('id, gamertag, avatar_url, wins, twitch_handle').in('id', [...ids]),
+    supabase.from('match_streams').select('challenge_id, match_result_id, user_id, twitch_login').in('user_id', [...ids]),
+  ]);
+  // Who turned on "Stream this match", per match
+  const streamsFor = new Map<string, Map<string, string>>();
+  ((optIns || []) as { challenge_id: string | null; match_result_id: string | null; user_id: string; twitch_login: string }[]).forEach((s) => {
+    const key = s.challenge_id ? `quick:${s.challenge_id}` : `tournament:${s.match_result_id}`;
+    if (!streamsFor.has(key)) streamsFor.set(key, new Map());
+    streamsFor.get(key)!.set(s.user_id, s.twitch_login);
+  });
   const byId = new Map<string, StreamPlayer>(
     ((people || []) as { id: string; gamertag: string | null; avatar_url: string | null; wins: number | null; twitch_handle: string | null }[]).map((p) => [
       p.id,
@@ -72,9 +82,15 @@ async function load(): Promise<LiveMatch[]> {
     ]),
   );
 
-  const pick = (a: StreamPlayer | null, b: StreamPlayer | null) => {
-    const streaming = [a, b].filter((p): p is StreamPlayer => !!p?.twitch);
-    return streaming.sort((x, y) => (y.wins || 0) - (x.wins || 0))[0] || null;
+  // Quick matches: only players who opted in. Tournament matches: opted-in
+  // players first, otherwise anyone with Twitch linked (as before).
+  const pick = (kind: LiveMatch['kind'], id: string, a: StreamPlayer | null, b: StreamPlayer | null) => {
+    const opted = streamsFor.get(`${kind}:${id}`);
+    const candidates = [a, b]
+      .filter((p): p is StreamPlayer => !!p)
+      .map((p) => (opted?.has(p.id) ? { ...p, twitch: opted.get(p.id)! } : kind === 'quick' || opted?.size ? null : p))
+      .filter((p): p is StreamPlayer => !!p?.twitch);
+    return candidates.sort((x, y) => (y.wins || 0) - (x.wins || 0))[0] || null;
   };
 
   const list: LiveMatch[] = [
@@ -82,14 +98,26 @@ async function load(): Promise<LiveMatch[]> {
       const t = Array.isArray(r.tournaments) ? r.tournaments[0] : r.tournaments;
       const a = r.player1_id ? byId.get(r.player1_id) || null : null;
       const b = r.player2_id ? byId.get(r.player2_id) || null : null;
-      return { id: r.id, kind: 'tournament' as const, game: t?.game || '', title: t?.name || 'Tournament match', tournamentId: r.tournament_id, players: [a, b] as [StreamPlayer | null, StreamPlayer | null], streamer: pick(a, b), stake: null };
+      return { id: r.id, kind: 'tournament' as const, game: t?.game || '', title: t?.name || 'Tournament match', tournamentId: r.tournament_id, players: [a, b] as [StreamPlayer | null, StreamPlayer | null], streamer: pick('tournament', r.id, a, b), stake: null };
     }),
     ...qRows.map((r) => {
       const a = byId.get(r.challenger_id) || null;
       const b = byId.get(r.opponent_id) || null;
-      return { id: r.id, kind: 'quick' as const, game: r.game, title: 'Quick match', tournamentId: null, players: [a, b] as [StreamPlayer | null, StreamPlayer | null], streamer: pick(a, b), stake: Number(r.stake_amount) || null };
+      return { id: r.id, kind: 'quick' as const, game: r.game, title: 'Quick match', tournamentId: null, players: [a, b] as [StreamPlayer | null, StreamPlayer | null], streamer: pick('quick', r.id, a, b), stake: Number(r.stake_amount) || null };
     }),
   ];
+
+  // When Twitch keys are set up, hide channels that aren't actually live
+  const logins = [...new Set(list.map((m) => m.streamer?.twitch).filter((l): l is string => !!l))];
+  if (logins.length) {
+    const { data: tl } = await supabase.functions.invoke<{ configured: boolean; live: string[] }>('twitch-live', { body: { logins } }).catch(() => ({ data: null }));
+    if (tl?.configured) {
+      const live = new Set(tl.live);
+      list.forEach((m) => {
+        if (m.streamer && !live.has(m.streamer.twitch!)) m.streamer = null;
+      });
+    }
+  }
 
   // Best players first: the streamer's record, then the stronger player in the match
   const rank = (m: LiveMatch) => (m.streamer ? 1_000_000 : 0) + Math.max(m.players[0]?.wins || 0, m.players[1]?.wins || 0);
@@ -113,6 +141,12 @@ function refresh(force = false): Promise<LiveMatch[]> {
       inflight = null;
     });
   return inflight;
+}
+
+/** Refetch now (e.g. after a player turns streaming on or off). */
+export function invalidateLiveMatches() {
+  cache = null;
+  void refresh(true);
 }
 
 export function liveMatchHref(m: LiveMatch) {

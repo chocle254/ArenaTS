@@ -102,7 +102,7 @@ function HeroDevice() {
                 <div className="text-right">
                   <p className="text-[10px] text-muted-foreground">Prize pool</p>
                   <p className="font-score text-[28px] font-bold leading-none text-gold">
-                    800 <span className="text-sm">AC</span>
+                    <span className="text-sm">KES</span> 8,000
                   </p>
                 </div>
               </div>
@@ -121,8 +121,8 @@ function HeroDevice() {
 
           <p className="px-4 pb-1.5 pt-4 text-[11px] font-semibold text-muted-foreground">Live now</p>
           {[
-            { g: 'efootball' as GameType, n: 'Weekend League', p: '600 AC' },
-            { g: 'pubg_mobile' as GameType, n: 'Savannah Royale', p: '450 AC' },
+            { g: 'efootball' as GameType, n: 'Weekend League', p: 'KES 6,000' },
+            { g: 'pubg_mobile' as GameType, n: 'Savannah Royale', p: 'KES 4,500' },
           ].map((row) => (
             <div key={row.n} className="mx-3 mb-2 flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
               <img src={GAME_INFO[row.g]?.icon} alt="" className="h-8 w-8 rounded-lg object-cover" />
@@ -147,7 +147,7 @@ function HeroDevice() {
           </span>
           <div>
             <p className="text-xs font-semibold">Match won</p>
-            <p className="font-score text-lg font-bold leading-none text-gold">+ 450 AC</p>
+            <p className="font-score text-lg font-bold leading-none text-gold">+ KES 450</p>
           </div>
         </div>
       </div>
@@ -239,7 +239,7 @@ export default function Landing() {
               </motion.span>
             </h1>
             <motion.p {...rise(0.34)} className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-foreground/75 sm:text-lg lg:mx-0">
-              Join refereed tournaments, settle 1v1 money matches, and withdraw what you win. One app for CODM, eFootball, PUBG Mobile, FIFA and more.
+              Join refereed tournaments with real prizes, play free 1v1 quick matches for rank, and withdraw what you win to M-Pesa. One app for CODM, eFootball, PUBG Mobile, FIFA and more.
             </motion.p>
             <motion.div {...rise(0.42)} className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
               <Link to="/sign-up" className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-semibold text-white transition-colors hover:bg-primary/90 sm:w-auto">
@@ -258,7 +258,7 @@ export default function Landing() {
                 <ShieldCheck className="h-4 w-4 text-primary-soft" /> Stakes held until the result
               </li>
               <li className="flex items-center gap-2">
-                <Landmark className="h-4 w-4 text-primary-soft" /> Withdraw via Stripe
+                <Landmark className="h-4 w-4 text-primary-soft" /> Paid out to M-Pesa
               </li>
             </motion.ul>
           </div>
@@ -302,8 +302,8 @@ export default function Landing() {
           <Step n={1} title="Pick a bracket" text="Filter by game, see the prize and entry fee up front, and lock your spot before check-in opens.">
             <div className="space-y-2">
               {[
-                ['CODM 1v1 Cup', '5 AC', '800 AC'],
-                ['eFootball League', '2 AC', '600 AC'],
+                ['CODM 1v1 Cup', 'KES 100', 'KES 8,000'],
+                ['eFootball League', 'KES 50', 'KES 6,000'],
               ].map(([n, fee, prize]) => (
                 <div key={n} className="flex items-center justify-between rounded-lg border border-border bg-background/60 px-3 py-2 text-xs">
                   <span className="font-semibold">{n}</span>
@@ -329,7 +329,7 @@ export default function Landing() {
           <Step n={3} title="Get paid" text="Winnings land in your cash balance automatically. Withdraw them or turn them back into entries.">
             <div className="rounded-lg border border-gold/25 bg-gold/[0.07] p-3">
               <p className="text-xs text-muted-foreground">Cash balance</p>
-              <p className="font-score text-3xl font-bold leading-none text-gold">$84.50</p>
+              <p className="font-score text-3xl font-bold leading-none text-gold">KES 8,450</p>
               <p className="mt-2 flex items-center gap-1 text-xs text-success">
                 <Check className="h-3.5 w-3.5" /> 1st place payout received
               </p>
@@ -406,15 +406,15 @@ export default function Landing() {
           <div className="mt-12 grid gap-5 md:grid-cols-2">
             <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
               <Coins className="h-7 w-7 text-gold" />
-              <h3 className="mt-5 text-3xl">Arena Currency</h3>
-              <p className="mt-2 text-muted-foreground">Buy packs to cover entry fees and challenge stakes. 100 AC equals $1.</p>
-              <p className="mt-6 font-score text-5xl font-bold text-gold">1,250 AC</p>
+              <h3 className="mt-5 text-3xl">Play balance</h3>
+              <p className="mt-2 text-muted-foreground">Top up with M-Pesa to cover tournament entry fees.</p>
+              <p className="mt-6 font-score text-5xl font-bold text-gold">KES 1,250</p>
             </div>
             <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
               <Wallet className="h-7 w-7 text-success" />
-              <h3 className="mt-5 text-3xl">Cash balance</h3>
-              <p className="mt-2 text-muted-foreground">Winnings land here. Withdraw through Stripe once your identity is verified.</p>
-              <p className="mt-6 font-score text-5xl font-bold">$84.50</p>
+              <h3 className="mt-5 text-3xl">Winnings</h3>
+              <p className="mt-2 text-muted-foreground">Prizes land here. Withdraw straight to your M-Pesa.</p>
+              <p className="mt-6 font-score text-5xl font-bold">KES 8,450</p>
             </div>
           </div>
         </div>

@@ -67,6 +67,12 @@ export interface Profile {
   pubg_id?: string | null;
   // KYC 
   kyc_status?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  /** Linked M-Pesa number (2547XXXXXXXX). Deposits come from it, winnings go to it. */
+  mpesa_phone?: string | null;
+  mpesa_phone_locked_until?: string | null;
+  /** Sponsors, brands and event hosts approved by an admin: no prize caps */
+  organizer_verified?: boolean;
+  organizer_name?: string | null;
   kyc_rejection_reason?: string | null;
   kyc_id_front_path?: string | null;
   kyc_id_back_path?: string | null;
@@ -100,6 +106,9 @@ export interface Tournament {
   current_players: number;
   entry_fee: number;
   prize_pool: number;
+  /** 'fixed' or 'sliding' (guarantee + entries after sliding_after slots) */
+  prize_mode?: 'fixed' | 'sliding';
+  sliding_after?: number | null;
   creator_contribution: number;
   prize_distribution: Record<string, number>;
   platform_fee_percentage: number;

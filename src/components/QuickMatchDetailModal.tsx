@@ -1,3 +1,4 @@
+import { DisputePanel } from '@/components/disputes/DisputePanel';
 import { 
   AlertTriangle, 
   CheckCircle, 
@@ -24,6 +25,8 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { formatArenaCurrency } from '@/lib/arena-currency';
+import { XP_RULES } from '@/lib/progression';
+import { StreamToggle } from '@/components/arena/StreamToggle';
 import { MatchTimer } from './MatchTimer';
 
 interface QuickMatchDetailModalProps {
@@ -122,12 +125,12 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
     if (challenge.status === 'completed' && challenge.winner_id) {
       const isWinner = challenge.winner_id === currentUserId;
       if (isWinner) {
-        toast.success(`CONGRATULATIONS! You won against ${opponentEntity?.gamertag || 'your opponent'}! ${formatArenaCurrency(challenge.prize_pool)} has been awarded to your wallet.`, {
+        toast.success(Number(challenge.stake_amount) > 0 ? `You beat ${opponentEntity?.gamertag || 'your opponent'}! ${formatArenaCurrency(challenge.prize_pool)} is on its way to your winnings.` : `You beat ${opponentEntity?.gamertag || 'your opponent'}! +${XP_RULES.win} XP.`, {
           duration: 10000,
           position: 'top-center'
         });
       } else {
-        toast.error(`Better luck next time! You lost against ${opponentEntity?.gamertag || 'your opponent'}.`, {
+        toast.error(`${opponentEntity?.gamertag || 'Your opponent'} won this one.${Number(challenge.stake_amount) > 0 ? '' : ` +${XP_RULES.loss} XP for playing.`}`, {
           duration: 10000,
           position: 'top-center'
         });
@@ -218,7 +221,14 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
     setSubmitting(true);
     try {
       if (isAdmin && (winnerId === 'cancel' || winnerId === challenge.challenger_id || winnerId === challenge.opponent_id)) {
-        // Admin Override
+        // Admin decision goes through the dispute so it's recorded
+        const { data: dispute } = await supabase.from('match_disputes').select('id, status').eq('challenge_id', challenge.id).maybeSingle();
+        if (dispute && !['decided', 'void'].includes(dispute.status)) {
+          const { error } = await supabase.rpc('referee_decide', { p_dispute: dispute.id, p_winner: winnerId === 'cancel' ? null : winnerId, p_note: 'Decided by an admin from the match room' });
+          if (error) throw error;
+          toast.success(winnerId === 'cancel' ? (Number(challenge.stake_amount) > 0 ? 'Match cancelled, stakes returned' : 'Match cancelled') : 'Winner confirmed');
+          return;
+        }
         const updates: any = {
           updated_at: new Date().toISOString()
         };
@@ -304,7 +314,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                   {challenge.game.toUpperCase()} MATCH
                 </DialogTitle>
                 <p className="text-[10px] md:text-xs text-muted-foreground font-mono flex items-center gap-2 mt-0.5 md:mt-1">
-                  ID: {challenge.id.substring(0, 8)} • STAKE: {formatArenaCurrency(challenge.stake_amount)}
+                  ID {challenge.id.substring(0, 8)}, {Number(challenge.stake_amount) > 0 ? `stake ${formatArenaCurrency(challenge.stake_amount)}` : 'free match'}
                 </p>
               </div>
             </div>
@@ -378,6 +388,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                     </div>
                   ) : (
                     <>
+                      {!isAdmin && ['accepted', 'disputed', 'disputed_warning'].includes(challenge.status) && <StreamToggle challengeId={challenge.id} />}
                       {!challenge.both_players_ready && challenge.status === 'accepted' && (
                         <div className="space-y-3">
                           <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
@@ -469,6 +480,14 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                         </div>
                       )}
 
+                      {(challenge.status === 'disputed' || challenge.status === 'disputed_warning') && (
+                        <DisputePanel
+                          challengeId={challenge.id}
+                          currentUserId={currentUserId}
+                          names={{ [challenge.challenger_id]: entities.challenger.gamertag, [challenge.opponent_id]: entities.opponent.gamertag }}
+                        />
+                      )}
+
                       {challenge.status === 'disputed_warning' && (
                         <div className="space-y-4 p-4 bg-destructive/10 border-2 border-destructive/30 rounded-xl">
                           <div className="flex items-start gap-3">
@@ -476,8 +495,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                             <div className="space-y-2">
                               <h4 className="text-sm font-bold text-destructive uppercase tracking-tight">⚠️ CONFLICTING REPORTS</h4>
                               <p className="text-xs text-foreground leading-relaxed">
-                                Both of you are claiming to be winners. Discuss again on the real winner. 
-                                If you don't come to an agreement, you can cancel the match, but 
+                                Both of you claimed the win. If you sort it out, change your report here. Otherwise add evidence above and the referee decides. You can also cancel the match, but 
                                 <span className="font-bold text-destructive"> both ratings will be reduced by 0.5</span>.
                               </p>
                             </div>
@@ -522,20 +540,6 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                             >
                               Cancel Match (0.5 Penalty)
                             </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {challenge.status === 'disputed' && (
-                        <div className="p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-xl">
-                          <div className="flex items-start gap-3">
-                            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                            <div className="space-y-1">
-                              <h4 className="text-sm font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight">Match Under Review</h4>
-                              <p className="text-xs text-foreground/80 leading-relaxed">
-                                This match is being reviewed by an administrator. You will be notified once a decision is made.
-                              </p>
-                            </div>
                           </div>
                         </div>
                       )}

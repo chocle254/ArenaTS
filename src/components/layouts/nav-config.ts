@@ -14,7 +14,6 @@ import {
   Users,
   Wallet,
   Gavel,
-  ArrowLeftRight,
   Bell,
 } from 'lucide-react';
 
@@ -50,7 +49,6 @@ export const ACCOUNT_NAV: NavItem[] = [
 /** Reachable from their parent pages; listed here so search can find them. */
 export const SEARCH_ONLY_NAV: NavItem[] = [
   { name: 'Achievements', href: '/achievements', icon: Award, keywords: ['badges', 'trophies'] },
-  { name: 'Exchange rates', href: '/exchange-rates', icon: ArrowLeftRight, keywords: ['currency', 'kes', 'convert'] },
   { name: 'Notifications', href: '/notifications', icon: Bell, keywords: ['alerts'] },
 ];
 

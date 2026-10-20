@@ -153,7 +153,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'champion', title: 'Champion', description: 'Win a tournament.', icon: Crown, rarity: 'epic', target: 1, current: (c) => n((c.profile as { tournaments_won?: number } | null | undefined)?.tournaments_won) },
   { id: 'unstoppable', title: 'Unstoppable', description: 'Win 10 matches in a row.', icon: Sparkles, rarity: 'epic', target: 10, current: (c) => n(c.profile?.longest_streak) },
   { id: 'veteran', title: 'Veteran', description: 'Win 50 matches.', icon: Shield, rarity: 'epic', target: 50, current: (c) => n(c.profile?.wins) },
-  { id: 'high-roller', title: 'High roller', description: 'Earn $100 in prizes.', icon: Wallet, rarity: 'legendary', target: 100, current: (c) => Math.floor(n(c.profile?.total_earnings)) },
+  { id: 'high-roller', title: 'High roller', description: 'Earn KES 10,000 in prizes.', icon: Wallet, rarity: 'legendary', target: 10000, current: (c) => Math.floor(n(c.profile?.total_earnings)) },
   {
     id: 'season-one',
     title: 'Season one',

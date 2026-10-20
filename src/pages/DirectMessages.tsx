@@ -317,7 +317,7 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
             <div className="m-auto max-w-xs py-16 text-center">
               {partner && <PartnerAvatar p={partner} size="mx-auto h-16 w-16" dot={false} />}
               <p className="mt-3 font-semibold">Say hi to {partner?.gamertag || 'your friend'}</p>
-              <p className="text-sm text-muted-foreground">Or tap Challenge to put Arena Currency on a 1v1.</p>
+              <p className="text-sm text-muted-foreground">Or tap Challenge to play a 1v1 for KES.</p>
             </div>
           ) : (
             msgs.map((m, i) => (

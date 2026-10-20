@@ -19,7 +19,7 @@ export function friendlyJoinError(error: unknown): string {
   const e = error as { message?: string; details?: string; code?: string } | null;
   const msg = `${e?.message || ''} ${e?.details || ''}`.toLowerCase();
   if (e?.code === '23505' || msg.includes('duplicate')) return "You're already registered for this tournament.";
-  if (msg.includes('insufficient')) return 'Not enough Arena Currency to join. Top up in your wallet.';
+  if (msg.includes('insufficient')) return 'Not enough in your play balance. Top up with M-Pesa in your wallet.';
   if (msg.includes('unauthorized attempt to modify')) return 'Joining failed because of a balance check. Please try again from the tournament page.';
   return e?.message || 'Could not join the tournament. Please try again.';
 }
@@ -116,8 +116,8 @@ export function useJoinTournament() {
         setConsent({
           title: `Join ${tournament.name}`,
           description: isStandby
-            ? 'Main spots are full, so you will join the standby list. The entry fee is taken from your Arena Currency.'
-            : 'The entry fee is taken from your Arena Currency balance.',
+            ? 'Main spots are full, so you will join the standby list. The entry fee comes out of your play balance.'
+            : 'The entry fee comes out of your play balance.',
           amount: entryFee,
           onConfirm: () => {
             void insertParticipant(tournament, isStandby);

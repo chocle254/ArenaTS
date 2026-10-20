@@ -1,886 +1,321 @@
-import { motion } from 'framer-motion';
-import { 
-  ArrowDownLeft, 
-  ChevronDown,
-  Filter,
-  Gamepad2, 
-  Plus, 
-  RefreshCcw, 
-  Trophy,
-  Loader2
-} from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Clock, Loader2, Plus, ShieldCheck, Smartphone, Trophy } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import KYCVerificationDialog from '@/components/kyc/KYCVerificationDialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { maskPhone } from '@/components/wallet/mpesa';
+import { TopUpDialog } from '@/components/wallet/TopUpDialog';
+import { WithdrawDialog } from '@/components/wallet/WithdrawDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { invokeEdgeFunction } from '@/lib/edge-function';
-import KYCVerificationDialog from '@/components/kyc/KYCVerificationDialog';
-import { useCountUp } from '@/hooks/use-count-up';
-import { formatLargeNumber, formatUSD } from '@/lib/format-number';
-import { formatArenaCurrency } from '@/lib/arena-currency';
+import { formatKES } from '@/lib/arena-currency';
+import { cn } from '@/lib/utils';
 
-interface Transaction {
+interface Tx {
   id: string;
   type: string;
   amount: number;
-  currency: string;
-  description: string;
+  description: string | null;
+  status: string | null;
   created_at: string;
+}
+
+interface Payout {
+  id: string;
+  kind: 'deposit' | 'withdrawal';
+  amount: number;
   status: string;
+  created_at: string;
 }
 
-const TRANSACTION_FILTERS = ['all', 'wins', 'fees', 'withdrawals', 'deposits'] as const;
+const FILTERS = [
+  { id: 'all', label: 'All', types: null },
+  { id: 'money', label: 'M-Pesa', types: ['deposit', 'withdrawal'] },
+  { id: 'wins', label: 'Wins', types: ['tournament_win', 'challenge_win', 'payout'] },
+  { id: 'play', label: 'Entries and stakes', types: ['tournament_fee', 'challenge_fee', 'refund'] },
+] as const;
+type FilterId = (typeof FILTERS)[number]['id'];
 
-// Units follow the database functions: entry fees, stakes, deposits and refunds
-// move Arena Currency; prizes, payouts and withdrawals move cash (USD dollars).
-// The currency column alone isn't reliable (fee rows default to 'USD').
-const CASH_TYPES = new Set(['payout', 'challenge_win', 'tournament_win', 'withdrawal']);
-function formatTransactionAmount(t: { type: string; amount: number; currency?: string | null }) {
-  const value = Math.abs(Number(t.amount) || 0);
-  if (t.currency === 'AC' || !CASH_TYPES.has(t.type)) return formatArenaCurrency(value);
-  return `$${value.toFixed(2)}`;
+const STATUS_LABEL: Record<string, string> = {
+  pending: 'Waiting for PIN',
+  completed: 'Done',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+  timeout: 'Timed out',
+  review: 'Being checked',
+  queued: 'Queued',
+  processing: 'Sending',
+  rejected: 'Declined',
+};
+
+function when(iso: string) {
+  return new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
-type TransactionFilter = typeof TRANSACTION_FILTERS[number];
 
 export default function Wallet() {
   const { profile, user, refreshProfile } = useAuth();
-  const navigate = useNavigate();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filter, setFilter] = useState<TransactionFilter>('all');
+  const [topUp, setTopUp] = useState(false);
+  const [withdraw, setWithdraw] = useState(false);
+  const [move, setMove] = useState(false);
+  const [kyc, setKyc] = useState(false);
+  const [tx, setTx] = useState<Tx[]>([]);
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [usedWithoutKyc, setUsedWithoutKyc] = useState(0);
+  const [filter, setFilter] = useState<FilterId>('all');
+  const [limit, setLimit] = useState(15);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
 
-  const arenaCurrency = profile?.arena_currency ?? 0;
-  // Cash balance is the withdrawable available_balance, NOT derived from arena currency
-  const cashBalance = profile?.available_balance ?? 0;
+  const play = Number(profile?.arena_currency || 0);
+  const winnings = Number(profile?.available_balance || 0);
+  const held = Number(profile?.pending_balance || 0);
+  const verified = profile?.kyc_status === 'verified';
 
-  // Count-up animations
-  const animatedAC = useCountUp(arenaCurrency, 1500, 0);
-  const animatedCash = useCountUp(cashBalance, 1500, 0);
-
-  useEffect(() => {
-    fetchTransactions({ reset: true, pageNum: 1, filterValue: filter });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  // Page and filter are passed explicitly. (Reading them from state inside a
-  // setTimeout used stale values: "Load more" refetched the same page and
-  // filters applied one click late.)
-  const requestRef = useRef(0);
-  const fetchTransactions = async ({ reset, pageNum, filterValue }: { reset: boolean; pageNum: number; filterValue: TransactionFilter }) => {
+  const loadTx = useCallback(async () => {
     if (!user) return;
-    const requestId = ++requestRef.current;
-
     setLoading(true);
-    try {
-      const pageSize = 10;
-      const from = (pageNum - 1) * pageSize;
-      const to = from + pageSize - 1;
+    const f = FILTERS.find((x) => x.id === filter)!;
+    let q = supabase.from('transactions').select('id, type, amount, description, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(limit + 1);
+    if (f.types) q = q.in('type', f.types as unknown as string[]);
+    const { data } = await q;
+    const rows = (data || []) as Tx[];
+    setHasMore(rows.length > limit);
+    setTx(rows.slice(0, limit));
+    setLoading(false);
+  }, [user, filter, limit]);
 
-      let query = supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      // Apply filter
-      if (filterValue !== 'all') {
-        const typeMap: Record<string, string[]> = {
-          wins: ['tournament_win', 'challenge_win', 'payout'],
-          fees: ['tournament_fee', 'challenge_fee'],
-          withdrawals: ['withdrawal'],
-          deposits: ['credit', 'deposit', 'refund'],
-        };
-        query = query.in('type', typeMap[filterValue] || []);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      // Ignore responses from superseded requests (fast filter switching)
-      if (requestId !== requestRef.current) return;
-
-      if (reset) {
-        setTransactions(data || []);
-      } else {
-        setTransactions((prev) => [...prev, ...(data || [])]);
-      }
-
-      setHasMore((data || []).length === pageSize);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      toast.error('Failed to load transactions');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFilterChange = (newFilter: TransactionFilter) => {
-    if (newFilter === filter) return;
-    setFilter(newFilter);
-    setPage(1);
-    setTransactions([]);
-    fetchTransactions({ reset: true, pageNum: 1, filterValue: newFilter });
-  };
-
-  const handleLoadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchTransactions({ reset: false, pageNum: nextPage, filterValue: filter });
-  };
-
-  const [isDepositLoading, setIsDepositLoading] = useState(false);
-  const [isWithdrawLoading, setIsWithdrawLoading] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [transferAmount, setTransferAmount] = useState('');
-  const [isTransferLoading, setIsTransferLoading] = useState(false);
-  const [onboardingIncomplete, setOnboardingIncomplete] = useState(false);
-  const [kycDialogOpen, setKycDialogOpen] = useState(false);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
-
-  useEffect(() => {
-    fetchOrders();
+  const loadPayouts = useCallback(async () => {
+    if (!user) return;
+    const [d, w] = await Promise.all([
+      supabase.from('mpesa_deposits').select('id, amount, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
+      supabase.from('mpesa_withdrawals').select('id, amount, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
+    ]);
+    const ws = (w.data || []) as Omit<Payout, 'kind'>[];
+    const monthAgo = Date.now() - 30 * 86_400_000;
+    setUsedWithoutKyc(ws.filter((x) => !['rejected', 'failed'].includes(x.status) && new Date(x.created_at).getTime() > monthAgo).reduce((s, x) => s + Number(x.amount), 0));
+    setPayouts(
+      [...((d.data || []) as Omit<Payout, 'kind'>[]).map((x) => ({ ...x, kind: 'deposit' as const })), ...ws.slice(0, 5).map((x) => ({ ...x, kind: 'withdrawal' as const }))]
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 5),
+    );
   }, [user]);
 
-  const fetchOrders = async () => {
-    if (!user) return;
-    setLoadingOrders(true);
-    try {
-      // Fetch deposits and withdrawals in parallel
-      const [{ data: orderData, error: orderError }, { data: withdrawalData, error: withdrawalError }] = await Promise.all([
-        supabase
-          .from('orders')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('withdrawals')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false }),
-      ]);
+  useEffect(() => {
+    loadTx();
+  }, [loadTx]);
+  useEffect(() => {
+    loadPayouts();
+  }, [loadPayouts]);
 
-      if (orderError) throw orderError;
-      if (withdrawalError) throw withdrawalError;
-
-      const combined = [
-        ...(orderData || []).map((o) => ({ ...o, record_type: 'order' as const })),
-        ...(withdrawalData || []).map((w) => ({ ...w, record_type: 'withdrawal' as const })),
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      setOrders(combined);
-    } catch (error: any) {
-      console.error('Error fetching orders:', error);
-    } finally {
-      setLoadingOrders(false);
-    }
-  };
-
-  const CURRENCY_PACKAGES = [
-    { name: 'Starter Pack', ac: 500, price: 5.00, icon: '🥉' },
-    { name: 'Pro Pack', ac: 1200, price: 10.00, icon: '🥈', popular: true },
-    { name: 'Elite Pack', ac: 3000, price: 25.00, icon: '🥇' },
-    { name: 'Ultimate Pack', ac: 6500, price: 50.00, icon: '💎' },
-  ];
-
-  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
-
-  const handleDeposit = async (price: number, name: string, ac: number) => {
-    if (!user) {
-      toast.error('Please sign in to add funds');
-      return;
-    }
-
-    setIsDepositLoading(true);
-    setCheckoutUrl(null);
-
-    try {
-      console.log('Initiating checkout for:', name, price, 'AC:', ac);
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const { data, error } = await invokeEdgeFunction<{ code: string; data?: { url: string }; message?: string }>('create_stripe_checkout', {
-        accessToken: token,
-        body: {
-          items: [{ 
-            name: `Arena Currency - ${name}`, 
-            price, 
-            quantity: 1,
-            ac_amount: ac
-          }],
-          currency: 'usd',
-          payment_method_types: ['card']
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.code === 'SUCCESS' && data?.data?.url) {
-        const url = data.data.url;
-        setCheckoutUrl(url);
-
-        // Navigate directly to Stripe Checkout. If running in an iframe, we
-        // try to break out to the top window so Stripe doesn't block the frame.
-        try {
-          if (window.top && window.top !== window) {
-            window.top.location.href = url;
-          } else {
-            window.location.href = url;
-          }
-        } catch (e) {
-          console.warn('Top-level redirect blocked, falling back to current window');
-          window.location.href = url;
-        }
-      } else {
-        throw new Error(data?.message || 'Invalid response from payment gateway');
-      }
-    } catch (error: any) {
-      console.error('Checkout error:', error);
-      setIsDepositLoading(false);
-
-      let message = error.message || 'Failed to initiate deposit';
-      if (error?.context) {
-        try {
-          const body = await error.context.json();
-          message = body.error || body.message || message;
-        } catch {
-          try {
-            const text = await error.context.text();
-            message = text || message;
-          } catch {
-            // ignore
-          }
-        }
-      }
-      toast.error(message);
-    }
-  };
-
-  const handleResumeOnboarding = async () => {
-    if (!user) return;
-    setIsWithdrawLoading(true);
-    try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const { data, error } = await invokeEdgeFunction<{ url?: string }>('create-connect-account', { accessToken: token, body: {} });
-      if (error) throw error;
-      if (data?.url) {
-        toast.success('Redirecting to Stripe to complete setup…');
-        try {
-          (window.top || window).location.href = data.url;
-        } catch {
-          window.location.href = data.url;
-        }
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to resume onboarding');
-    } finally {
-      setIsWithdrawLoading(false);
-    }
-  };
-
-  const handleTransferToArenaCurrency = async () => {
-    if (!user) return;
-    const amount = parseFloat(transferAmount);
-    if (!amount || amount <= 0) {
-      toast.error('Enter a valid amount to transfer');
-      return;
-    }
-    if (amount > cashBalance) {
-      toast.error(`Amount exceeds your cash balance of $${cashBalance.toFixed(2)}`);
-      return;
-    }
-
-    setIsTransferLoading(true);
-    try {
-      const { error } = await supabase.rpc('transfer_cash_to_arena_currency', { p_amount_usd: amount });
-      if (error) throw error;
-      toast.success(`Transferred $${amount.toFixed(2)} to Arena Currency`);
-      setTransferAmount('');
-      await refreshProfile();
-      setPage(1);
-      fetchTransactions({ reset: true, pageNum: 1, filterValue: filter });
-    } catch (error: any) {
-      toast.error(error.message || 'Transfer failed');
-    } finally {
-      setIsTransferLoading(false);
-    }
-  };
-
-  const handleAction = async () => {
-    if (!user || !profile) return;
-
-    if (!profile.kyc_status || profile.kyc_status !== 'verified') {
-      setKycDialogOpen(true);
-      return;
-    }
-
-    if (!profile.stripe_connect_account_id) {
-      // First-time onboarding flow
-      setIsWithdrawLoading(true);
-      try {
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const { data, error } = await invokeEdgeFunction<{ url?: string }>('create-connect-account', { accessToken: token, body: {} });
-        if (error) throw error;
-        if (data?.url) {
-          toast.success('Redirecting to Stripe for account verification...');
-          try {
-            (window.top || window).location.href = data.url;
-          } catch {
-            window.location.href = data.url;
-          }
-        }
-      } catch (error: any) {
-        console.error('Error connecting account:', error);
-        toast.error(error.message || 'Failed to start account connection');
-      } finally {
-        setIsWithdrawLoading(false);
-      }
-      return;
-    }
-
-    if (cashBalance <= 0) {
-      toast.error('You have no withdrawable balance');
-      return;
-    }
-
-    const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error('Please enter a valid withdrawal amount');
-      return;
-    }
-    if (amount > cashBalance) {
-      toast.error(`Amount exceeds your available balance of $${cashBalance.toFixed(2)}`);
-      return;
-    }
-
-    setIsWithdrawLoading(true);
-    try {
-      // Edge function expects amount in USD dollars
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const { data, error } = await invokeEdgeFunction<{ message?: string }>('create-payout', {
-        accessToken: token,
-        body: { amount: Math.round(amount * 100) / 100, currency: 'usd' }
-      });
-
-      if (error) {
-        const message = error.message;
-        // Detect incomplete onboarding
-        if (message.toLowerCase().includes('not fully set up') || message.toLowerCase().includes('payouts_enabled')) {
-          setOnboardingIncomplete(true);
-        }
-        throw error;
-      }
-
-      toast.success(`Withdrawal of $${amount.toFixed(2)} initiated successfully!`);
-      setWithdrawAmount('');
-      setOnboardingIncomplete(false);
-      // Refresh profile so the reduced balance is visible immediately
-      await refreshProfile();
-    } catch (error: any) {
-      console.error('Withdrawal error:', error);
-      toast.error(error.message || 'Failed to initiate withdrawal');
-    } finally {
-      setIsWithdrawLoading(false);
-    }
-  };
-
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case 'tournament_win':
-      case 'challenge_win':
-        return <Trophy className="h-5 w-5 text-green-500" />;
-      case 'tournament_fee':
-      case 'challenge_fee':
-        return <Gamepad2 className="h-5 w-5 text-red-500" />;
-      case 'withdrawal':
-        return <ArrowDownLeft className="h-5 w-5 text-gray-500" />;
-      case 'credit':
-      case 'deposit':
-      case 'payout':
-        return <Plus className="h-5 w-5 text-blue-500" />;
-      case 'refund':
-        return <Plus className="h-5 w-5 text-primary" />;
-      default:
-        return <Plus className="h-5 w-5 text-muted-foreground" />;
-    }
-  };
-
-  const getTransactionColor = (type: string) => {
-    switch (type) {
-      case 'tournament_win':
-      case 'challenge_win':
-        return 'bg-green-500/20';
-      case 'tournament_fee':
-      case 'challenge_fee':
-        return 'bg-red-500/20';
-      case 'withdrawal':
-        return 'bg-gray-500/20';
-      case 'credit':
-      case 'deposit':
-      case 'payout':
-        return 'bg-blue-500/20';
-      case 'refund':
-        return 'bg-primary/20';
-      default:
-        return 'bg-muted';
-    }
-  };
-
-  const isIncoming = (type: string) => {
-    return type === 'tournament_win' || type === 'challenge_win' || type === 'credit' || type === 'deposit' || type === 'refund' || type === 'payout';
+  const refreshAll = () => {
+    loadTx();
+    loadPayouts();
+    refreshProfile();
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 md:px-6 py-8 space-y-10">
-      {/* KYC Dialog */}
-      <KYCVerificationDialog open={kycDialogOpen} onOpenChange={setKycDialogOpen} />
-
-      {/* Checkout Redirect Overlay */}
-      {isDepositLoading && (
-        <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-[100] flex flex-col items-center justify-center gap-5 p-6 text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight">
-              {checkoutUrl ? 'Redirect Blocked' : 'Preparing Checkout'}
-            </h2>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              {checkoutUrl
-                ? 'Your browser blocked the automatic redirect. Click below to continue to Stripe.'
-                : 'Connecting to Stripe. This may take a moment…'}
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 w-full max-w-[240px]">
-            {checkoutUrl && (
-              <Button onClick={() => { try { (window.top || window).location.href = checkoutUrl; } catch { window.location.href = checkoutUrl; } }} className="w-full">
-                Continue to Payment
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={() => setIsDepositLoading(false)} className="w-full text-muted-foreground">
-              Cancel
-            </Button>
-          </div>
+    <div className="mx-auto max-w-3xl space-y-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-4xl">Wallet</h1>
+          <p className="text-muted-foreground">
+            {profile?.mpesa_phone ? `M-Pesa ${maskPhone(profile.mpesa_phone)}` : 'Top up with M-Pesa to start playing for money.'}
+          </p>
         </div>
-      )}
+      </div>
 
-      {/* ── Page Header ── */}
-      <div>
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      {/* Balances */}
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col justify-between gap-4 rounded-3xl border border-gold/30 bg-gradient-to-br from-gold/[0.12] to-card p-5">
           <div>
-            <h1 className="text-4xl">Wallet</h1>
-            <p className="mt-1 text-muted-foreground">Top up for entries, track winnings, and withdraw.</p>
+            <p className="text-sm text-muted-foreground">Play balance</p>
+            <p className="mt-1 font-score text-4xl font-bold leading-none text-gold">{formatKES(play)}</p>
+            <p className="mt-2 text-xs text-muted-foreground">For entry fees and stakes. Can’t be withdrawn.</p>
           </div>
-          <Link to="/exchange-rates" className="text-sm font-semibold text-primary-soft hover:underline">
-            Exchange rates
-          </Link>
-        </div>
-      </div>
-
-      {/* ── Balance Overview ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="grid grid-cols-1 md:grid-cols-2 gap-4"
-      >
-        {/* Arena Currency */}
-        <div className="relative overflow-hidden rounded-2xl border border-[hsl(45,90%,60%,0.25)] bg-card h-full">
-          {/* Subtle gold corner glow */}
-          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-[hsl(45,90%,60%,0.08)] blur-2xl pointer-events-none" />
-          <div className="relative p-6 md:p-8 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[hsl(45,90%,60%,0.8)]">Arena Currency</span>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[hsl(45,90%,60%,0.2)] bg-[hsl(45,90%,60%,0.06)]">
-                <div className="w-1.5 h-1.5 rounded-full bg-[hsl(45,90%,60%)] animate-pulse" />
-                <span className="text-[9px] font-bold uppercase tracking-widest text-[hsl(45,90%,60%)]">AC</span>
-              </div>
-            </div>
-            <p className="text-4xl md:text-5xl font-orbitron text-gold tracking-tight leading-none">
-              {formatArenaCurrency(animatedAC)}
-            </p>
-            <p className="text-xs text-muted-foreground">Tournament &amp; challenge entry fees</p>
-          </div>
-        </div>
-
-        {/* Cash Balance */}
-        <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-card h-full">
-          {/* Subtle cyan corner glow */}
-          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-primary/5 blur-2xl pointer-events-none" />
-          <div className="relative p-6 md:p-8 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">Cash Balance</span>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-primary/20 bg-primary/5">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                <span className="text-[9px] font-bold uppercase tracking-widest text-primary">USD</span>
-              </div>
-            </div>
-            <p className="text-4xl md:text-5xl font-orbitron text-gold tracking-tight leading-none">
-              ${animatedCash.toFixed(2)}
-            </p>
-            <p className="text-xs text-muted-foreground">Withdrawable · from winnings & fees</p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ── Buy Arena Currency ── */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Add Arena Currency</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {CURRENCY_PACKAGES.map((pkg) => (
-            <button
-              key={pkg.name}
-              type="button"
-              onClick={() => handleDeposit(pkg.price, pkg.name, pkg.ac)}
-              disabled={isDepositLoading}
-              className={`relative flex items-center justify-between gap-3 rounded-xl border px-5 py-4 text-left transition-colors hover:bg-muted/40 disabled:opacity-50 ${
-                pkg.popular ? 'border-primary/30 bg-primary/5' : 'border-border'
-              }`}
-            >
-              {pkg.popular && (
-                <span className="absolute top-2 right-3 text-[10px] font-bold uppercase tracking-widest text-primary">
-                  Popular
-                </span>
-              )}
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{pkg.icon}</span>
-                <div>
-                  <p className="text-sm font-semibold">{pkg.name}</p>
-                  <p className="text-xs text-muted-foreground">{pkg.ac.toLocaleString()} AC</p>
-                </div>
-              </div>
-              <p className="text-sm font-bold text-primary shrink-0">${pkg.price.toFixed(2)}</p>
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">Arena Currency is non-withdrawable and for platform use only.</p>
-      </div>
-
-      {/* ── Transfer Cash to Arena Currency (one-way only) ── */}
-      <div className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Transfer to Arena Currency</h2>
-        <Card className="border-border">
-          <CardContent className="p-5 space-y-4">
-            <p className="text-xs text-muted-foreground">
-              Move cash balance into Arena Currency at $1 = 100 AC. This is one-way — Arena Currency cannot be converted back to cash.
-            </p>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                placeholder="0.00"
-                value={transferAmount}
-                onChange={(e) => setTransferAmount(e.target.value)}
-                disabled={isTransferLoading || cashBalance <= 0}
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                onClick={() => setTransferAmount(cashBalance.toFixed(2))}
-                disabled={cashBalance <= 0}
-              >
-                Max
-              </Button>
-            </div>
-            {transferAmount && parseFloat(transferAmount) > 0 && (
-              <p className="text-xs text-muted-foreground">
-                You'll receive <span className="text-primary font-semibold">{formatArenaCurrency(parseFloat(transferAmount) * 100)}</span>
-              </p>
-            )}
-            <Button
-              className="w-full gap-2"
-              onClick={handleTransferToArenaCurrency}
-              disabled={isTransferLoading || !transferAmount || cashBalance <= 0}
-            >
-              {isTransferLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-              Transfer
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Withdraw Cash ── */}
-      <div className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Withdraw</h2>
-        <Card className="border-border">
-          <CardContent className="p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <p className="text-sm font-medium">
-                {(!profile?.kyc_status || profile.kyc_status !== 'verified')
-                  ? 'Identity Verification Required'
-                  : !profile?.stripe_connect_account_id 
-                    ? 'Connect your payout account' 
-                    : 'Withdraw your cash balance'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {(!profile?.kyc_status || profile.kyc_status !== 'verified')
-                  ? 'Complete KYC to enable withdrawals'
-                  : !profile?.stripe_connect_account_id
-                    ? 'Link a Stripe account to enable withdrawals'
-                    : `Available: $${cashBalance.toFixed(2)} (Arena Currency cannot be withdrawn)`}
-              </p>
-            </div>
-
-            {/* KYC Banner */}
-            {profile && profile.kyc_status !== 'verified' && (
-              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border px-4 py-3 ${
-                profile.kyc_status === 'pending' ? 'border-blue-500/25 bg-blue-500/5' :
-                profile.kyc_status === 'rejected' ? 'border-red-500/25 bg-red-500/5' :
-                'border-amber-500/25 bg-amber-500/5'
-              }`}>
-                <div className="space-y-0.5">
-                  <p className={`text-sm font-medium ${
-                    profile.kyc_status === 'pending' ? 'text-blue-500' :
-                    profile.kyc_status === 'rejected' ? 'text-red-500' :
-                    'text-amber-500'
-                  }`}>
-                    {profile.kyc_status === 'pending' ? 'Identity Verification Pending' :
-                     profile.kyc_status === 'rejected' ? 'Identity Verification Failed' :
-                     'Identity Verification Required'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {profile.kyc_status === 'pending' 
-                      ? 'Your documents are currently under review. This usually takes 1-2 business days.' 
-                      : profile.kyc_status === 'rejected'
-                      ? 'We could not verify your identity. Please try again with clearer documents.'
-                      : 'You must verify your identity (KYC) before you can withdraw funds.'}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setKycDialogOpen(true)}
-                  className={`shrink-0 ${
-                    profile.kyc_status === 'pending' ? 'border-blue-500/30 text-blue-500 hover:bg-blue-500/10' :
-                    profile.kyc_status === 'rejected' ? 'border-red-500/30 text-red-500 hover:bg-red-500/10' :
-                    'border-amber-500/30 text-amber-500 hover:bg-amber-500/10'
-                  }`}
-                >
-                  {profile.kyc_status === 'pending' ? 'Check Status' :
-                   profile.kyc_status === 'rejected' ? 'Try Again' :
-                   'Verify Identity'}
-                </Button>
-              </div>
-            )}
-
-            {/* Onboarding incomplete banner */}
-            {profile?.kyc_status === 'verified' && profile?.stripe_connect_account_id && onboardingIncomplete && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium text-amber-400">Payout account setup incomplete</p>
-                  <p className="text-xs text-muted-foreground">Your Stripe account isn't fully verified yet. Complete onboarding to enable withdrawals.</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleResumeOnboarding}
-                  disabled={isWithdrawLoading}
-                  className="shrink-0 gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                >
-                  {isWithdrawLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  Complete Setup
-                </Button>
-              </div>
-            )}
-
-            {profile?.kyc_status === 'verified' && profile?.stripe_connect_account_id && !onboardingIncomplete ? (
-              <div className="space-y-4">
-                {/* Withdrawal Summary Card */}
-                <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Available balance</span>
-                    <span className="font-mono font-semibold">${cashBalance.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Arena Currency (not withdrawable)</span>
-                    <span className="font-mono font-semibold">{formatArenaCurrency(arenaCurrency)}</span>
-                  </div>
-                  <div className="h-px bg-border" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">You withdraw</span>
-                    <span className="font-mono font-bold text-lg">${Math.min(parseFloat(withdrawAmount || '0') || 0, cashBalance).toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Withdrawal fee</span>
-                    <span className="font-mono text-sm">$0.00</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg bg-background/60 p-3 border border-border">
-                    <span className="text-sm font-semibold">Net payout</span>
-                    <span className="font-mono font-bold text-xl text-primary">${Math.min(parseFloat(withdrawAmount || '0') || 0, cashBalance).toFixed(2)}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Withdrawals are available only from tournament winnings and creator fees. Arena Currency deposits cannot be withdrawn.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                    <Input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      max={cashBalance}
-                      placeholder="0.00"
-                      value={withdrawAmount}
-                      onChange={(e) => setWithdrawAmount(e.target.value)}
-                      className="pl-7 font-mono"
-                      disabled={isWithdrawLoading || cashBalance <= 0}
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground shrink-0 px-3 h-9"
-                    onClick={() => setWithdrawAmount(cashBalance.toFixed(2))}
-                    disabled={cashBalance <= 0}
-                  >
-                    Max
-                  </Button>
-                  <Button
-                    onClick={handleAction}
-                    variant="outline"
-                    disabled={isWithdrawLoading || !withdrawAmount || cashBalance <= 0}
-                    className="shrink-0 gap-2"
-                  >
-                    {isWithdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownLeft className="h-4 w-4" />}
-                    Withdraw
-                  </Button>
-                </div>
-              </div>
-            ) : profile?.kyc_status === 'verified' && !profile?.stripe_connect_account_id ? (
-              <Button
-                onClick={handleAction}
-                variant="outline"
-                disabled={isWithdrawLoading}
-                className="gap-2"
-              >
-                {isWithdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownLeft className="h-4 w-4" />}
-                Connect Stripe
-              </Button>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Order History ── */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Order History</h2>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={fetchOrders}>
-            <RefreshCcw className="h-3.5 w-3.5" />
+          <Button onClick={() => setTopUp(true)} className="h-11">
+            <Plus className="h-4 w-4" /> Top up with M-Pesa
           </Button>
         </div>
-        {loadingOrders ? (
-          <p className="text-sm text-muted-foreground py-2">Loading…</p>
-        ) : orders.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center border border-dashed rounded-xl">No orders yet</p>
-        ) : (
-          <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
-            {orders.slice(0, 5).map((order, idx) => {
-              const isWithdrawal = order.record_type === 'withdrawal';
-              const amount = isWithdrawal ? Number(order.amount) : Number(order.total_amount);
-              const label = isWithdrawal ? `Withdrawal #${order.id.slice(0, 8)}` : `Order #${order.id.slice(0, 8)}`;
-              const status = isWithdrawal ? order.status : order.status;
-              return (
-                <div key={`${order.id}-${idx}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors">
-                  <div>
-                    <p className="text-sm font-medium">{label}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleDateString()}</p>
-                  </div>
-                  <div className="text-right flex flex-col items-end gap-1">
-                    <p className={`text-sm font-semibold font-mono ${isWithdrawal ? 'text-destructive' : ''}`}>
-                      {isWithdrawal ? '-' : ''}${amount.toFixed(2)}
-                    </p>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                      status === 'completed' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' :
-                      status === 'pending' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' :
-                      'bg-destructive/15 text-destructive'
-                    }`}>
-                      {status}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+        <div className="flex flex-col justify-between gap-4 rounded-3xl border border-border bg-card p-5">
+          <div>
+            <p className="text-sm text-muted-foreground">Winnings</p>
+            <p className="mt-1 font-score text-4xl font-bold leading-none">{formatKES(winnings)}</p>
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+              {held > 0 ? (
+                <>
+                  <Clock className="h-3.5 w-3.5" /> {formatKES(held)} arriving soon (wins of KES 1,000+ clear in 24h)
+                </>
+              ) : (
+                'Withdraw to M-Pesa or use them to play.'
+              )}
+            </p>
           </div>
-        )}
-      </div>
-
-      {/* ── Transaction History ── */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Transactions</h2>
-          <Filter className="h-4 w-4 text-muted-foreground" />
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <Button variant="outline" className="h-11" onClick={() => setWithdraw(true)} disabled={winnings < 50}>
+              <ArrowUpRight className="h-4 w-4" /> Withdraw
+            </Button>
+            <Button variant="ghost" className="h-11" onClick={() => setMove(true)} disabled={winnings <= 0} aria-label="Move winnings to play balance">
+              <ArrowRightLeft className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+      </section>
 
-        {/* Filter Pills */}
-        <div className="flex gap-2 flex-wrap">
-          {TRANSACTION_FILTERS.map((f) => (
+      {!verified && (
+        <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card/60 p-4">
+          <ShieldCheck className="h-6 w-6 shrink-0 text-primary-soft" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">{profile?.kyc_status === 'pending' ? 'ID check in progress' : 'Want bigger withdrawals?'}</p>
+            <p className="text-sm text-muted-foreground">
+              {profile?.kyc_status === 'pending'
+                ? 'We’ll let you know once it’s approved.'
+                : 'You can play and withdraw up to KES 20,000 a month without ID. Verify once to remove the limit.'}
+            </p>
+          </div>
+          {profile?.kyc_status !== 'pending' && (
+            <Button variant="outline" onClick={() => setKyc(true)}>
+              Verify ID
+            </Button>
+          )}
+        </section>
+      )}
+
+      {payouts.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xl">M-Pesa activity</h2>
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+            {payouts.map((p) => (
+              <li key={`${p.kind}-${p.id}`} className="flex items-center gap-3 px-4 py-3">
+                <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', p.kind === 'deposit' ? 'bg-success/15 text-success' : 'bg-primary/15 text-primary-soft')}>
+                  <Smartphone className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{p.kind === 'deposit' ? 'Top up' : 'Withdrawal'}</p>
+                  <p className="text-xs text-muted-foreground">{when(p.created_at)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-score text-lg">{formatKES(p.amount)}</p>
+                  <p className={cn('text-xs', ['failed', 'rejected', 'cancelled', 'timeout'].includes(p.status) ? 'text-destructive' : p.status === 'completed' ? 'text-success' : 'text-gold')}>
+                    {STATUS_LABEL[p.status] || p.status}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="space-y-3">
+        <h2 className="text-xl">History</h2>
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 scrollbar-hide md:mx-0 md:px-0">
+          {FILTERS.map((f) => (
             <button
-              key={f}
-              onClick={() => handleFilterChange(f)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors capitalize ${
-                filter === f ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
-              }`}
+              key={f.id}
+              type="button"
+              aria-pressed={filter === f.id}
+              onClick={() => {
+                setFilter(f.id);
+                setLimit(15);
+              }}
+              className={cn('h-9 shrink-0 rounded-full border px-3.5 text-sm font-semibold', filter === f.id ? 'border-primary bg-primary/15' : 'border-border text-muted-foreground')}
             >
-              {f}
+              {f.label}
             </button>
           ))}
         </div>
-
-        {/* List */}
-        {loading && transactions.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-2">Loading…</p>
-        ) : transactions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border py-16 text-center space-y-3">
-            <Trophy className="h-10 w-10 mx-auto text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No transactions yet</p>
-            <Button variant="outline" size="sm" onClick={() => navigate('/tournaments')}>
-              Browse Tournaments
-            </Button>
+        {loading && tx.length === 0 ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-14 animate-pulse rounded-2xl bg-card" />
+            ))}
           </div>
+        ) : tx.length === 0 ? (
+          <p className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Nothing here yet.</p>
         ) : (
-          <div className="rounded-xl border border-border overflow-hidden">
-            <div className="divide-y divide-border">
-              {transactions.map((transaction, idx) => (
-                <div
-                  key={`${transaction.id}-${idx}`}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors"
-                >
-                  <div className={`w-9 h-9 rounded-lg ${getTransactionColor(transaction.type)} flex items-center justify-center shrink-0`}>
-                    {getTransactionIcon(transaction.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{transaction.description}</p>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      {new Date(transaction.created_at).toLocaleString()}
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+            {tx.map((t) => {
+              const value = Number(t.amount) || 0;
+              const win = ['tournament_win', 'challenge_win', 'payout'].includes(t.type);
+              return (
+                <li key={t.id} className="flex items-center gap-3 px-4 py-3">
+                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', win ? 'bg-gold/15 text-gold' : value >= 0 ? 'bg-success/15 text-success' : 'bg-secondary text-muted-foreground')}>
+                    {win ? <Trophy className="h-4 w-4" /> : value >= 0 ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{t.description || t.type.replace(/_/g, ' ')}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {when(t.created_at)}
+                      {t.status && t.status !== 'completed' ? `, ${STATUS_LABEL[t.status] || t.status}` : ''}
                     </p>
                   </div>
-                  <div className={`text-sm font-bold font-mono shrink-0 ${
-                    transaction.type === 'refund' ? 'text-primary' :
-                    isIncoming(transaction.type) ? 'text-emerald-500' : 'text-destructive'
-                  }`}>
-                    {isIncoming(transaction.type) ? '+' : '−'}
-                    {formatTransactionAmount(transaction)}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {hasMore && (
-              <div className="px-5 py-4 border-t border-border">
-                <Button onClick={handleLoadMore} variant="ghost" className="w-full text-sm" disabled={loading}>
-                  {loading ? 'Loading…' : 'Load more'}
-                </Button>
-              </div>
-            )}
-          </div>
+                  <span className={cn('shrink-0 font-score text-lg', value >= 0 ? 'text-success' : '')}>
+                    {value >= 0 ? '+' : '-'}
+                    {formatKES(Math.abs(value))}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </div>
+        {hasMore && (
+          <Button variant="outline" className="w-full" onClick={() => setLimit((l) => l + 15)} disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />} Show more
+          </Button>
+        )}
+      </section>
+
+      <TopUpDialog open={topUp} onOpenChange={setTopUp} onPaid={refreshAll} />
+      <WithdrawDialog
+        open={withdraw}
+        onOpenChange={setWithdraw}
+        usedWithoutKyc={usedWithoutKyc}
+        onVerify={() => {
+          setWithdraw(false);
+          setKyc(true);
+        }}
+        onDone={refreshAll}
+      />
+      <MoveDialog open={move} onOpenChange={setMove} max={winnings} onDone={refreshAll} />
+      <KYCVerificationDialog open={kyc} onOpenChange={setKyc} />
     </div>
+  );
+}
+
+function MoveDialog({ open, onOpenChange, max, onDone }: { open: boolean; onOpenChange: (o: boolean) => void; max: number; onDone: () => void }) {
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const value = Math.round(Number(amount)) || 0;
+
+  const submit = async () => {
+    setBusy(true);
+    const { error } = await supabase.rpc('transfer_cash_to_arena_currency', { p_amount_usd: value });
+    setBusy(false);
+    if (error) return void toast.error(error.message);
+    toast.success(`Moved ${formatKES(value)} to your play balance`);
+    setAmount('');
+    onOpenChange(false);
+    onDone();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Use winnings to play</DialogTitle>
+          <DialogDescription>Moves winnings into your play balance. Play balance can’t be withdrawn, so this is one way.</DialogDescription>
+        </DialogHeader>
+        <div className="flex gap-2">
+          <Input inputMode="numeric" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} />
+          <Button variant="ghost" onClick={() => setAmount(String(Math.floor(max)))}>
+            Max
+          </Button>
+        </div>
+        <Button onClick={submit} disabled={busy || value <= 0 || value > max}>
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Move {value ? formatKES(value) : ''}
+        </Button>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -5,10 +5,11 @@ import { OnlinePlayers } from '@/components/OnlinePlayers';
 import { OnlineTeams } from '@/components/OnlineTeams';
 import { PastChallengesList } from '@/components/PastChallengesList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { XP_RULES } from '@/lib/progression';
 
 const STEPS = [
   { title: 'Pick an opponent', text: 'Anyone online below, or a friend from Chats.' },
-  { title: 'Set the stake', text: 'Both players stake the same. Winner takes 90% of the pot.' },
+  { title: 'Play free', text: `Win for +${XP_RULES.win} XP, lose for +${XP_RULES.loss}. Climb the leaderboard.` },
   { title: 'Play and report', text: 'Both report the winner with a screenshot. Clashes go to a referee.' },
 ];
 
@@ -33,7 +34,7 @@ export default function QuickMatch() {
     <div className="space-y-7">
       <div>
         <h1 className="text-4xl">Quick match</h1>
-        <p className="text-muted-foreground">Challenge a player right now and play for Arena Currency.</p>
+        <p className="text-muted-foreground">Challenge a player right now. Free to play, for XP and rank. Stream it on Twitch and it shows on the Streams page.</p>
       </div>
 
       <ol className="grid gap-2 sm:grid-cols-3">
@@ -65,9 +66,9 @@ export default function QuickMatch() {
           <OnlinePlayers />
           <Rules
             items={[
-              'Start your Twitch stream before you press “I’m ready”. Matches without a stream can be voided.',
+              'Streaming is optional. Turn on “Stream this match” in the match room and it shows on the Streams page.',
               'Screenshot evidence is required for every result.',
-              'Stakes are held until the winner is confirmed, and refunded if the challenge is declined or expires.',
+              'Quick matches are free. Wins and losses count toward your XP and rank (first 3 a day against the same player).',
               'If the two reports disagree, a referee reviews the evidence and decides.',
             ]}
           />
@@ -80,8 +81,8 @@ export default function QuickMatch() {
             items={[
               'Only full teams of five can send or accept 5v5 challenges. The captain sends the challenge and reports the result.',
               'All five players check in within 5 minutes of the challenge being accepted.',
-              'Start your Twitch stream before pressing “I’m ready”. Screen recordings are recommended.',
-              'Prizes are split equally between the five players. Cheating gets the whole team banned.',
+              'Screen recordings are recommended in case of a dispute.',
+              'Cheating gets the whole team banned.',
             ]}
           />
         </TabsContent>

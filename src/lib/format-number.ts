@@ -1,3 +1,4 @@
+import { formatArenaCurrency, formatKES } from './arena-currency';
 /**
  * Format large numbers with K, M, B, T suffixes
  * @param num - The number to format
@@ -33,35 +34,16 @@ export function formatLargeNumber(num: number, decimals: number = 1): string {
   return num.toString();
 }
 
-/**
- * Format USD currency with $ prefix and compact notation for large amounts
- * Input is in Arena Currency units (100 AC = 1 USD)
- */
-export function formatUSD(acAmount: number): string {
-  const usdAmount = acAmount / 100;
-  if (usdAmount < 1000) {
-    return `$${usdAmount.toFixed(2)}`;
-  }
-  return `$${formatLargeNumber(usdAmount)}`;
+// Money is KES everywhere. These keep their old names so existing imports work.
+
+export function formatUSD(amount: number): string {
+  return formatArenaCurrency(amount);
 }
 
-/**
- * Format currency with K, M, B, T suffixes (Legacy, avoid for USD/AC specific needs)
- */
 export function formatCurrency(amount: number): string {
-  if (amount < 1000) {
-    return `$${amount.toFixed(2)}`;
-  }
-  return `$${formatLargeNumber(amount)}`;
+  return formatArenaCurrency(amount);
 }
 
-/**
- * Format USD currency with 1 decimal place for amounts >= 1000
- * @param amount - The amount to format
- */
 export function formatUSDWithDecimals(amount: number): string {
-  if (amount < 1000) {
-    return `$${amount.toFixed(2)}`;
-  }
-  return formatUSD(amount);
+  return formatKES(amount);
 }
