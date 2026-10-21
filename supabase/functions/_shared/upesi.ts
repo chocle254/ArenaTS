@@ -76,12 +76,23 @@ export function checkoutId(body: any): string | null {
   return body?.checkout_request_id ?? body?.data?.checkout_request_id ?? null;
 }
 
-/** B2C: pay out from the Disbursement Wallet to an M-Pesa number */
-export function payout(phone: string, amount: number) {
+/**
+ * B2C payout to an M-Pesa number. NOTE: UpesiPay charges this to the "account"
+ * balance, not the Disbursement Wallet where deposits land; asking UpesiPay for
+ * the disbursement-wallet payout endpoint (/withdraw?wallet_type=disbursement_wallet
+ * returns 404). Until then payouts queue with the money reserved.
+ */
+export function payout(phone: string, amount: number, reference: string) {
   return call('/withdrawals/initiate/', {
     method: 'POST',
-    body: JSON.stringify({ phone_number: phone, amount, callback_url: callbackUrl() }),
+    body: JSON.stringify({ phone_number: phone, amount, callback_url: callbackUrl(), external_reference: reference }),
   });
+}
+
+/** Provider's id for a payout, whichever field this endpoint uses */
+export function payoutId(body: any): string {
+  const d = body?.data ?? body ?? {};
+  return String(d.withdrawal_id ?? d.transaction_id ?? d.id ?? d.reference ?? d.request_id ?? body?.request_id ?? '');
 }
 
 export function balances() {

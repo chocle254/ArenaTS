@@ -37,18 +37,27 @@ Deno.serve(async (req) => {
       return ok();
     }
 
-    // Payout callback: { transaction_id, request_id, status: completed|failed, mpesa_receipt }
-    const providerId = String(body.request_id || body.withdrawal_id || body.transaction_id || '');
-    if (providerId) {
-      const { data: w } = await db.from('mpesa_withdrawals').select('id, status')
-        .or(`provider_id.eq.${providerId},provider_id.eq.${String(body.transaction_id || '')}`)
-        .in('status', ['processing', 'queued']).maybeSingle();
-      if (!w) return ok();
-      if (status === 'completed' || status === 'success') {
-        await db.rpc('finish_mpesa_withdrawal', { p_id: w.id, p_status: 'completed', p_provider_id: providerId, p_receipt: body.mpesa_receipt ?? null, p_reason: null, p_charge: null });
-      } else if (status === 'failed') {
-        await db.rpc('finish_mpesa_withdrawal', { p_id: w.id, p_status: 'failed', p_provider_id: providerId, p_receipt: null, p_reason: 'M-Pesa payout failed', p_charge: null });
-      }
+    // Payout callback. Shapes differ by endpoint, so match on our own reference
+    // (external_reference = our withdrawal id) or the provider's id.
+    console.log('payout callback', JSON.stringify(body));
+    const d = body.data ?? {};
+    const ref = String(body.external_reference ?? d.external_reference ?? '');
+    const ids = [body.request_id, body.withdrawal_id, body.transaction_id, d.withdrawal_id, d.transaction_id, d.id].filter(Boolean).map(String);
+    let w: { id: string; status: string } | null = null;
+    if (/^[0-9a-f-]{36}$/i.test(ref)) {
+      ({ data: w } = await db.from('mpesa_withdrawals').select('id, status').eq('id', ref).in('status', ['processing', 'queued']).maybeSingle());
+    }
+    for (const pid of ids) {
+      if (w) break;
+      ({ data: w } = await db.from('mpesa_withdrawals').select('id, status').eq('provider_id', pid).in('status', ['processing', 'queued']).maybeSingle());
+    }
+    if (!w) return ok();
+    const st = status || String(d.status || '').toLowerCase();
+    const receipt = body.mpesa_receipt ?? d.mpesa_receipt ?? body.receipt ?? d.receipt ?? null;
+    if (['completed', 'success', 'successful'].includes(st)) {
+      await db.rpc('finish_mpesa_withdrawal', { p_id: w.id, p_status: 'completed', p_provider_id: ids[0] ?? null, p_receipt: receipt, p_reason: null, p_charge: null });
+    } else if (['failed', 'cancelled', 'reversed'].includes(st)) {
+      await db.rpc('finish_mpesa_withdrawal', { p_id: w.id, p_status: 'failed', p_provider_id: ids[0] ?? null, p_receipt: null, p_reason: 'M-Pesa payout failed', p_charge: null });
     }
   } catch (e) {
     console.error('mpesa-callback error', e);

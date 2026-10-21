@@ -7,7 +7,7 @@
 // POST { action: 'retry_withdrawal', id }               -> retry a queued payout (e.g. after a low-balance pause)
 // POST { action: 'balances' }                           -> UpesiPay wallet balances
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { admin, balances, checkoutId, clientIp, cors, json, payout, providerError, stkPush, transactionStatus } from '../_shared/upesi.ts';
+import { admin, balances, checkoutId, clientIp, cors, json, payout, payoutId, providerError, stkPush, transactionStatus } from '../_shared/upesi.ts';
 
 async function sendPayout(db: ReturnType<typeof admin>, id: string) {
   const { data: w } = await db.from('mpesa_withdrawals').select('*').eq('id', id).single();
@@ -16,9 +16,10 @@ async function sendPayout(db: ReturnType<typeof admin>, id: string) {
   const { data: claimed } = await db.from('mpesa_withdrawals').update({ status: 'processing', updated_at: new Date().toISOString() }).eq('id', id).eq('status', 'queued').select('id');
   if (!claimed?.length) return { status: 'processing' };
   // Send the net amount; the player's withdrawal already covers UpesiPay's fee
-  const r = await payout(w.phone, Number(w.send_amount ?? w.amount));
+  const r = await payout(w.phone, Number(w.send_amount ?? w.amount), id);
+  console.log('payout response', r.status, JSON.stringify(r.body));
   if (r.ok) {
-    await db.rpc('finish_mpesa_withdrawal', { p_id: id, p_status: 'processing', p_provider_id: String(r.body?.data?.withdrawal_id ?? ''), p_receipt: null, p_reason: null, p_charge: Number(r.body?.data?.charge ?? 0) || null });
+    await db.rpc('finish_mpesa_withdrawal', { p_id: id, p_status: 'processing', p_provider_id: payoutId(r.body) || id, p_receipt: null, p_reason: null, p_charge: Number(r.body?.data?.charge ?? 0) || null });
     return { status: 'processing' };
   }
   if (r.body?.error_code === 'INSUFFICIENT_BALANCE') {
