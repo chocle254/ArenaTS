@@ -20,17 +20,20 @@ Deno.serve(async (req) => {
   const status = String(body.status || '').toLowerCase();
 
   try {
-    // Deposit (STK) callback: { merchant_request_id, checkout_request_id, reference_id, status }
-    if (body.checkout_request_id) {
-      const { data: dep } = await db.from('mpesa_deposits').select('id, status').eq('checkout_request_id', String(body.checkout_request_id)).maybeSingle();
+    // Deposit / disbursement top-up callback: { merchant_request_id, checkout_request_id, reference_id, status }
+    // (top-up payloads aren't documented, so also accept the id under data and success/completed)
+    const checkout = body.checkout_request_id ?? body.data?.checkout_request_id;
+    if (checkout) {
+      const { data: dep } = await db.from('mpesa_deposits').select('id, status').eq('checkout_request_id', String(checkout)).maybeSingle();
       if (!dep || dep.status !== 'pending') return ok();
-      let final = status === 'success' ? 'completed' : ['failed', 'cancelled', 'timeout'].includes(status) ? status : null;
+      const st = status || String(body.data?.status || '').toLowerCase();
+      let final = ['success', 'successful', 'completed'].includes(st) ? 'completed' : ['failed', 'cancelled', 'timeout'].includes(st) ? st : null;
       if (!final) return ok();
-      if (final === 'completed' && body.reference_id) {
-        const confirmed = await transactionStatus(String(body.reference_id)).catch(() => null);
+      if (final === 'completed') {
+        const confirmed = await transactionStatus(String(body.reference_id ?? checkout)).catch(() => null);
         if (confirmed && !['completed', 'success', 'successful'].includes(confirmed)) final = 'failed';
       }
-      await db.rpc('complete_mpesa_deposit', { p_deposit_id: dep.id, p_status: final, p_reference: body.reference_id ?? null, p_payload: body });
+      await db.rpc('complete_mpesa_deposit', { p_deposit_id: dep.id, p_status: final, p_reference: body.reference_id ?? checkout, p_payload: body });
       return ok();
     }
 

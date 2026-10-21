@@ -7,7 +7,7 @@
 // POST { action: 'retry_withdrawal', id }               -> retry a queued payout (e.g. after a low-balance pause)
 // POST { action: 'balances' }                           -> UpesiPay wallet balances
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { admin, balances, clientIp, cors, json, payout, providerError, stkPush } from '../_shared/upesi.ts';
+import { admin, balances, checkoutId, clientIp, cors, json, payout, providerError, stkPush, transactionStatus } from '../_shared/upesi.ts';
 
 async function sendPayout(db: ReturnType<typeof admin>, id: string) {
   const { data: w } = await db.from('mpesa_withdrawals').select('*').eq('id', id).single();
@@ -53,15 +53,25 @@ Deno.serve(async (req) => {
         await db.rpc('complete_mpesa_deposit', { p_deposit_id: dep.id, p_status: 'failed', p_reference: null, p_payload: r.body });
         return json(req, { error: providerError(r) }, 502);
       }
-      await db.from('mpesa_deposits').update({ checkout_request_id: r.body?.data?.checkout_request_id ?? null, merchant_request_id: r.body?.data?.merchant_request_id ?? null }).eq('id', dep.id);
+      await db.from('mpesa_deposits').update({ checkout_request_id: checkoutId(r.body), merchant_request_id: r.body?.merchant_request_id ?? r.body?.data?.merchant_request_id ?? null }).eq('id', dep.id);
       // checkout ids stay on the server; the app only gets our own deposit id
       return json(req, { id: dep.id, amount: dep.amount, fee: dep.fee, credit: dep.credit, phone: dep.phone });
     }
 
     if (action === 'deposit_status') {
-      const { data } = await db.from('mpesa_deposits').select('id, status, amount, credit, created_at').eq('id', String(body.id || '')).eq('user_id', user.id).maybeSingle();
+      const { data } = await db.from('mpesa_deposits').select('id, status, amount, credit, created_at, checkout_request_id').eq('id', String(body.id || '')).eq('user_id', user.id).maybeSingle();
       if (!data) return json(req, { error: 'Not found' }, 404);
-      return json(req, data);
+      // No callback yet after 20s: ask UpesiPay directly (top-up callbacks aren't documented)
+      if (data.status === 'pending' && data.checkout_request_id && Date.now() - new Date(data.created_at).getTime() > 20_000) {
+        const s = await transactionStatus(data.checkout_request_id).catch(() => null);
+        const final = s && ['success', 'successful', 'completed'].includes(s) ? 'completed' : s && ['failed', 'cancelled', 'canceled', 'timeout', 'expired'].includes(s) ? (s === 'canceled' ? 'cancelled' : s === 'expired' ? 'timeout' : s) : null;
+        if (final) {
+          await db.rpc('complete_mpesa_deposit', { p_deposit_id: data.id, p_status: final, p_reference: data.checkout_request_id, p_payload: { source: 'status_poll', status: s } });
+          data.status = final;
+        }
+      }
+      const { checkout_request_id: _c, ...out } = data;
+      return json(req, out);
     }
 
     if (action === 'withdraw') {
