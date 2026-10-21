@@ -1,7 +1,7 @@
 import { supabase } from '@/db/supabase';
 import { invokeEdgeFunction } from '@/lib/edge-function';
 
-export const DEPOSIT_FEE_RATE = 0.045; // UpesiPay wallet collection fee, passed on to the player
+export const DEPOSIT_FEE_RATE = 0.05; // UpesiPay disbursement-wallet top-up charge, passed on to the player
 export const DEPOSIT_MIN = 50;
 export const DEPOSIT_MAX = 70000;
 export const WITHDRAW_MIN = 50;

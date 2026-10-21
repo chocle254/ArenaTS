@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatKES } from '@/lib/arena-currency';
 import { cn } from '@/lib/utils';
-import { DEPOSIT_MAX, DEPOSIT_MIN, depositFee, depositStatus, isKenyanMobile, maskPhone, startDeposit } from './mpesa';
+import { DEPOSIT_FEE_RATE, DEPOSIT_MAX, DEPOSIT_MIN, depositFee, depositStatus, isKenyanMobile, maskPhone, startDeposit } from './mpesa';
 
 const AMOUNTS = [100, 500, 1000, 2000];
 
@@ -47,7 +47,7 @@ export function TopUpDialog({
     setBusy(false);
     setPhone(linked ? `0${linked.slice(3)}` : (profile?.phone as string | undefined) || '');
     if (suggested && suggested > 0) {
-      const s = Math.max(DEPOSIT_MIN, Math.ceil(suggested / (1 - 0.045)));
+      const s = Math.max(DEPOSIT_MIN, Math.ceil(suggested / (1 - DEPOSIT_FEE_RATE)));
       setCustom(String(s));
     } else setCustom('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,7 +160,7 @@ export function TopUpDialog({
                 <dd className="font-semibold">{formatKES(value)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">M-Pesa collection fee (4.5%)</dt>
+                <dt className="text-muted-foreground">M-Pesa top-up fee (5%)</dt>
                 <dd>-{formatKES(fee)}</dd>
               </div>
               <div className="flex justify-between border-t border-border pt-1.5">
