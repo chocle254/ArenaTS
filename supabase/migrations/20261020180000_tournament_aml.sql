@@ -8,7 +8,7 @@
 -- Rules for tournaments with a prize pool or entry fee (non-admins, unless the
 -- creator is a verified organizer such as a sponsor or brand):
 --   * at least 5 players/teams to start; below that it auto-cancels and the
---     creator is refunded minus 10%
+--     creator is refunded in full (see 20261021120000)
 --   * registration open at least 30 minutes before start
 --   * prize pool up to KES 2,000 per slot; over KES 20,000 needs verified ID
 -- At payout every prize is checked against the creator: friends, DMs, money
