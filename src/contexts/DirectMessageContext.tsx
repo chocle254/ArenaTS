@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { toast } from 'sonner';
 import { FriendRequestToast } from '@/components/FriendRequestToast';
 import { supabase } from '@/db/supabase';
+import { PUBLIC_PROFILE_COLUMNS } from '@/lib/profile-columns';
 import { buzz } from '@/lib/utils';
 import { DirectMessage, FriendRequest, Friendship, Profile } from '@/types/database';
 import { useAuth } from './AuthContext';
@@ -59,11 +60,11 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
       ] = await Promise.all([
         supabase
           .from('friendships')
-          .select('*, friend:profiles!friendships_friend_id_fkey (*)')
+          .select(`*, friend:profiles!friendships_friend_id_fkey (${PUBLIC_PROFILE_COLUMNS})`)
           .eq('user_id', user.id),
         supabase
           .from('friend_requests')
-          .select('*, sender:profiles!friend_requests_sender_id_fkey (*)')
+          .select(`*, sender:profiles!friend_requests_sender_id_fkey (${PUBLIC_PROFILE_COLUMNS})`)
           .eq('receiver_id', user.id)
           .eq('status', 'pending'),
       ]);

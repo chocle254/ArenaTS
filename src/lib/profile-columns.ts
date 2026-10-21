@@ -4,7 +4,7 @@
  * balances, Stripe IDs and KYC file paths.
  */
 export const PUBLIC_PROFILE_COLUMNS =
-  'id, gamertag, username, avatar_url, bio, role, tier, wins, losses, win_rate, rating, total_earnings, tournaments_played, current_streak, longest_streak, global_rank, favorite_games, twitch_handle, created_at, last_seen_at';
+  'id, gamertag, username, avatar_url, bio, role, tier, wins, losses, win_rate, rating, total_earnings, tournaments_played, current_streak, longest_streak, global_rank, favorite_games, twitch_handle, location, created_at, last_seen_at';
 
 /** A player counts as online if their heartbeat landed in the last 5 minutes. */
 export function isOnline(lastSeenAt: string | null | undefined): boolean {

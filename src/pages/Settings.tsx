@@ -182,7 +182,7 @@ export default function Settings() {
               <Input id="twitch" placeholder="your_channel" value={twitchHandle} onChange={(e) => setTwitchHandle(e.target.value)} disabled={loadingProfile} className="h-11" />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">Streaming is required for some matches. Your channel is shown to opponents and spectators.</p>
+          <p className="text-xs text-muted-foreground">Streaming is optional. Add your channel only if you want to stream; skip it on low-end phones. A screenshot of the result is all you need.</p>
           <Button type="submit" disabled={loadingProfile}>
             {loadingProfile ? <Loader2 className="animate-spin" /> : <Save />}
             Save profile

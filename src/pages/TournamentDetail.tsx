@@ -40,6 +40,7 @@ import { WinnerSpotlight } from '@/components/WinnerSpotlight';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile } from '@/db/profile';
 import { supabase } from '@/db/supabase';
+import { PUBLIC_PROFILE_COLUMNS } from '@/lib/profile-columns';
 import { debounce } from '@/lib/debounce';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
 import { formatCurrency } from '@/lib/format-number';
@@ -228,7 +229,7 @@ export default function TournamentDetail() {
         supabase.from('tournaments').select('*').eq('id', id).single(),
         supabase
           .from('tournament_participants')
-          .select('*, profiles (*)')
+          .select(`*, profiles (${PUBLIC_PROFILE_COLUMNS})`)
           .eq('tournament_id', id)
           .order('created_at', { ascending: true }),
         user
