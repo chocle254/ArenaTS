@@ -22,11 +22,15 @@ async function sendPayout(db: ReturnType<typeof admin>, id: string) {
     return { status: 'processing' };
   }
   if (r.body?.error_code === 'INSUFFICIENT_BALANCE') {
-    // Keep the money reserved and retry later
-    await db.from('mpesa_withdrawals').update({ status: 'queued', failure_reason: 'Waiting for payout wallet top-up', updated_at: new Date().toISOString() }).eq('id', id);
+    // Keep the money reserved and retry later. Record which balance UpesiPay checked.
+    const d = r.body?.details || {};
+    const why = `Waiting for payout wallet top-up (UpesiPay: ${d.balance_type ?? 'balance'} ${d.current_balance ?? '?'}, needs ${d.required_amount ?? '?'})`;
+    console.error('payout insufficient balance', JSON.stringify(r.body));
+    await db.from('mpesa_withdrawals').update({ status: 'queued', failure_reason: why.slice(0, 300), updated_at: new Date().toISOString() }).eq('id', id);
     return { status: 'queued', message: providerError(r) };
   }
-  await db.rpc('finish_mpesa_withdrawal', { p_id: id, p_status: 'failed', p_provider_id: null, p_receipt: null, p_reason: providerError(r), p_charge: null });
+  console.error('payout failed', r.status, JSON.stringify(r.body));
+  await db.rpc('finish_mpesa_withdrawal', { p_id: id, p_status: 'failed', p_provider_id: null, p_receipt: null, p_reason: `${providerError(r)} [${r.status}]`, p_charge: null });
   return { status: 'failed', message: providerError(r) };
 }
 
