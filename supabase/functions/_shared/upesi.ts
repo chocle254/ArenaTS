@@ -58,15 +58,25 @@ async function call(path: string, init: RequestInit = {}) {
   return { ok: res.ok && body?.success !== false, status: res.status, body };
 }
 
-/** STK push into the UpesiPay payments wallet (channel "wallet") */
+/**
+ * STK push that tops up the Disbursement Wallet (5% charge). Player deposits
+ * land in the same wallet B2C payouts are paid from. (The old
+ * /collections/initiate/ "wallet" channel paid into the payments wallet,
+ * which payouts can't use.)
+ */
 export function stkPush(phone: string, amount: number) {
-  return call('/collections/initiate/', {
+  return call('/disbursement-wallet/topup/', {
     method: 'POST',
-    body: JSON.stringify({ channel_id: 'wallet', phone_number: phone, amount, callback_url: callbackUrl() }),
+    body: JSON.stringify({ phone_number: phone, amount, callback_url: callbackUrl() }),
   });
 }
 
-/** B2C: pay out from the wallet to an M-Pesa number */
+/** checkout_request_id is top-level on top-ups and under data on STK collections */
+export function checkoutId(body: any): string | null {
+  return body?.checkout_request_id ?? body?.data?.checkout_request_id ?? null;
+}
+
+/** B2C: pay out from the Disbursement Wallet to an M-Pesa number */
 export function payout(phone: string, amount: number) {
   return call('/withdrawals/initiate/', {
     method: 'POST',
@@ -78,13 +88,19 @@ export function balances() {
   return call('/account/balance/');
 }
 
-/** Best-effort status lookup. Returns null when UpesiPay can't confirm. */
+/**
+ * Best-effort status lookup. Returns null when UpesiPay can't confirm.
+ * UpesiPay documents two forms (path id and ?reference=), so try both.
+ */
 export async function transactionStatus(id: string): Promise<string | null> {
   if (!id) return null;
-  const r = await call(`/transactions/${encodeURIComponent(id)}/`);
-  if (!r.ok) return null;
-  const s = String(r.body?.data?.status || '').toLowerCase();
-  return s || null;
+  for (const path of [`/transactions/${encodeURIComponent(id)}/`, `/transaction-status?reference=${encodeURIComponent(id)}`]) {
+    const r = await call(path).catch(() => null);
+    if (!r?.ok) continue;
+    const s = String(r.body?.data?.status ?? r.body?.status ?? '').toLowerCase();
+    if (s) return s;
+  }
+  return null;
 }
 
 export function providerError(r: { status: number; body: any }) {
