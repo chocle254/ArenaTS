@@ -566,7 +566,7 @@ function CreateTournamentDialog({
                 required
               />
               <p className="text-xs text-muted-foreground font-light">
-                Paid from your play balance when you create it. Winners get it minus a 10% platform fee. Prize tournaments need at least 5 players, and you can't play in your own.
+                Paid from your play balance when you create it. Winners get it minus a 10% platform fee. Prize tournaments need at least 5 players, and you can't play in your own. If not enough players join, you get the full prize back.
               </p>
             </div>
 
