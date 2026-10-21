@@ -77,23 +77,15 @@ export function checkoutId(body: any): string | null {
 }
 
 /**
- * B2C: pay out from the Disbursement Wallet to an M-Pesa number.
- * /withdrawals/initiate/ charges the "account" balance (the payments wallet),
- * not the Disbursement Wallet where deposits land, so use the wallet-typed
- * withdraw endpoint from UpesiPay's samples.
+ * B2C payout to an M-Pesa number. NOTE: UpesiPay charges this to the "account"
+ * balance, not the Disbursement Wallet where deposits land; asking UpesiPay for
+ * the disbursement-wallet payout endpoint (/withdraw?wallet_type=disbursement_wallet
+ * returns 404). Until then payouts queue with the money reserved.
  */
 export function payout(phone: string, amount: number, reference: string) {
-  return call('/withdraw?wallet_type=disbursement_wallet', {
+  return call('/withdrawals/initiate/', {
     method: 'POST',
-    body: JSON.stringify({
-      external_reference: reference,
-      phone_number: phone,
-      amount,
-      network_code: '63902', // Safaricom
-      channel: 'mobile',
-      payment_service: 'b2c',
-      callback_url: callbackUrl(),
-    }),
+    body: JSON.stringify({ phone_number: phone, amount, callback_url: callbackUrl(), external_reference: reference }),
   });
 }
 
