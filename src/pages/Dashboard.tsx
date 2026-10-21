@@ -1,5 +1,6 @@
 import { useReducedMotion } from 'framer-motion';
-import { livePrizePool } from '@/lib/prize';
+import { livePrizePool, ticketCover } from '@/lib/prize';
+import { SponsorBadge } from '@/components/arena/Sponsor';
 import { CalendarClock, ChevronRight, Plus, Radio, Swords, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -275,6 +276,7 @@ function FeaturedCarousel({
   onJoin: (t: Tournament) => void;
   joiningId: string | null;
 }) {
+  const { profile } = useAuth();
   const reduce = useReducedMotion();
   const scroller = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -367,6 +369,7 @@ function FeaturedCarousel({
                     {t.name}
                   </Link>
                 </h2>
+                <SponsorBadge tournament={t} className="mt-2" />
                 <div className="mt-auto flex flex-wrap items-end gap-x-6 gap-y-3">
                   <div>
                     <p className="text-[11px] text-muted-foreground">Prize pool</p>
@@ -387,7 +390,15 @@ function FeaturedCarousel({
                       <Link to={`/tournaments/${t.id}`}>Details</Link>
                     </Button>
                     <Button onClick={() => onJoin(t)} disabled={joiningId === t.id || spotsLeft === 0}>
-                      {joiningId === t.id ? 'Joining…' : spotsLeft === 0 ? 'Full' : fee > 0 ? `Join for ${formatArenaCurrency(fee)}` : 'Join free'}
+                      {joiningId === t.id
+                        ? 'Joining…'
+                        : spotsLeft === 0
+                          ? 'Full'
+                          : fee > 0
+                            ? ticketCover(t, profile, fee).cash === 0
+                              ? 'Join free with ticket'
+                              : `Join for ${formatArenaCurrency(ticketCover(t, profile, fee).cash)}`
+                            : 'Join free'}
                     </Button>
                   </div>
                 </div>

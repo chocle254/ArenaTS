@@ -108,6 +108,7 @@ export function AdminTournaments() {
                   </p>
                 </Link>
                 <span className="font-score text-lg text-gold">{formatArenaCurrency(t.prize_pool)}</span>
+                {t.sponsor_name && <span className="hidden max-w-[10rem] truncate rounded-full bg-gold/10 px-2 py-0.5 text-xs text-gold sm:inline">{t.sponsor_name}</span>}
                 <div className="ml-auto flex shrink-0 gap-1.5">
                   {(phase === 'open' || phase === 'starting' || phase === 'live') && (
                     <Button
@@ -120,6 +121,11 @@ export function AdminTournaments() {
                     >
                       {busy === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className={cn('h-4 w-4', t.featured && 'fill-current')} />}
                       {t.featured ? 'Featured' : 'Feature'}
+                    </Button>
+                  )}
+                  {t.official && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/admin/report/${t.id}`}>Report</Link>
                     </Button>
                   )}
                   {phase === 'open' && (

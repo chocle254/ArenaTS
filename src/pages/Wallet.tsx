@@ -1,4 +1,5 @@
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Clock, Loader2, Plus, ShieldCheck, Smartphone, Trophy } from 'lucide-react';
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Clock, Loader2, Plus, ShieldCheck, Smartphone, Ticket, Trophy } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import KYCVerificationDialog from '@/components/kyc/KYCVerificationDialog';
@@ -167,6 +168,21 @@ export default function Wallet() {
           </div>
         </div>
       </section>
+
+      {Number(profile?.entry_credit || 0) > 0 && (
+        <section className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/[0.07] p-4 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 gap-3">
+            <Ticket className="mt-0.5 h-6 w-6 shrink-0 text-primary-soft" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">Welcome ticket: {formatKES(Number(profile?.entry_credit || 0))}</p>
+              <p className="text-sm text-muted-foreground">Free entry to tournaments hosted by Arena or our sponsors. It's used automatically when you join one.</p>
+            </div>
+          </div>
+          <Button asChild variant="outline" size="sm" className="self-start sm:self-auto">
+            <Link to="/tournaments">Find a tournament</Link>
+          </Button>
+        </section>
+      )}
 
       {!verified && (
         <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card/60 p-4">

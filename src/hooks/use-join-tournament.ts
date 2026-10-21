@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { invalidatePlayerProgress } from '@/hooks/use-player-progress';
 import { formatArenaCurrency } from '@/lib/arena-currency';
+import { ticketCover } from '@/lib/prize';
 import type { Tournament } from '@/types/database';
 
 export interface PendingConsent {
@@ -104,10 +105,16 @@ export function useJoinTournament() {
       const entryFee = tournament.entry_fee || 0;
       const isStandby = (tournament.current_players || 0) >= (tournament.max_players || Infinity);
 
+      const { credit, cash } = ticketCover(tournament, profile, entryFee);
+      if (entryFee > 0 && cash === 0) {
+        // Fully covered by the welcome ticket
+        await insertParticipant(tournament, isStandby);
+        return;
+      }
       if (entryFee > 0) {
         const balance = profile?.arena_currency || 0;
-        if (balance < entryFee) {
-          toast.error(`You need ${formatArenaCurrency(entryFee)} to join`, {
+        if (balance < cash) {
+          toast.error(`You need ${formatArenaCurrency(cash)} to join`, {
             description: `Your balance is ${formatArenaCurrency(balance)}.`,
             action: { label: 'Top up', onClick: () => navigate('/wallet') },
           });
@@ -117,8 +124,10 @@ export function useJoinTournament() {
           title: `Join ${tournament.name}`,
           description: isStandby
             ? 'Main spots are full, so you will join the standby list. The entry fee comes out of your play balance.'
-            : 'The entry fee comes out of your play balance.',
-          amount: entryFee,
+            : credit > 0
+              ? `Your welcome ticket covers ${formatArenaCurrency(credit)}. The rest comes out of your play balance.`
+              : 'The entry fee comes out of your play balance.',
+          amount: cash,
           onConfirm: () => {
             void insertParticipant(tournament, isStandby);
           },
@@ -128,7 +137,7 @@ export function useJoinTournament() {
 
       await insertParticipant(tournament, isStandby);
     },
-    [user, profile?.arena_currency, joiningId, navigate, insertParticipant],
+    [user, profile, joiningId, navigate, insertParticipant],
   );
 
   return { startJoin, joiningId, consent, setConsent, insertParticipant };

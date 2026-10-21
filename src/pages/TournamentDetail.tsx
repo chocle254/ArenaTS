@@ -1,5 +1,6 @@
 import { TournamentRules } from '@/components/arena/TournamentRules';
-import { isSliding, livePrizePool, perEntryBonus } from '@/lib/prize';
+import { SponsorPanel } from '@/components/arena/Sponsor';
+import { isSliding, livePrizePool, perEntryBonus, ticketCover } from '@/lib/prize';
 import { 
   ArrowLeft, 
   Bell,
@@ -465,14 +466,15 @@ export default function TournamentDetail() {
       // Fetch latest balance
       const { data: latestProfile } = await supabase
         .from('profiles')
-        .select('arena_currency, available_balance')
+        .select('arena_currency, available_balance, entry_credit')
         .eq('id', user!.id)
         .single();
       
       const currentBalance = latestProfile?.arena_currency || 0;
+      const teamCash = ticketCover(tournament, latestProfile, totalTeamFee).cash;
 
-      if (totalTeamFee > 0 && currentBalance < totalTeamFee) {
-        throw new Error(`Not enough in your play balance. You need ${formatArenaCurrency(totalTeamFee)} to register a team.`);
+      if (totalTeamFee > 0 && currentBalance < teamCash) {
+        throw new Error(`Not enough in your play balance. You need ${formatArenaCurrency(teamCash)} to register a team.`);
       }
 
       // NO MANUAL DEDUCTION HERE - Handled by database trigger on tournament_participants table
@@ -570,17 +572,22 @@ export default function TournamentDetail() {
     const teamSize = tournament.team_size || 1;
     const totalTeamFee = entryFee * teamSize;
     
+    const teamCover = ticketCover(tournament, profile, totalTeamFee);
+    if (totalTeamFee > 0 && teamCover.cash === 0) {
+      executeTeamRegister(teamId, teamName, members, totalTeamFee);
+      return;
+    }
     if (totalTeamFee > 0) {
       const userBalance = profile?.arena_currency || 0;
-      if (userBalance < totalTeamFee) {
-        toast.error(`Not enough in your play balance. You need ${formatArenaCurrency(totalTeamFee)} to register a team.`);
+      if (userBalance < teamCover.cash) {
+        toast.error(`Not enough in your play balance. You need ${formatArenaCurrency(teamCover.cash)} to register a team.`);
         return;
       }
 
       setConsentConfig({
         title: `Register Team: ${teamName}`,
         description: `You are registering your team for ${tournament.name}. The total entry fee for your team (${teamSize} members) will be deducted from your balance.`,
-        amount: totalTeamFee,
+        amount: teamCover.cash,
         onConfirm: () => executeTeamRegister(teamId, teamName, members, totalTeamFee)
       });
       setConsentOpen(true);
@@ -595,14 +602,15 @@ export default function TournamentDetail() {
       // Fetch latest balance
       const { data: latestProfile } = await supabase
         .from('profiles')
-        .select('arena_currency, available_balance')
+        .select('arena_currency, available_balance, entry_credit')
         .eq('id', user!.id)
         .single();
       
       const currentBalance = latestProfile?.arena_currency || 0;
+      const soloCash = ticketCover(tournament, latestProfile, entryFee).cash;
 
-      if (entryFee > 0 && currentBalance < entryFee) {
-        throw new Error(`Not enough in your play balance. You need ${formatArenaCurrency(entryFee)} to join.`);
+      if (entryFee > 0 && currentBalance < soloCash) {
+        throw new Error(`Not enough in your play balance. You need ${formatArenaCurrency(soloCash)} to join.`);
       }
 
       // NO MANUAL DEDUCTION HERE - Handled by database trigger tr_tournament_join_fee on tournament_participants table
@@ -700,18 +708,25 @@ export default function TournamentDetail() {
     }
 
     const entryFee = tournament.entry_fee || 0;
-    
+    const cover = ticketCover(tournament, profile, entryFee);
+
+    if (entryFee > 0 && cover.cash === 0) {
+      executeJoinTournament(entryFee);
+      return;
+    }
     if (entryFee > 0) {
       const userBalance = profile?.arena_currency || 0;
-      if (userBalance < entryFee) {
-        toast.error(`Not enough in your play balance. You need ${formatArenaCurrency(entryFee)} to join.`);
+      if (userBalance < cover.cash) {
+        toast.error(`Not enough in your play balance. You need ${formatArenaCurrency(cover.cash)} to join.`);
         return;
       }
 
       setConsentConfig({
         title: `Join Tournament: ${tournament.name}`,
-        description: `You are about to join this tournament. The entry fee comes out of your play balance.`,
-        amount: entryFee,
+        description: cover.credit > 0
+          ? `Your welcome ticket covers ${formatArenaCurrency(cover.credit)}. The rest comes out of your play balance.`
+          : `You are about to join this tournament. The entry fee comes out of your play balance.`,
+        amount: cover.cash,
         onConfirm: () => executeJoinTournament(entryFee)
       });
       setConsentOpen(true);
@@ -949,7 +964,15 @@ export default function TournamentDetail() {
                   disabled={joining || checkingGameId}
                   className="hidden w-full md:inline-flex md:w-auto"
                 >
-                  {joining ? 'Joining…' : joinAsStandby ? 'Join as standby' : (tournament.entry_fee || 0) > 0 ? `Join · ${formatArenaCurrency(tournament.entry_fee)}` : 'Join free'}
+                  {joining
+                    ? 'Joining…'
+                    : joinAsStandby
+                      ? 'Join as standby'
+                      : (tournament.entry_fee || 0) > 0
+                        ? ticketCover(tournament, profile, tournament.entry_fee).cash === 0
+                          ? 'Join free with your welcome ticket'
+                          : `Join · ${formatArenaCurrency(ticketCover(tournament, profile, tournament.entry_fee).cash)}`
+                        : 'Join free'}
                 </Button>
               )}
               <div className="flex gap-2">
@@ -1030,6 +1053,8 @@ export default function TournamentDetail() {
             </div>
           </div>
         </div>
+
+        <SponsorPanel tournament={tournament} />
 
         {/* Key numbers */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
