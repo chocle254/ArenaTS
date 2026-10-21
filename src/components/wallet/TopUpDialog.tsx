@@ -173,7 +173,7 @@ export function TopUpDialog({
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Smartphone className="h-5 w-5" />}
               Send M-Pesa prompt
             </Button>
-            {value > 0 && (value < DEPOSIT_MIN || value > DEPOSIT_MAX) && <p className="text-center text-xs text-destructive">Between KES 50 and KES 70,000.</p>}
+            {value > 0 && (value < DEPOSIT_MIN || value > DEPOSIT_MAX) && <p className="text-center text-xs text-destructive">Between KES {DEPOSIT_MIN} and KES 70,000.</p>}
           </div>
         )}
 
