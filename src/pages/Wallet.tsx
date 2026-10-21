@@ -5,7 +5,7 @@ import KYCVerificationDialog from '@/components/kyc/KYCVerificationDialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { maskPhone } from '@/components/wallet/mpesa';
+import { WITHDRAW_MIN, maskPhone } from '@/components/wallet/mpesa';
 import { TopUpDialog } from '@/components/wallet/TopUpDialog';
 import { WithdrawDialog } from '@/components/wallet/WithdrawDialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -152,13 +152,18 @@ export default function Wallet() {
               )}
             </p>
           </div>
-          <div className="grid grid-cols-[1fr_auto] gap-2">
-            <Button variant="outline" className="h-11" onClick={() => setWithdraw(true)} disabled={winnings < 50}>
-              <ArrowUpRight className="h-4 w-4" /> Withdraw
-            </Button>
-            <Button variant="ghost" className="h-11" onClick={() => setMove(true)} disabled={winnings <= 0} aria-label="Move winnings to play balance">
-              <ArrowRightLeft className="h-4 w-4" />
-            </Button>
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <Button className="h-11" onClick={() => setWithdraw(true)} disabled={winnings < WITHDRAW_MIN}>
+                <ArrowUpRight className="h-4 w-4" /> Withdraw
+              </Button>
+              <Button variant="outline" className="h-11" onClick={() => setMove(true)} disabled={winnings <= 0}>
+                <ArrowRightLeft className="h-4 w-4" /> Use to play
+              </Button>
+            </div>
+            {winnings > 0 && winnings < WITHDRAW_MIN && (
+              <p className="text-xs text-muted-foreground">You can withdraw from {formatKES(WITHDRAW_MIN)}. Win a bit more, or use it to play.</p>
+            )}
           </div>
         </div>
       </section>
