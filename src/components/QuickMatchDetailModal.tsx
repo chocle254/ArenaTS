@@ -320,16 +320,10 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
             </div>
             
             <div className="flex items-center justify-between md:justify-end gap-3">
-              {challenge.status === 'disputed' && (
-                <Badge variant="destructive" className="animate-pulse gap-1 px-2 md:px-3 py-0.5 md:py-1 text-[10px]">
+              {(challenge.status === 'disputed' || challenge.status === 'disputed_warning') && (
+                <Badge variant="destructive" className="gap-1 px-2 md:px-3 py-0.5 md:py-1 text-[10px]">
                   <AlertTriangle className="h-3 w-3" />
-                  DISPUTED
-                </Badge>
-              )}
-              {challenge.status === 'disputed_warning' && (
-                <Badge variant="destructive" className="animate-pulse gap-1 px-2 md:px-3 py-0.5 md:py-1 text-[10px]">
-                  <AlertTriangle className="h-3 w-3" />
-                  FINAL WARNING
+                  IN DISPUTE
                 </Badge>
               )}
               {challenge.both_players_ready && challenge.status !== 'completed' && challenge.status !== 'disputed' && challenge.status !== 'disputed_warning' && (
@@ -337,16 +331,18 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                   <MatchTimer deadline={challenge.match_deadline} />
                 </div>
               )}
-              <Badge variant="outline" className="px-2 md:px-3 py-0.5 md:py-1 border-primary/30 text-primary bg-primary/5 uppercase text-[8px] md:text-[10px] tracking-widest font-bold">
-                {challenge.status === 'disputed_warning' ? 'WARNING' : challenge.status}
-              </Badge>
+              {challenge.status !== 'disputed' && challenge.status !== 'disputed_warning' && (
+                <Badge variant="outline" className="px-2 md:px-3 py-0.5 md:py-1 border-primary/30 text-primary bg-primary/5 uppercase text-[8px] md:text-[10px] tracking-widest font-bold">
+                  {challenge.status}
+                </Badge>
+              )}
             </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row min-h-0 max-md:overflow-y-auto md:overflow-hidden">
           {/* Left Side: Rules & Actions */}
-          <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-border/50 bg-muted/5 flex flex-col min-h-0 h-[45vh] md:h-full">
+          <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-border/50 bg-muted/5 flex flex-col min-h-0 max-md:shrink-0 md:h-full">
             <ScrollArea className="flex-1">
               <div className="p-4 md:p-6 flex flex-col gap-4 md:gap-6 pb-20">
                 <section className="order-2 md:order-1">
@@ -493,10 +489,9 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                           <div className="flex items-start gap-3">
                             <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                             <div className="space-y-2">
-                              <h4 className="text-sm font-bold text-destructive uppercase tracking-tight">⚠️ CONFLICTING REPORTS</h4>
+                              <h4 className="text-sm font-bold text-destructive uppercase tracking-tight">Conflicting reports</h4>
                               <p className="text-xs text-foreground leading-relaxed">
-                                Both of you claimed the win. If you sort it out, change your report here. Otherwise add evidence above and the referee decides. You can also cancel the match, but 
-                                <span className="font-bold text-destructive"> both ratings will be reduced by 0.5</span>.
+                                Both of you claimed the win. If you've sorted it out in chat, change your report here and the match settles. Otherwise add evidence above and the referee decides.
                               </p>
                             </div>
                           </div>
@@ -531,20 +526,11 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                                 )}
                               </Button>
                             </div>
-                            
-                            <Button 
-                              variant="ghost" 
-                              className="w-full text-xs text-muted-foreground hover:text-destructive transition-colors"
-                              onClick={() => handleReportResult('cancel')}
-                              disabled={submitting}
-                            >
-                              Cancel Match (0.5 Penalty)
-                            </Button>
                           </div>
                         </div>
                       )}
 
-                      {isAdmin && (challenge.status === 'disputed' || challenge.status === 'disputed_warning') && (
+                      {isAdmin && !isChallenger && !isOpponent && (challenge.status === 'disputed' || challenge.status === 'disputed_warning') && (
                         <div className="mt-8 pt-6 border-t border-destructive/20 space-y-4">
                           <div className="flex items-center gap-2 text-destructive">
                             <ShieldAlert className="h-3 w-3" />
@@ -589,7 +575,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
           </div>
 
           {/* Right Side: Chat */}
-          <div className="flex-1 flex flex-col bg-background min-h-[300px] md:min-h-0">
+          <div className="flex-1 flex flex-col bg-background max-md:shrink-0 max-md:h-[70dvh] md:min-h-0">
             <div className="p-4 border-b border-border/50 bg-muted/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex -space-x-2">
