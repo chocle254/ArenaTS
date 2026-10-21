@@ -20,6 +20,7 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
 const TermsAndConditions = lazy(() => import('@/pages/TermsAndConditions'));
 const HostWithArena = lazy(() => import('@/pages/HostWithArena'));
+const Invite = lazy(() => import('@/pages/Invite'));
 const SponsorReport = lazy(() => import('@/pages/SponsorReport'));
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
 const PaymentSuccess = lazy(() => import('@/pages/PaymentSuccess'));
@@ -126,6 +127,12 @@ export const routes: RouteConfig[] = [
     name: 'Wallet',
     path: '/wallet',
     element: <Wallet />,
+    public: false,
+  },
+  {
+    name: 'Invite friends',
+    path: '/invite',
+    element: <Invite />,
     public: false,
   },
   {

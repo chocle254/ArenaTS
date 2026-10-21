@@ -178,9 +178,14 @@ export default function Wallet() {
               <p className="text-sm text-muted-foreground">Free entry to tournaments hosted by Arena or our sponsors. It's used automatically when you join one.</p>
             </div>
           </div>
-          <Button asChild variant="outline" size="sm" className="self-start sm:self-auto">
-            <Link to="/tournaments">Find a tournament</Link>
-          </Button>
+          <div className="flex gap-2 self-start sm:self-auto">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/tournaments">Find a tournament</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/invite">Invite friends for more</Link>
+            </Button>
+          </div>
         </section>
       )}
 

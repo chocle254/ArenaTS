@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { savePendingGameAccounts } from '@/lib/pending-game-accounts';
+import { clearRefCode, normalizeRefCode, readRefCode, saveRefCode } from '@/lib/referral';
 import { safeNextPath } from '@/lib/safe-redirect';
 import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
@@ -34,6 +35,13 @@ export default function SignUp() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const next = safeNextPath(searchParams.get('next'));
+  const refParam = normalizeRefCode(searchParams.get('ref'));
+  const [refCode, setRefCode] = useState(() => refParam || readRefCode());
+
+  // Keep the invite code on this device in case they sign up with Google
+  useEffect(() => {
+    if (refParam) saveRefCode(refParam);
+  }, [refParam]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -103,7 +111,9 @@ export default function SignUp() {
         timezone: 'Africa/Nairobi',
         favoriteGames: selectedGames,
         gameAccounts: gameAccountsArray,
+        referralCode: normalizeRefCode(refCode) || undefined,
       });
+      clearRefCode();
 
       toast.success('Account created. Welcome to Arena!');
       navigate(next);
@@ -170,6 +180,27 @@ export default function SignUp() {
             </button>
           </div>
           <p className="text-xs text-muted-foreground">At least 6 characters.</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="refCode">Invite code (optional)</Label>
+          <Input
+            id="refCode"
+            autoComplete="off"
+            autoCapitalize="characters"
+            value={refCode}
+            onChange={(e) => {
+              setRefCode(e.target.value.toUpperCase());
+              if (e.target.value.trim()) saveRefCode(e.target.value);
+              else clearRefCode();
+            }}
+            disabled={loading}
+            maxLength={12}
+            className="h-11 uppercase tracking-widest"
+          />
+          <p className="text-xs text-muted-foreground">
+            {refCode ? 'You and your friend both get tournament ticket credit after your first M-Pesa deposit.' : 'Got a code from a friend? Add it here.'}
+          </p>
         </div>
 
         <div className="grid gap-4">

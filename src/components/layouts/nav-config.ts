@@ -15,6 +15,7 @@ import {
   Wallet,
   Gavel,
   Bell,
+  Gift,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -43,6 +44,7 @@ export const SOCIAL_NAV: NavItem[] = [
 export const ACCOUNT_NAV: NavItem[] = [
   { name: 'Profile', href: '/profile', icon: User, keywords: ['level', 'xp', 'stats'] },
   { name: 'Wallet', href: '/wallet', icon: Wallet, keywords: ['balance', 'deposit', 'withdraw', 'money'] },
+  { name: 'Invite friends', href: '/invite', icon: Gift, keywords: ['referral', 'refer', 'invite', 'code', 'bonus'] },
   { name: 'Settings', href: '/settings', icon: Settings, keywords: ['password', 'account', 'twitch', 'game id'] },
 ];
 

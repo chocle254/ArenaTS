@@ -74,6 +74,10 @@ export interface Profile {
   organizer_verified?: boolean;
   /** Welcome ticket: entry credit for official tournaments (not withdrawable) */
   entry_credit?: number;
+  /** This player's invite code */
+  referral_code?: string;
+  /** Who invited this player */
+  referred_by?: string | null;
   organizer_name?: string | null;
   kyc_rejection_reason?: string | null;
   kyc_id_front_path?: string | null;

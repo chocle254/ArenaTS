@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/db/supabase';
 import { getProfile } from '@/db/profile';
 import { flushPendingGameAccounts } from '@/lib/pending-game-accounts';
+import { claimSavedRefCode } from '@/lib/referral';
 import type { Profile } from '@/types/database';
 
 interface SignUpData {
@@ -19,6 +20,8 @@ interface SignUpData {
   efootballId?: string;
   pubgId?: string;
   gameAccounts?: { game: string; inGameName: string }[];
+  /** Invite code from a friend's link; the server links the two accounts */
+  referralCode?: string;
 }
 
 interface AuthContextType {
@@ -97,6 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!user) return;
     flushPendingGameAccounts(user.id, user.email).catch(() => {});
+    // Google/Discord/Twitch sign-ups: apply the invite code saved from the link
+    claimSavedRefCode(user.created_at).then((ok) => {
+      if (ok) toast.success('Invite code added. You and your friend get a ticket bonus after your first deposit.');
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
@@ -177,7 +184,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           favorite_games: data.favoriteGames,
           twitch_handle: data.twitchHandle,
           efootball_id: data.efootballId,
-          pubg_id: data.pubgId
+          pubg_id: data.pubgId,
+          referral_code: data.referralCode || undefined
         }
       }
     });
