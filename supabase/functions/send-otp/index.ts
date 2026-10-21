@@ -13,6 +13,16 @@ function getCorsHeaders(req: Request) {
   };
 }
 
+/** Escape text placed inside the email HTML */
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+}
+
+/** Caller IP; cf-connecting-ip is set by the edge and can't be faked */
+function clientIp(req: Request): string {
+  return (req.headers.get('cf-connecting-ip') || req.headers.get('x-real-ip') || (req.headers.get('x-forwarded-for') || '').split(',')[0] || 'unknown').trim().slice(0, 64);
+}
+
 function generateOTP(): string {
   // Cryptographically secure 6-digit code
   const buffer = new Uint32Array(1);
@@ -57,7 +67,7 @@ function arenaEmailTemplate(code: string, email: string) {
           </div>
           <div class="expiry">This code expires in ${OTP_EXPIRY_MINUTES} minutes.</div>
           <div class="divider"></div>
-          <div class="footer">Sent to ${email}.<br>ARENA Gaming Platform — all withdrawals and KYC actions are protected by this verification.</div>
+          <div class="footer">Sent to ${esc(email)}.<br>ARENA Gaming Platform — all withdrawals and KYC actions are protected by this verification.</div>
         </div>
       </div>
     </body>
@@ -88,13 +98,33 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { email, purpose = 'signup' } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const email = String(body.email || '');
+    const purpose = ['signup', 'signin', 'withdrawal', 'kyc'].includes(String(body.purpose)) ? String(body.purpose) : 'signup';
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email || email.length > 254 || !/^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/.test(email)) {
       throw new Error('A valid email address is required.');
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+
+    // Anti-abuse: this endpoint needs no login, so it must not be usable to
+    // flood inboxes from Arena's address (or to keep guessing codes).
+    const limits: [string, number, number][] = [
+      [`otp:email:${normalizedEmail}`, 3, 15 * 60],
+      [`otp:email-day:${normalizedEmail}`, 8, 24 * 60 * 60],
+      [`otp:ip:${clientIp(req)}`, 20, 60 * 60],
+    ];
+    for (const [key, limit, windowSeconds] of limits) {
+      const { data: allowed, error: rlError } = await supabaseAdmin.rpc('take_rate_limit', { p_key: key, p_limit: limit, p_window_seconds: windowSeconds });
+      if (rlError) throw new Error('Please try again in a moment.');
+      if (!allowed) {
+        return new Response(JSON.stringify({ error: 'Too many codes requested. Wait a few minutes and try again.' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 429,
+        });
+      }
+    }
     const code = generateOTP();
 
     // Clean up old unverified codes for this email to avoid confusion
@@ -123,7 +153,7 @@ serve(async (req) => {
     const client = new SMTPClient({
       connection: {
         hostname: 'smtp.gmail.com',
-        port: 587,
+        port: 465,
         tls: true,
         auth: {
           username: gmailUser,
@@ -145,7 +175,8 @@ serve(async (req) => {
       });
       await client.close();
     } catch (smtpError) {
-      console.error('SMTP send error:', smtpError);
+      console.error('SMTP send error name:', smtpError?.name);
+      console.error('SMTP send error message:', smtpError?.message);
       // Rollback the stored code so the user can retry
       await supabaseAdmin.from('email_otps').delete().eq('email', normalizedEmail).eq('code', code);
       throw new Error('Unable to send verification email. Please try again.');

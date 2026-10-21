@@ -1,8 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const MAX_ATTEMPTS = 5;
-
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get('origin') || Deno.env.get('FRONTEND_URL') || 'http://localhost:5173';
   return {
@@ -27,68 +25,38 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { email, code, purpose = 'signup', markVerified = true } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const email = String(body.email || '');
+    const code = String(body.code || '');
+    const purpose = String(body.purpose || 'signup');
+    const markVerified = body.markVerified !== false;
 
-    if (!email || !code || code.length !== 6) {
+    if (!email || !/^\d{6}$/.test(code.trim())) {
       throw new Error('Email and 6-digit code are required.');
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const normalizedCode = code.trim();
 
-    // Find the most recent unverified code for this email/purpose
-    const { data: otpRows, error: fetchError } = await supabaseAdmin
-      .from('email_otps')
-      .select('*')
-      .eq('email', normalizedEmail)
-      .eq('purpose', purpose)
-      .eq('verified', false)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (fetchError) {
-      console.error('Failed to fetch OTP:', fetchError);
+    // Check and count the attempt in one locked step, so parallel guesses
+    // can't each get the full attempt budget.
+    const { data: result, error: checkError } = await supabaseAdmin.rpc('check_email_otp', {
+      p_email: normalizedEmail,
+      p_purpose: purpose,
+      p_code: code.trim(),
+      p_mark_verified: markVerified,
+    });
+    if (checkError) {
+      console.error('Failed to check OTP:', checkError);
       throw new Error('Unable to verify code. Please try again.');
     }
-
-    if (!otpRows || otpRows.length === 0) {
-      throw new Error('No active verification code found. Please request a new code.');
-    }
-
-    const otp = otpRows[0];
-
-    if (new Date(otp.expires_at) < new Date()) {
-      throw new Error('Verification code has expired. Please request a new one.');
-    }
-
-    if (otp.attempts >= MAX_ATTEMPTS) {
-      throw new Error('Too many failed attempts. Please request a new code.');
-    }
-
-    // Increment attempts regardless of correctness
-    const { error: attemptError } = await supabaseAdmin
-      .from('email_otps')
-      .update({ attempts: otp.attempts + 1 })
-      .eq('id', otp.id);
-
-    if (attemptError) {
-      console.error('Failed to update OTP attempts:', attemptError);
-    }
-
-    if (otp.code !== normalizedCode) {
-      throw new Error('Invalid verification code. Please try again.');
-    }
-
-    if (markVerified) {
-      const { error: verifyError } = await supabaseAdmin
-        .from('email_otps')
-        .update({ verified: true, verified_at: new Date().toISOString() })
-        .eq('id', otp.id);
-
-      if (verifyError) {
-        console.error('Failed to mark OTP verified:', verifyError);
-        throw new Error('Verification succeeded but could not be finalized. Please try again.');
-      }
+    const messages: Record<string, string> = {
+      missing: 'No active verification code found. Please request a new code.',
+      expired: 'Verification code has expired. Please request a new one.',
+      too_many: 'Too many failed attempts. Please request a new code.',
+      invalid: 'Invalid verification code. Please try again.',
+    };
+    if (result !== 'ok') {
+      throw new Error(messages[String(result)] || 'Unable to verify code. Please try again.');
     }
 
     return new Response(

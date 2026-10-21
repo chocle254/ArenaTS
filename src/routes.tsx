@@ -23,7 +23,6 @@ const HostWithArena = lazy(() => import('@/pages/HostWithArena'));
 const Invite = lazy(() => import('@/pages/Invite'));
 const SponsorReport = lazy(() => import('@/pages/SponsorReport'));
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
-const PaymentSuccess = lazy(() => import('@/pages/PaymentSuccess'));
 const Profile = lazy(() => import('@/pages/Profile'));
 const QuickMatch = lazy(() => import('@/pages/QuickMatch'));
 const RefereeDashboard = lazy(() => import('@/pages/RefereeDashboard'));
@@ -193,12 +192,6 @@ export const routes: RouteConfig[] = [
     name: 'Referee Dashboard',
     path: '/referee',
     element: <RefereeDashboard />,
-    public: false,
-  },
-  {
-    name: 'Payment Success',
-    path: '/payment-success',
-    element: <PaymentSuccess />,
     public: false,
   },
   {
