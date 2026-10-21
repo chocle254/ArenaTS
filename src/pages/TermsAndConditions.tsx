@@ -73,7 +73,7 @@ const TermsAndConditions = () => {
       icon: <CreditCard className="w-5 h-5" />,
       content: `6.1 Currency: All balances, entry fees and prizes are in Kenyan shillings (KES). Arena is currently available in Kenya only.
       
-      6.2 M-Pesa: Deposits and withdrawals are processed through M-Pesa via our payment partner. A 5% top-up fee applies to deposits and M-Pesa transfer charges apply to withdrawals. We may hold payments during fraud investigations. 
+      6.2 M-Pesa: Deposits and withdrawals are processed through M-Pesa via our payment partner. A 5% top-up fee applies to deposits. Withdrawals carry the M-Pesa transfer fee, shown before you confirm and taken from the amount withdrawn. We may hold payments during fraud investigations. 
       
       6.3 Chargebacks: Any user who initiates an unauthorized chargeback will have their account permanently suspended, and all remaining balances will be forfeited to cover administrative and penalty costs.`
     },

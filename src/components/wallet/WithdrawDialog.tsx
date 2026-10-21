@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatKES } from '@/lib/arena-currency';
-import { UNVERIFIED_MONTHLY_MAX, UNVERIFIED_WITHDRAW_MAX, WITHDRAW_MAX, WITHDRAW_MIN, maskPhone, requestWithdrawal } from './mpesa';
+import { UNVERIFIED_MONTHLY_MAX, UNVERIFIED_WITHDRAW_MAX, WITHDRAW_MAX, WITHDRAW_MIN, cheaperFeeHint, maskPhone, quoteWithdrawal, requestWithdrawal } from './mpesa';
 
 export function WithdrawDialog({
   open,
@@ -31,7 +31,7 @@ export function WithdrawDialog({
   const cap = verified ? Math.min(WITHDRAW_MAX, winnings) : Math.min(UNVERIFIED_WITHDRAW_MAX, winnings, left);
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ status: string; message?: string } | null>(null);
+  const [result, setResult] = useState<{ status: string; message?: string; send?: number } | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -42,7 +42,9 @@ export function WithdrawDialog({
 
   const value = Math.round(Number(amount)) || 0;
   const blocked = !p?.mpesa_phone || (!verified && left < WITHDRAW_MIN);
-  const valid = !blocked && value >= WITHDRAW_MIN && value <= cap;
+  const quote = value >= WITHDRAW_MIN ? quoteWithdrawal(value) : null;
+  const hint = cheaperFeeHint(value);
+  const valid = !blocked && value >= WITHDRAW_MIN && value <= cap && !!quote;
 
   const submit = async () => {
     setBusy(true);
@@ -76,7 +78,7 @@ export function WithdrawDialog({
             </p>
             <p className="max-w-xs text-sm text-muted-foreground">
               {result.status === 'processing'
-                ? `${formatKES(value)} is being sent to your M-Pesa. It usually arrives within a minute.`
+                ? `${formatKES(result.send ?? quote?.send ?? value)} is being sent to your M-Pesa. It usually arrives within a minute.`
                 : result.message || 'We’ll notify you when it’s sent.'}
             </p>
             <Button onClick={() => onOpenChange(false)}>Done</Button>
@@ -118,13 +120,37 @@ export function WithdrawDialog({
                   Max
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">M-Pesa charges a small transfer fee. Very large withdrawals can take a little longer.</p>
             </div>
+
+            {quote && !blocked && (
+              <dl className="space-y-1.5 rounded-xl border border-border p-3 text-sm" aria-live="polite">
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">From your winnings</dt>
+                  <dd className="font-score">{formatKES(quote.total)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">M-Pesa transfer fee</dt>
+                  <dd className="font-score text-muted-foreground">−{formatKES(quote.fee)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between border-t border-border pt-2">
+                  <dt className="font-semibold">You receive</dt>
+                  <dd className="font-score text-2xl font-bold text-gold">{formatKES(quote.send)}</dd>
+                </div>
+                {quote.total < value && (
+                  <p className="pt-1 text-xs text-muted-foreground">{formatKES(value - quote.total)} stays in your winnings.</p>
+                )}
+                {hint && (
+                  <p className="pt-1 text-xs text-primary-soft">Withdraw {formatKES(hint.upTo)} or less and the fee drops to {formatKES(hint.fee)}.</p>
+                )}
+              </dl>
+            )}
+            {value > 0 && value < WITHDRAW_MIN && <p className="text-xs text-destructive">The smallest withdrawal is {formatKES(WITHDRAW_MIN)}.</p>}
 
             <Button className="h-12 w-full text-base" onClick={submit} disabled={!valid || busy}>
               {busy && <Loader2 className="h-5 w-5 animate-spin" />}
-              Withdraw {value ? formatKES(value) : ''}
+              {quote ? `Withdraw and receive ${formatKES(quote.send)}` : 'Withdraw'}
             </Button>
+            <p className="text-center text-xs text-muted-foreground">The transfer fee is M-Pesa's charge for sending money. Arena doesn't add anything.</p>
           </div>
         )}
       </DialogContent>

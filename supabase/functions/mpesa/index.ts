@@ -15,7 +15,8 @@ async function sendPayout(db: ReturnType<typeof admin>, id: string) {
   // Claim it so two calls can't pay twice
   const { data: claimed } = await db.from('mpesa_withdrawals').update({ status: 'processing', updated_at: new Date().toISOString() }).eq('id', id).eq('status', 'queued').select('id');
   if (!claimed?.length) return { status: 'processing' };
-  const r = await payout(w.phone, Number(w.amount));
+  // Send the net amount; the player's withdrawal already covers UpesiPay's fee
+  const r = await payout(w.phone, Number(w.send_amount ?? w.amount));
   if (r.ok) {
     await db.rpc('finish_mpesa_withdrawal', { p_id: id, p_status: 'processing', p_provider_id: String(r.body?.data?.withdrawal_id ?? ''), p_receipt: null, p_reason: null, p_charge: Number(r.body?.data?.charge ?? 0) || null });
     return { status: 'processing' };
@@ -77,11 +78,12 @@ Deno.serve(async (req) => {
     if (action === 'withdraw') {
       const { data: w, error } = await db.rpc('request_mpesa_withdrawal', { p_user: user.id, p_amount: Math.round(Number(body.amount)), p_ip: clientIp(req) });
       if (error) return json(req, { error: error.message }, 400);
+      const quote = { send: w.send ?? w.amount, fee: w.fee ?? 0, total: w.amount };
       if (w.status === 'review') {
-        return json(req, { id: w.id, status: 'review', message: 'Your withdrawal is being checked. This usually takes a few hours.' });
+        return json(req, { id: w.id, status: 'review', ...quote, message: 'Your withdrawal is being checked. This usually takes a few hours.' });
       }
       const sent = await sendPayout(db, w.id);
-      return json(req, { id: w.id, ...sent });
+      return json(req, { id: w.id, ...quote, ...sent });
     }
 
     // ---- admin ----
