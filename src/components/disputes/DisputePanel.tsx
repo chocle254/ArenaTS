@@ -27,7 +27,7 @@ export function DisputePanel({
 }) {
   const [dispute, setDispute] = useState<Dispute | null>(null);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
-  const [note, setNote] = useState('');
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [appeal, setAppeal] = useState('');
   const [appealing, setAppealing] = useState(false);
@@ -71,8 +71,8 @@ export function DisputePanel({
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     try {
-      await uploadEvidence(dispute, currentUserId, file, note, setUploading);
-      setNote('');
+      await uploadEvidence(dispute, currentUserId, file, noteRef.current?.value || '', setUploading);
+      if (noteRef.current) noteRef.current.value = '';
       toast.success('Evidence added');
       load();
     } catch (e) {
@@ -127,7 +127,7 @@ export function DisputePanel({
 
       {dispute.status === 'collecting' && isPlayer && (
         <div className="space-y-2">
-          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional: what happened? (e.g. I won 3-1, opponent left in round 2)" rows={2} maxLength={500} />
+          <Textarea ref={noteRef} defaultValue="" placeholder="Optional: what happened? (e.g. I won 3-1, opponent left in round 2)" rows={2} maxLength={500} />
           <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
           <Button className="w-full" onClick={() => fileRef.current?.click()} disabled={!!uploading || mine.length >= 6}>
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : mine.length ? <ImagePlus className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
