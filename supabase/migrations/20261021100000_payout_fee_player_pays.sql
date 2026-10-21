@@ -208,7 +208,7 @@ BEGIN
   INSERT INTO transactions (user_id, type, amount, description, status, currency, metadata)
   VALUES (p_user, 'withdrawal', -q.total,
           'M-Pesa withdrawal to ' || overlay(p.mpesa_phone placing '****' from 6 for 4) || ' (KES ' || q.send || ' sent, KES ' || q.fee || ' M-Pesa fee)',
-          CASE WHEN v_status = 'review' THEN 'pending' ELSE 'processing' END, 'KES',
+          'pending', 'KES',
           jsonb_build_object('withdrawal_id', v_id, 'sent', q.send, 'fee', q.fee));
 
   RETURN json_build_object('id', v_id, 'status', v_status, 'phone', p.mpesa_phone, 'amount', q.total, 'send', q.send, 'fee', q.fee, 'flags', v_flags);

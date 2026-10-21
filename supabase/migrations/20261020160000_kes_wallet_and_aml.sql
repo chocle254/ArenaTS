@@ -1022,7 +1022,7 @@ BEGIN
   VALUES (p_user, p.mpesa_phone, p_amount, v_status, v_flags, p_ip)
   RETURNING id INTO v_id;
   INSERT INTO transactions (user_id, type, amount, description, status, currency, metadata)
-  VALUES (p_user, 'withdrawal', -p_amount, 'M-Pesa withdrawal to ' || overlay(p.mpesa_phone placing '****' from 6 for 4), CASE WHEN v_status = 'review' THEN 'pending' ELSE 'processing' END, 'KES', jsonb_build_object('withdrawal_id', v_id));
+  VALUES (p_user, 'withdrawal', -p_amount, 'M-Pesa withdrawal to ' || overlay(p.mpesa_phone placing '****' from 6 for 4), 'pending', 'KES', jsonb_build_object('withdrawal_id', v_id));
 
   RETURN json_build_object('id', v_id, 'status', v_status, 'phone', p.mpesa_phone, 'amount', p_amount, 'flags', v_flags);
 END;
