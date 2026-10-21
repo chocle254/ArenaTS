@@ -95,15 +95,12 @@ export default function AdminKYC() {
   const fetchSubmissions = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('kyc_status', ['pending', 'verified', 'rejected'])
-        .order('updated_at', { ascending: false });
+      // Full rows (email, document paths) are admin-only on the server
+      const { data, error } = await supabase.rpc('admin_get_profiles', { p_ids: null, p_kyc_only: true });
 
       if (error) throw error;
 
-      const mapped = (data || []).map((p) => ({
+      const mapped = ((data as Profile[] | null) || []).map((p) => ({
         profile: p as Profile,
         submitted_at: p.updated_at || p.created_at,
       }));

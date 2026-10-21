@@ -129,24 +129,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = React.useCallback(async (usernameOrEmail: string, password: string) => {
     let email = usernameOrEmail.trim();
-    
-    // If input doesn't contain @, it's a username or gamertag - look up the email
-    if (!usernameOrEmail.includes('@')) {
-      const handle = usernameOrEmail.trim();
-      // Two exact-match lookups instead of a raw PostgREST .or() string, so
-      // characters like commas or parentheses in the input can't alter the filter.
-      const lookup = async (column: 'username' | 'gamertag') => {
-        const { data } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq(column, handle)
-          .limit(1)
-          .maybeSingle();
-        return data?.email as string | undefined;
-      };
-      const found = (await lookup('gamertag')) || (await lookup('username'));
-      // Fallback to the legacy email format for accounts created by username only
-      email = found || `${handle}@miaoda.com`;
+    // Emails are private, so there's no gamertag-to-email lookup. Very old
+    // accounts created with a username only used this address format.
+    if (!email.includes('@')) {
+      email = `${email}@miaoda.com`;
     }
     
     const { error } = await supabase.auth.signInWithPassword({ email, password });

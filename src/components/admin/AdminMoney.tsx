@@ -99,16 +99,16 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
       supabase.from('mpesa_withdrawals').select('id, user_id, phone, amount, status, flags, failure_reason, created_at, profiles!mpesa_withdrawals_user_id_fkey(gamertag, kyc_status, created_at)').in('status', ['review', 'queued', 'processing']).order('created_at', { ascending: true }).limit(100),
       supabase.from('held_winnings').select('id, user_id, amount, source, reason, created_at, profiles(gamertag)').eq('status', 'frozen').order('created_at', { ascending: true }).limit(100),
       supabase.from('aml_flags').select('id, user_id, kind, severity, detail, created_at, profiles!aml_flags_user_id_fkey(gamertag)').is('resolved_at', null).neq('severity', 'info').order('created_at', { ascending: false }).limit(100),
-      supabase.from('profiles').select('available_balance, pending_balance, arena_currency').limit(10000),
+      supabase.rpc('admin_balance_totals'),
     ]);
     setWithdrawals((w.data || []) as unknown as Withdrawal[]);
     setHolds((h.data || []) as unknown as Hold[]);
     setFlags((f.data || []) as unknown as Flag[]);
-    const rows = (totals.data || []) as { available_balance: number | null; pending_balance: number | null; arena_currency: number | null }[];
+    const t = (totals.data || {}) as { available_balance?: number; pending_balance?: number; arena_currency?: number };
     setOwed({
-      winnings: rows.reduce((s, r) => s + Number(r.available_balance || 0), 0),
-      held: rows.reduce((s, r) => s + Number(r.pending_balance || 0), 0),
-      play: rows.reduce((s, r) => s + Number(r.arena_currency || 0), 0),
+      winnings: Number(t.available_balance || 0),
+      held: Number(t.pending_balance || 0),
+      play: Number(t.arena_currency || 0),
     });
   }, []);
 

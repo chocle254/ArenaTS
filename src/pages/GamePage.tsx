@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
+import { getProfile } from '@/db/profile';
 import { supabase } from '@/db/supabase';
 import { useJoinTournament } from '@/hooks/use-join-tournament';
 import { formatArenaCurrency } from '@/lib/arena-currency';
@@ -266,11 +267,7 @@ function CreateTournamentDialog({
     setLoading(true);
     try {
       // Fetch latest balance to be sure
-      const { data: latestProfile } = await supabase
-        .from('profiles')
-        .select('arena_currency, available_balance')
-        .eq('id', user!.id)
-        .single();
+      const latestProfile = await getProfile();
       
       const currentBalance = latestProfile?.arena_currency || 0;
 

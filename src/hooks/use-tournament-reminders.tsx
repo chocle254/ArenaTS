@@ -56,7 +56,7 @@ export function useTournamentReminders() {
           }
 
           // Create notification in database
-          await supabase.rpc('create_notification', {
+          await supabase.rpc('notify_player', {
             p_user_id: user.id,
             p_type: 'tournament',
             p_title: 'Tournament Reminder',

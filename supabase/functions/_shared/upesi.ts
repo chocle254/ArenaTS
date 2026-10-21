@@ -26,8 +26,13 @@ export function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors(req), 'Content-Type': 'application/json' } });
 }
 
+/**
+ * The caller's IP for fraud checks. cf-connecting-ip is set by the edge and
+ * can't be faked; the first x-forwarded-for entry can be, so it's the last resort.
+ */
 export function clientIp(req: Request) {
-  return (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || req.headers.get('cf-connecting-ip') || null;
+  const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-real-ip') || (req.headers.get('x-forwarded-for') || '').split(',')[0];
+  return ip?.trim().slice(0, 64) || null;
 }
 
 function token() {

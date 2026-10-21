@@ -38,6 +38,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WinnerSpotlight } from '@/components/WinnerSpotlight';
 import { useAuth } from '@/contexts/AuthContext';
+import { getProfile } from '@/db/profile';
 import { supabase } from '@/db/supabase';
 import { debounce } from '@/lib/debounce';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
@@ -464,11 +465,7 @@ export default function TournamentDetail() {
     setJoining(true);
     try {
       // Fetch latest balance
-      const { data: latestProfile } = await supabase
-        .from('profiles')
-        .select('arena_currency, available_balance, entry_credit')
-        .eq('id', user!.id)
-        .single();
+      const latestProfile = await getProfile();
       
       const currentBalance = latestProfile?.arena_currency || 0;
       const teamCash = ticketCover(tournament, latestProfile, totalTeamFee).cash;
@@ -539,18 +536,22 @@ export default function TournamentDetail() {
       if (memberError) throw memberError;
 
       // Notify each invited teammate so they can accept/decline.
-      const inviteNotifications = profiles.map(p => ({
-        user_id: p.id,
-        type: 'team_invite',
-        title: 'Team Invite',
-        message: `${profile?.gamertag || 'A captain'} invited you to join team "${teamName}" for ${tournament!.name}.`,
-        link: `/tournaments/${tournament!.id}`
-      }));
-
-      if (inviteNotifications.length > 0) {
-        const { error: notifError } = await supabase.from('notifications').insert(inviteNotifications);
-        if (notifError) console.error('Error sending team invite notifications:', notifError);
-      }
+      // Players can only notify each other through the server (labelled with the sender)
+      await Promise.all(
+        profiles.map((p) =>
+          supabase
+            .rpc('notify_player', {
+              p_user_id: p.id,
+              p_type: 'tournament',
+              p_title: 'Team invite',
+              p_message: `${profile?.gamertag || 'A captain'} invited you to join team "${teamName}" for ${tournament!.name}.`,
+              p_link: `/tournaments/${tournament!.id}`,
+            })
+            .then(({ error }) => {
+              if (error) console.error('Error sending team invite notification:', error);
+            }),
+        ),
+      );
 
       toast.success(`Team ${teamName} created! Waiting on teammates to accept their invites.`);
       setJoinTeamDialogOpen(false);
@@ -600,11 +601,7 @@ export default function TournamentDetail() {
     setJoining(true);
     try {
       // Fetch latest balance
-      const { data: latestProfile } = await supabase
-        .from('profiles')
-        .select('arena_currency, available_balance, entry_credit')
-        .eq('id', user!.id)
-        .single();
+      const latestProfile = await getProfile();
       
       const currentBalance = latestProfile?.arena_currency || 0;
       const soloCash = ticketCover(tournament, latestProfile, entryFee).cash;

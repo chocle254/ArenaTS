@@ -8,7 +8,7 @@ export async function createNotification(
   link?: string
 ) {
   try {
-    const { error } = await supabase.rpc('create_notification', {
+    const { error } = await supabase.rpc('notify_player', {
       p_user_id: userId,
       p_type: type,
       p_title: title,

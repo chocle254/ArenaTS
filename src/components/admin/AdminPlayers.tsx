@@ -49,7 +49,7 @@ export function AdminPlayers() {
       setLoading(true);
       let q = supabase
         .from('profiles')
-        .select('id, gamertag, avatar_url, role, arena_currency, total_earnings, wins, losses, kyc_status, last_seen_at, created_at, organizer_verified')
+        .select('id, gamertag, avatar_url, role, total_earnings, wins, losses, kyc_status, last_seen_at, created_at, organizer_verified')
         .order(filter === 'online' ? 'last_seen_at' : 'created_at', { ascending: false, nullsFirst: false })
         .limit(limit + 1);
       const term = query.trim();
@@ -61,6 +61,13 @@ export function AdminPlayers() {
       const { data } = await q;
       if (!alive) return;
       const list = (data || []) as PlayerRow[];
+      // Balances are private columns: admins read them through the server
+      if (list.length) {
+        const { data: full } = await supabase.rpc('admin_get_profiles', { p_ids: list.map((p) => p.id), p_kyc_only: false });
+        const bal = new Map(((full || []) as { id: string; arena_currency: number | null }[]).map((p) => [p.id, p.arena_currency]));
+        for (const p of list) p.arena_currency = bal.get(p.id) ?? null;
+      }
+      if (!alive) return;
       setHasMore(list.length > limit);
       setRows(list.slice(0, limit));
       setLoading(false);

@@ -185,14 +185,16 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
       const targets = (data || []).filter((p) => p.id !== userId);
       if (!targets.length) return;
       const from = profile?.gamertag || 'A player';
-      await supabase.from('notifications').insert(
-        targets.map((t) => ({
-          user_id: t.id,
-          type: 'mention',
-          title: 'You were mentioned',
-          message: `${from} mentioned you in World Chat: “${text.slice(0, 80)}${text.length > 80 ? '…' : ''}”`,
-          link: '/world-chat',
-        })),
+      await Promise.all(
+        targets.map((t) =>
+          supabase.rpc('notify_player', {
+            p_user_id: t.id,
+            p_type: 'mention',
+            p_title: 'mentioned you',
+            p_message: `${from} mentioned you in World Chat: “${text.slice(0, 80)}${text.length > 80 ? '…' : ''}”`,
+            p_link: '/world-chat',
+          }),
+        ),
       );
     },
     [userId, profile?.gamertag],

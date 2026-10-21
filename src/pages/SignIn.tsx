@@ -52,7 +52,7 @@ export default function SignIn() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usernameOrEmail.trim() || !password) {
-      toast.error('Enter your email or gamertag and password');
+      toast.error('Enter your email and password');
       return;
     }
     if (!ageConfirmed) {
@@ -74,7 +74,7 @@ export default function SignIn() {
     } catch (error: any) {
       otpPendingRef.current = false;
       const msg = String(error?.message || '');
-      toast.error(/invalid login credentials/i.test(msg) ? 'That email/gamertag and password don’t match.' : msg || 'Could not sign in');
+      toast.error(/invalid login credentials/i.test(msg) ? 'That email and password don’t match.' : msg || 'Could not sign in');
     } finally {
       setLoading(false);
     }
@@ -95,7 +95,7 @@ export default function SignIn() {
     >
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div className="space-y-2">
-          <Label htmlFor="usernameOrEmail">Email or gamertag</Label>
+          <Label htmlFor="usernameOrEmail">Email</Label>
           <Input
             id="usernameOrEmail"
             autoComplete="username"
