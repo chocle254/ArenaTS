@@ -611,6 +611,18 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                   </div>
                 ) : (
                   messages.map((msg, i) => {
+                    if (msg.is_system_message || !msg.user_id) {
+                      const isAi = String(msg.message).startsWith('🤖');
+                      return (
+                        <div key={msg.id} className="flex flex-col items-center">
+                          <span className={`mb-1 text-[10px] font-bold uppercase tracking-wider ${isAi ? 'text-primary-soft' : 'text-gold'}`}>{isAi ? 'AI referee' : 'Arena'}</span>
+                          <div className={`max-w-[92%] rounded-xl border px-4 py-2.5 text-center text-sm ${isAi ? 'border-primary/30 bg-primary/10' : 'border-gold/30 bg-gold/10'}`}>
+                            {isAi ? String(msg.message).replace(/^🤖\s*AI referee:\s*/, '') : msg.message}
+                          </div>
+                          <span className="mt-1 text-[10px] text-muted-foreground">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      );
+                    }
                     const isMe = msg.user_id === currentUserId;
                     const senderEntity = msg.user_id === challenge.challenger_id ? entities.challenger : entities.opponent;
                     return (

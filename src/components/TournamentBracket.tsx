@@ -137,6 +137,19 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
           let userGamertag = 'Unknown';
           let isRefereeMsg = false;
 
+          if (newMessage.is_system_message || !newMessage.user_id) {
+            const isAi = String(newMessage.message).startsWith('🤖');
+            setMessages(prev => [...prev, {
+              id: newMessage.id,
+              user_id: newMessage.user_id,
+              user: isAi ? 'AI referee' : 'Arena',
+              text: isAi ? String(newMessage.message).replace(/^🤖\s*AI referee:\s*/, '') : newMessage.message,
+              timestamp: new Date(newMessage.created_at),
+              is_referee: true,
+            }]);
+            return;
+          }
+
           if (newMessage.user_id === match.player1?.user_id) {
             userGamertag = match.player1?.gamertag || 'Player 1';
           } else if (newMessage.user_id === match.player2?.user_id) {
@@ -192,6 +205,18 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
       const formattedMessages = await Promise.all(data.map(async (msg: any) => {
         let userGamertag = 'Unknown';
         let isRefereeMsg = false;
+
+        if (msg.is_system_message || !msg.user_id) {
+          const isAi = String(msg.message).startsWith('🤖');
+          return {
+            id: msg.id,
+            user_id: msg.user_id,
+            user: isAi ? 'AI referee' : 'Arena',
+            text: isAi ? String(msg.message).replace(/^🤖\s*AI referee:\s*/, '') : msg.message,
+            timestamp: new Date(msg.created_at),
+            is_referee: true,
+          };
+        }
 
         if (msg.user_id === match.player1?.user_id) {
           userGamertag = match.player1?.gamertag || 'Player 1';
@@ -483,7 +508,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
                 return (
                   <div key={msg.id} className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} ${msg.is_referee ? 'items-center' : ''}`}>
                     <span className={`text-[10px] font-medium mb-1 px-1 ${msg.is_referee ? 'text-amber-400 font-bold' : 'text-muted-foreground'}`}>
-                      {msg.is_referee ? `${msg.user} (Official)` : (isCurrentUser ? 'You' : msg.user)}
+                      {msg.is_referee ? (msg.user_id ? `${msg.user} (Official)` : msg.user) : (isCurrentUser ? 'You' : msg.user)}
                     </span>
                     <div 
                       className={`max-w-[85%] rounded-2xl px-4 py-2 ${
