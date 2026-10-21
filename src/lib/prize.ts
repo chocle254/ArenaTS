@@ -29,3 +29,17 @@ export function livePrizePool(t: PrizeFields): number {
   const slots = Math.floor((Number(t.current_players) || 0) / Math.max(Number(t.team_size) || 1, 1));
   return base + Math.max(slots - (Number(t.sliding_after) || 0), 0) * perEntryBonus(t);
 }
+
+/**
+ * Welcome ticket: entry credit (profiles.entry_credit) pays entry fees on
+ * official tournaments (hosted by Arena or a verified organizer). Mirrors
+ * handle_tournament_join_fee on the server, which is authoritative.
+ */
+export function ticketCover(
+  tournament: { official?: boolean | null } | null | undefined,
+  profile: { entry_credit?: number | null; arena_currency?: number | null } | null | undefined,
+  fee: number,
+): { credit: number; cash: number } {
+  const credit = tournament?.official ? Math.min(Math.max(Number(profile?.entry_credit) || 0, 0), fee) : 0;
+  return { credit, cash: Math.max(fee - credit, 0) };
+}

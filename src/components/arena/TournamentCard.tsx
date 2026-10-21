@@ -1,4 +1,5 @@
 import { Bell, Check, Loader2, Users } from 'lucide-react';
+import { SponsorBadge } from '@/components/arena/Sponsor';
 import { isSliding, livePrizePool } from '@/lib/prize';
 import type React from 'react';
 import { Link } from 'react-router-dom';
@@ -107,6 +108,7 @@ export function TournamentCard({
             {tournament.name}
           </Link>
         </h3>
+        <SponsorBadge tournament={tournament} className="-mt-2" />
 
         <div className="flex items-end justify-between gap-3">
           <div>

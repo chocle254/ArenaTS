@@ -202,6 +202,7 @@ export default function Landing() {
             <a href="#how" className="hover:text-foreground">How it works</a>
             <a href="#brackets" className="hover:text-foreground">Brackets</a>
             <a href="#fair-play" className="hover:text-foreground">Fair play</a>
+            <Link to="/host" className="hover:text-foreground">Host with Arena</Link>
             <a href="#money" className="hover:text-foreground">Payouts</a>
           </div>
           <div className="ml-auto flex items-center gap-2">

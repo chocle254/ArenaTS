@@ -25,7 +25,7 @@ const BARE_ROUTES = ['/', '/sign-in', '/sign-up', '/auth/callback'];
 /** Messaging screens: full height, no page padding (conversations go full-screen on phones). */
 const IMMERSIVE_ROUTES = ['/world-chat', '/messages'];
 /** Public pages that signed-out visitors may see with a minimal header. */
-const PUBLIC_DOC_ROUTES = ['/terms', '/privacy', '/404'];
+const PUBLIC_DOC_ROUTES = ['/terms', '/privacy', '/404', '/host'];
 
 function useBadgeCounts() {
   const { unreadCount: worldChat } = useWorldChat();

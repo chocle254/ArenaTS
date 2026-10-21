@@ -19,6 +19,8 @@ const LiveStream = lazy(() => import('@/pages/LiveStream'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
 const TermsAndConditions = lazy(() => import('@/pages/TermsAndConditions'));
+const HostWithArena = lazy(() => import('@/pages/HostWithArena'));
+const SponsorReport = lazy(() => import('@/pages/SponsorReport'));
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
 const PaymentSuccess = lazy(() => import('@/pages/PaymentSuccess'));
 const Profile = lazy(() => import('@/pages/Profile'));
@@ -215,5 +217,17 @@ export const routes: RouteConfig[] = [
     path: '/terms',
     element: <TermsAndConditions />,
     public: true,
+  },
+  {
+    name: 'Host with Arena',
+    path: '/host',
+    element: <HostWithArena />,
+    public: true,
+  },
+  {
+    name: 'Sponsor report',
+    path: '/admin/report/:id',
+    element: <SponsorReport />,
+    public: false,
   },
 ];

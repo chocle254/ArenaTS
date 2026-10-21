@@ -72,6 +72,8 @@ export interface Profile {
   mpesa_phone_locked_until?: string | null;
   /** Sponsors, brands and event hosts approved by an admin: no prize caps */
   organizer_verified?: boolean;
+  /** Welcome ticket: entry credit for official tournaments (not withdrawable) */
+  entry_credit?: number;
   organizer_name?: string | null;
   kyc_rejection_reason?: string | null;
   kyc_id_front_path?: string | null;
@@ -109,6 +111,12 @@ export interface Tournament {
   /** 'fixed' or 'sliding' (guarantee + entries after sliding_after slots) */
   prize_mode?: 'fixed' | 'sliding';
   sliding_after?: number | null;
+  /** Hosted by Arena or a verified organizer: can show a sponsor and accept welcome tickets */
+  official?: boolean;
+  sponsor_name?: string | null;
+  sponsor_logo_url?: string | null;
+  sponsor_url?: string | null;
+  sponsor_message?: string | null;
   creator_contribution: number;
   prize_distribution: Record<string, number>;
   platform_fee_percentage: number;

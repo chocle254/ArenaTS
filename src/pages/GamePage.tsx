@@ -240,6 +240,11 @@ function CreateTournamentDialog({
   });
   // ACGL-style growing prize: guarantee up front, entries after N slots add to it
   const [sliding, setSliding] = useState(false);
+  // Sponsor (admins and verified organizers only; the server ignores it for others)
+  const canSponsor = profile?.role === 'admin' || !!profile?.organizer_verified;
+  const isAdmin = profile?.role === 'admin';
+  const [sponsor, setSponsor] = useState({ name: '', logo: '', url: '', message: '' });
+  const [deal, setDeal] = useState({ contact: '', amount: '', fee: '', paidVia: 'M-Pesa', invoice: '' });
   const [slidingAfter, setSlidingAfter] = useState('');
   
   // Calculate team size based on selected mode
@@ -315,6 +320,14 @@ function CreateTournamentDialog({
         prize_mode: slideOn ? 'sliding' : 'fixed',
         sliding_after: slideOn ? slideAfterNum : null,
         prize_distribution: prizeDistribution,
+        ...(canSponsor && sponsor.name.trim()
+          ? {
+              sponsor_name: sponsor.name.trim(),
+              sponsor_logo_url: sponsor.logo.trim() || null,
+              sponsor_url: sponsor.url.trim() || null,
+              sponsor_message: sponsor.message.trim() || null,
+            }
+          : {}),
         platform_fee_percentage: 10,
         status: 'open',
         start_time: new Date(formData.startTime).toISOString(),
@@ -331,11 +344,27 @@ function CreateTournamentDialog({
         throw new Error(`You need ${formatArenaCurrency(deduction)} to fund this prize pool.`);
       }
 
-      const { error } = await supabase
+      const { data: created, error } = await supabase
         .from('tournaments')
-        .insert(tournamentData);
+        .insert(tournamentData)
+        .select('id')
+        .single();
 
       if (error) throw error;
+
+      // Admin: record who paid for a sponsored tournament (admin-only table)
+      if (isAdmin && sponsor.name.trim() && created?.id) {
+        const { error: dealError } = await supabase.from('sponsor_deals').insert({
+          tournament_id: created.id,
+          sponsor_name: sponsor.name.trim(),
+          contact: deal.contact.trim() || null,
+          amount: Number(deal.amount) || 0,
+          hosting_fee: Number(deal.fee) || 0,
+          paid_via: deal.paidVia || null,
+          invoice_ref: deal.invoice.trim() || null,
+        });
+        if (dealError) toast.warning('Tournament created, but the sponsor deal could not be saved: ' + dealError.message);
+      }
 
       await refreshProfile();
       toast.success('Tournament created successfully!');
@@ -528,6 +557,42 @@ function CreateTournamentDialog({
             />
             <p className="text-xs text-muted-foreground">Optional. Shown to players above the house rules.</p>
           </div>
+
+          {canSponsor && (
+            <fieldset className="space-y-3 rounded-xl border border-gold/30 bg-gold/[0.04] p-4">
+              <legend className="px-1 text-sm font-semibold">Sponsor (optional)</legend>
+              <p className="text-xs text-muted-foreground">Shown as "Sponsored by …" on the tournament. Links must start with https://.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="sponsorName">Sponsor name</Label>
+                  <Input id="sponsorName" maxLength={60} placeholder="e.g. Acme Energy" value={sponsor.name} onChange={(e) => setSponsor({ ...sponsor, name: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sponsorUrl">Website</Label>
+                  <Input id="sponsorUrl" type="url" inputMode="url" maxLength={300} placeholder="https://" value={sponsor.url} onChange={(e) => setSponsor({ ...sponsor, url: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sponsorLogo">Logo image link</Label>
+                  <Input id="sponsorLogo" type="url" inputMode="url" maxLength={500} placeholder="https://…/logo.png" value={sponsor.logo} onChange={(e) => setSponsor({ ...sponsor, logo: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sponsorMessage">Short message</Label>
+                  <Input id="sponsorMessage" maxLength={200} placeholder="Powering Kenya's best players" value={sponsor.message} onChange={(e) => setSponsor({ ...sponsor, message: e.target.value })} />
+                </div>
+              </div>
+              {isAdmin && sponsor.name.trim() && (
+                <div className="space-y-3 border-t border-border pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground">Deal details (only admins see these)</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input aria-label="Sponsor contact" placeholder="Contact (name, phone or email)" value={deal.contact} onChange={(e) => setDeal({ ...deal, contact: e.target.value })} />
+                    <Input aria-label="Invoice or receipt reference" placeholder="Invoice / M-Pesa reference" value={deal.invoice} onChange={(e) => setDeal({ ...deal, invoice: e.target.value })} />
+                    <Input aria-label="Amount the sponsor paid (KES)" inputMode="numeric" placeholder="Amount paid (KES)" value={deal.amount} onChange={(e) => setDeal({ ...deal, amount: e.target.value.replace(/\D/g, '') })} />
+                    <Input aria-label="Hosting fee (KES)" inputMode="numeric" placeholder="Your hosting fee (KES)" value={deal.fee} onChange={(e) => setDeal({ ...deal, fee: e.target.value.replace(/\D/g, '') })} />
+                  </div>
+                </div>
+              )}
+            </fieldset>
+          )}
 
           {/* Entry Fee and Prize Pool */}
           <div className="space-y-4">

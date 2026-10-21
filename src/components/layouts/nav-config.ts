@@ -50,6 +50,7 @@ export const ACCOUNT_NAV: NavItem[] = [
 export const SEARCH_ONLY_NAV: NavItem[] = [
   { name: 'Achievements', href: '/achievements', icon: Award, keywords: ['badges', 'trophies'] },
   { name: 'Notifications', href: '/notifications', icon: Bell, keywords: ['alerts'] },
+  { name: 'Host with Arena', href: '/host', icon: Trophy, keywords: ['sponsor', 'brand', 'organizer', 'business'] },
 ];
 
 export const STAFF_NAV: NavItem[] = [
