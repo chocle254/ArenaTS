@@ -41,7 +41,8 @@ type Admin = ReturnType<typeof createClient>;
 function clean(s: unknown, max = 40): string {
   return String(s ?? '')
     .normalize('NFKC')
-    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ')
+    // control, invisible/format (zero-width, bidi overrides), line/paragraph separators
+    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ')
     .replace(/[<>`]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
