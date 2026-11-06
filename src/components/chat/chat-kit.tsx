@@ -46,7 +46,7 @@ export function ChatShell({ header, children, composer, className }: { header: R
     >
       {header}
       {children}
-      <div style={phone ? { paddingBottom: 'var(--safe-bottom)' } : undefined} className="shrink-0 border-t border-border bg-card/95 backdrop-blur">
+      <div style={phone ? { paddingBottom: 'var(--safe-bottom)' } : undefined} className="shrink-0 border-t border-border glass">
         {composer}
       </div>
     </section>
@@ -175,7 +175,7 @@ export function MessageList({
         <button
           type="button"
           onClick={() => scroll.scrollToBottom()}
-          className="absolute bottom-3 right-3 flex h-10 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-sm font-semibold shadow-lg md:right-6"
+          className="absolute bottom-3 right-3 flex h-10 items-center gap-1.5 rounded-full border border-border glass px-3 text-sm font-semibold shadow-lg md:right-6"
           aria-label={scroll.unseen ? `${scroll.unseen} new messages` : 'Jump to latest'}
         >
           {scroll.unseen > 0 && <span className="rounded-full bg-primary px-1.5 text-xs text-white">{scroll.unseen}</span>}
@@ -200,7 +200,7 @@ export function dayLabel(date: Date): string {
 export function DayDivider({ date }: { date: Date }) {
   return (
     <div className="sticky top-1 z-10 my-3 flex justify-center">
-      <span className="rounded-full bg-secondary/90 px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm backdrop-blur">{dayLabel(date)}</span>
+      <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">{dayLabel(date)}</span>
     </div>
   );
 }
@@ -253,7 +253,7 @@ export function Bubble({
       {showAvatarColumn && !own && <div className="w-8 shrink-0">{group.last ? avatar : null}</div>}
       <div
         className={cn(
-          'relative max-w-[82%] px-3 pb-1.5 pt-1.5 text-[15px] leading-snug shadow-sm sm:max-w-[70%]',
+          'relative max-w-[82%] px-3 pb-1.5 pt-1.5 text-[15px] leading-snug sm:max-w-[70%]',
           own ? 'bg-primary text-white' : 'bg-secondary text-foreground',
           // Rounded corners with a "tail" corner on the last bubble of a run
           'rounded-2xl',
@@ -407,7 +407,7 @@ export function Composer({
           disabled={!canSend}
           aria-label="Send"
           className={cn(
-            'flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all duration-150',
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150',
             canSend ? 'scale-100 bg-primary text-white active:scale-95' : 'scale-95 bg-secondary text-muted-foreground',
           )}
         >

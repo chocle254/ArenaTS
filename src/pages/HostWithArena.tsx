@@ -54,7 +54,7 @@ export default function HostWithArena() {
   return (
     <div className="mx-auto max-w-5xl space-y-16 pb-10">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl border border-gold/25 bg-gradient-to-br from-gold/[0.10] via-card to-card p-6 sm:p-10">
+      <section className="relative overflow-hidden rounded-lg glass p-6 sm:p-10">
         <Trophy className="absolute -right-6 -top-6 h-40 w-40 text-gold/[0.07]" aria-hidden />
         <p className="text-sm font-semibold text-gold">For brands and organizers</p>
         <h1 className="mt-2 max-w-[16ch] text-5xl leading-[0.95] sm:text-6xl">Host a tournament for Kenya’s gamers</h1>
@@ -113,7 +113,7 @@ export default function HostWithArena() {
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {FORMATS.map((f) => (
-            <div key={f.name} className="rounded-2xl border border-border bg-card p-5">
+            <div key={f.name} className="rounded-2xl border border-border glass p-5">
               <h3 className="text-2xl leading-tight">{f.name}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{f.who}</p>
               <ul className="mt-4 space-y-2 text-sm">

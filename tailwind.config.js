@@ -71,6 +71,7 @@ export default {
                     foreground: 'hsl(var(--success-foreground))'
                 },
                 gold: 'hsl(var(--gold))',
+                warning: 'hsl(var(--warning))',
                 live: 'hsl(var(--live))',
                 'primary-soft': 'hsl(var(--primary-soft))',
                 chart: {

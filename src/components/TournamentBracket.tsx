@@ -302,7 +302,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
           tournament_id: tournamentId,
           match_id:      match.id,
           user_id:       currentUserId,
-          message: `✅ Match result confirmed. Both players agreed that ${winnerGamertag} won.`,
+          message: `Match result confirmed. Both players agreed that ${winnerGamertag} won.`,
         });
         const numRounds = Math.ceil(Math.log2(participants?.length || 2));
         const isFinal   = match.round >= numRounds;
@@ -316,7 +316,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
           tournament_id: tournamentId,
           match_id:      match.id,
           user_id:       currentUserId,
-          message: '⚠️ Match results conflict! Moved to dispute for admin review.',
+          message: 'Your results conflict, so this match moved to a dispute for a referee to review.',
         });
         toast.warning('Results disputed! An admin will review and resolve.');
       } else {
@@ -358,7 +358,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
         tournament_id: tournamentId,
         match_id: match.id,
         user_id: currentUserId,
-        message: '🛡️ Official Action: The dispute has been cancelled. Both players, please discuss and report the correct winner again.',
+        message: 'Official action: the dispute has been cancelled. Both players, please discuss and report the correct winner again.',
       });
 
     } catch (error: any) {
@@ -392,7 +392,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
         tournament_id: tournamentId,
         match_id:      match.id,
         user_id:       currentUserId,
-        message: `🛡️ Official decision: ${winnerGamertag} wins this match.`,
+        message: `Official decision: ${winnerGamertag} wins this match.`,
       });
       const numRounds = Math.ceil(Math.log2(participants?.length || 2));
       const isFinal   = match.round >= numRounds;
@@ -431,7 +431,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
       {matchResult && (
         <div className="mb-4 p-4 rounded-lg border bg-muted/30">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold uppercase tracking-wider">Match Status</span>
+            <span className="text-sm font-semibold">Match status</span>
             <Badge variant={
               matchResult.status === 'confirmed' ? 'default' :
               matchResult.status === 'disputed' ? 'destructive' :
@@ -489,11 +489,11 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
 
       {/* Chat Messages */}
       <div className="mb-4">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-1">Match Chat</p>
+        <p className="text-xs font-bold text-muted-foreground mb-2 px-1">Match chat</p>
         <ScrollArea className="h-[250px] p-4 border rounded-lg bg-muted/10">
           {loadingMessages ? (
             <div className="text-center py-8">
-              <MessageCircle className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-30 animate-pulse" />
+              <MessageCircle className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-30" />
               <p className="text-sm text-muted-foreground">Loading messages...</p>
             </div>
           ) : messages.length === 0 ? (
@@ -507,13 +507,13 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
                 const isCurrentUser = msg.user_id === currentUserId;
                 return (
                   <div key={msg.id} className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} ${msg.is_referee ? 'items-center' : ''}`}>
-                    <span className={`text-[10px] font-medium mb-1 px-1 ${msg.is_referee ? 'text-amber-400 font-bold' : 'text-muted-foreground'}`}>
+                    <span className={`text-[10px] font-medium mb-1 px-1 ${msg.is_referee ? 'text-warning font-bold' : 'text-muted-foreground'}`}>
                       {msg.is_referee ? (msg.user_id ? `${msg.user} (Official)` : msg.user) : (isCurrentUser ? 'You' : msg.user)}
                     </span>
                     <div 
                       className={`max-w-[85%] rounded-2xl px-4 py-2 ${
                         msg.is_referee
-                          ? 'bg-amber-500/10 border border-amber-500/30 text-amber-200 rounded-xl'
+                          ? 'bg-warning/10 border border-warning/30 text-warning rounded-xl'
                           : isCurrentUser 
                             ? 'bg-primary text-primary-foreground rounded-tr-none' 
                             : 'bg-muted border border-border rounded-tl-none'
@@ -522,7 +522,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
                       <p className="text-sm leading-relaxed break-words">
                         {msg.text}
                       </p>
-                      <span className={`text-[9px] mt-1 block ${isCurrentUser ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                      <span className={`text-[11px] mt-1 block ${isCurrentUser ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -605,7 +605,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
       {isParticipant && (!matchResult || matchResult.status === 'pending') && (
         <div className="space-y-6 pt-4 border-t border-border">
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Report Match Result</h4>
+            <h4 className="text-sm font-semibold mb-3">Report the result</h4>
             <div className="grid grid-cols-2 gap-3">
               <Button
                 variant={myReport === match.player1?.user_id ? 'default' : 'outline'}
@@ -905,7 +905,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
   const streamer = match.player2; // 2nd person is the streamer
   
   return (
-    <Card className={`p-3 min-w-[220px] border-border bg-card backdrop-blur-sm ${
+    <Card className={`p-3 min-w-[220px] border-border glass ${
       isWinnerMatch && match.winner === winnerId ? 'ring-1 ring-primary/30' : ''
     }`}>
       <div className="space-y-2">
@@ -914,8 +914,8 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
             <span className="text-xs text-muted-foreground">Match {match.matchNumber}</span>
             {isMatchLive && (
               <div className="flex items-center gap-1 mt-0.5">
-                <div className="w-1 h-1 bg-red-500 rounded-full animate-pulse" />
-                <span className="text-[8px] font-bold text-red-500 uppercase tracking-tighter">Live</span>
+                <div className="w-1 h-1 bg-destructive rounded-full animate-pulse" />
+                <span className="text-xs font-bold text-destructive">Live</span>
               </div>
             )}
           </div>
@@ -939,7 +939,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
         
         <div className={`p-2 rounded border ${
           match.winner === match.player1?.user_id 
-            ? 'border-green-500/50 bg-green-500/10' 
+            ? 'border-success/50 bg-success/10' 
             : matchResult?.status === 'confirmed' && matchResult?.winner_id && matchResult.winner_id !== match.player1?.user_id
               ? 'border-destructive/50 bg-destructive/5 opacity-60'
               : match.player1 
@@ -954,13 +954,13 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
               {match.player1?.gamertag || 'TBD'}
             </span>
             {match.winner === match.player1?.user_id && (
-              <Trophy className="h-3 w-3 text-green-500 ml-auto" />
+              <Trophy className="h-3 w-3 text-success ml-auto" />
             )}
             {matchResult?.status === 'confirmed' && matchResult?.winner_id && matchResult.winner_id !== match.player1?.user_id && (
               <XCircle className="h-3 w-3 text-destructive ml-auto" />
             )}
             {showCheckIn && matchResult.player1_checked_in && (
-              <CheckCircle className="h-3 w-3 text-green-500 ml-auto" />
+              <CheckCircle className="h-3 w-3 text-success ml-auto" />
             )}
           </div>
         </div>
@@ -968,7 +968,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
         {!match.isBye && (
           <div className={`p-2 rounded border ${
             match.winner === match.player2?.user_id 
-              ? 'border-green-500/50 bg-green-500/10' 
+              ? 'border-success/50 bg-success/10' 
               : matchResult?.status === 'confirmed' && matchResult?.winner_id && matchResult.winner_id !== match.player2?.user_id
                 ? 'border-destructive/50 bg-destructive/5 opacity-60'
                 : match.player2 
@@ -983,13 +983,13 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
                 {match.player2?.gamertag || 'TBD'}
               </span>
               {match.winner === match.player2?.user_id && (
-                <Trophy className="h-3 w-3 text-green-500 ml-auto" />
+                <Trophy className="h-3 w-3 text-success ml-auto" />
               )}
               {matchResult?.status === 'confirmed' && matchResult?.winner_id && matchResult.winner_id !== match.player2?.user_id && (
                 <XCircle className="h-3 w-3 text-destructive ml-auto" />
               )}
               {showCheckIn && matchResult.player2_checked_in && (
-                <CheckCircle className="h-3 w-3 text-green-500 ml-auto" />
+                <CheckCircle className="h-3 w-3 text-success ml-auto" />
               )}
             </div>
           </div>
@@ -1044,7 +1044,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
             
             {isParticipant && myCheckedIn && (
               <div className="text-center py-1">
-                <p className="text-xs text-green-500 font-medium">✓ You're ready</p>
+                <p className="text-xs text-success font-medium">You're ready</p>
                 <p className="text-xs text-muted-foreground">
                   {opponentCheckedIn ? 'Starting match...' : 'Waiting for opponent...'}
                 </p>

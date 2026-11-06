@@ -137,7 +137,7 @@ export function TeamManager({ onChange }: { onChange?: () => void }) {
     await done();
   };
 
-  if (!user || team === undefined) return <div className="h-28 animate-pulse rounded-2xl bg-card" aria-busy="true" />;
+  if (!user || team === undefined) return <div className="h-28 animate-pulse rounded-2xl glass" aria-busy="true" />;
 
   if (team === null) {
     return (

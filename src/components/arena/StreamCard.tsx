@@ -17,7 +17,7 @@ export function StreamCard({ match, layout = 'rail' }: { match: LiveMatch; layou
     <Link
       to={liveMatchHref(match)}
       className={cn(
-        'group block overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/50',
+        'group block overflow-hidden rounded-2xl border border-border glass transition-colors hover:border-primary/50',
         layout === 'rail' ? 'w-[264px] shrink-0 snap-start sm:w-[300px]' : 'w-full',
       )}
     >
@@ -36,12 +36,12 @@ export function StreamCard({ match, layout = 'rail' }: { match: LiveMatch; layou
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
         </span>
         {match.streamer && (
-          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
+          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[11px] font-semibold text-white">
             <Play className="h-3 w-3 fill-current" /> {match.streamer.twitch}
           </span>
         )}
         <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white">
             <Play className="h-5 w-5 fill-current" />
           </span>
         </span>

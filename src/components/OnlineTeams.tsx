@@ -118,17 +118,17 @@ export function OnlineTeams() {
   };
 
   if (loading) {
-    return <div className="flex justify-center p-8"><Users className="h-6 w-6 animate-pulse text-muted-foreground" /></div>;
+    return <div className="flex justify-center p-8"><Users className="h-6 w-6 text-muted-foreground" /></div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-2xl">
-          <Shield className="h-5 w-5 text-blue-500" />
+          <Shield className="h-5 w-5 text-primary-soft" />
           Ready Teams (5v5)
           {onlineTeams.length > 0 && (
-            <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+            <Badge variant="secondary" className="bg-primary/10 text-primary-soft border-primary/20">
               {onlineTeams.length}
             </Badge>
           )}
@@ -150,21 +150,21 @@ export function OnlineTeams() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ delay: index * 0.05 }}
-                className="glassmorphism-card p-5 flex flex-col gap-4 group hover:border-blue-500/30 transition-all duration-300"
+                className="glassmorphism-card p-5 flex flex-col gap-4 group hover:bg-secondary transition-colors duration-200"
               >
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <Avatar className="h-14 w-14 border-2 border-background ring-2 ring-blue-500/20">
+                    <Avatar className="h-14 w-14 border-2 border-background ring-2 ring-primary/20">
                       <AvatarImage src={team.captain_avatar || ''} alt={team.name} />
                       <AvatarFallback className="bg-muted text-lg font-display">
                         {team.name[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-background ${team.online_member_count === 5 ? 'bg-green-500' : 'bg-amber-500'}`} />
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-background ${team.online_member_count === 5 ? 'bg-success' : 'bg-warning'}`} />
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg truncate group-hover:text-blue-400 transition-colors">{team.name}</h3>
+                    <h3 className="font-bold text-lg truncate group-hover:text-primary-soft transition-colors">{team.name}</h3>
                     <p className="text-xs text-muted-foreground font-light">
                       Captain: {team.captain_gamertag}
                     </p>
@@ -173,15 +173,15 @@ export function OnlineTeams() {
 
                 <div className="flex items-center justify-between pt-2 border-t border-border/50">
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-light">Readiness</span>
-                    <span className={`text-sm font-bold ${team.online_member_count === 5 ? 'text-green-500' : 'text-amber-500'}`}>
+                    <span className="text-xs text-muted-foreground font-medium">Readiness</span>
+                    <span className={`text-sm font-bold ${team.online_member_count === 5 ? 'text-success' : 'text-warning'}`}>
                       {team.online_member_count}/5 Online
                     </span>
                   </div>
 
                   <Button 
                     size="sm" 
-                    className={`h-9 gap-2 transition-all ${team.online_member_count === 5 ? 'sheen-effect bg-blue-600 hover:bg-blue-500' : 'bg-muted cursor-not-allowed opacity-50'}`}
+                    className={`h-9 gap-2 transition-colors ${team.online_member_count === 5 ? 'bg-primary hover:bg-primary/90' : 'bg-muted cursor-not-allowed opacity-50'}`}
                     disabled={team.online_member_count < 5}
                     onClick={() => handleChallenge(team)}
                   >

@@ -140,13 +140,13 @@ const TermsAndConditions = () => {
   return (
     <div className="min-h-screen bg-background font-montserrat text-foreground">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+      <nav className="sticky top-0 z-50 bg-background border-b border-border">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-sm font-medium hover:text-muted-foreground transition-colors">
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Home</span>
           </Link>
-          <span className="text-xs text-muted-foreground font-medium tracking-wider uppercase">Legal Documentation</span>
+          <span className="text-sm text-muted-foreground">Terms and conditions</span>
         </div>
       </nav>
 
@@ -160,7 +160,7 @@ const TermsAndConditions = () => {
           {sections.map((section) => (
             <section key={section.id} id={section.id} className="scroll-mt-32">
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center text-foreground">
+                <div className="w-10 h-10 rounded-full glass border border-border flex items-center justify-center text-foreground">
                   {section.icon}
                 </div>
                 <h2 className="text-xl font-bold tracking-tight">{section.title}</h2>
@@ -175,14 +175,14 @@ const TermsAndConditions = () => {
         </div>
 
         <footer className="mt-32 pt-16 border-t border-border">
-          <div className="bg-card rounded-2xl p-6 md:p-12 border border-border text-center">
+          <div className="glass rounded-2xl p-6 md:p-12 border border-border text-center">
             <h3 className="text-2xl font-bold mb-4">Questions about our terms?</h3>
             <p className="text-muted-foreground mb-8 max-w-md mx-auto text-pretty">
               Our compliance team is here to help clarify any legal or regulatory questions you may have.
             </p>
             <Button 
               variant="outline" 
-              className="h-12 px-8 border-border hover:bg-muted rounded-full text-sm font-semibold tracking-wide uppercase transition-all"
+              className="h-12 px-8 border-border hover:bg-muted rounded-full text-sm font-semibold transition-colors"
               onClick={() => window.location.href = 'mailto:legal@arena.gg'}
             >
               Contact Compliance

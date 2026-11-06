@@ -148,14 +148,14 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="incoming-challenge-title">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => onOpenChange(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => onOpenChange(false)} className="absolute inset-0 bg-black/80" />
 
           <motion.div
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            className="relative z-10 w-full overflow-hidden rounded-t-3xl border border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-w-md sm:rounded-2xl"
+            className="relative z-10 w-full overflow-hidden rounded-t-3xl border border-border glass pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-w-md sm:rounded-2xl"
           >
             {/* Time remaining, drawn as a draining bar */}
             <div className="h-1 w-full bg-muted">

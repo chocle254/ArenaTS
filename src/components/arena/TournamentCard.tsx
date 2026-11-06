@@ -56,7 +56,8 @@ export function TournamentCard({
   return (
     <article
       className={cn(
-        'group surface interactive-lift relative flex flex-col overflow-hidden focus-within:ring-2 focus-within:ring-ring',
+        'group surface interactive-lift spotlight relative flex flex-col overflow-hidden rounded-2xl focus-within:ring-2 focus-within:ring-ring',
+        phase === 'live' && 'ring-glow',
         layout === 'rail' ? 'w-[260px] shrink-0 snap-start sm:w-[280px]' : 'w-full',
         ended && 'opacity-70',
         className,
@@ -71,29 +72,29 @@ export function TournamentCard({
             loading="lazy"
             decoding="async"
             className={cn(
-              'h-full w-full object-cover transition-transform duration-500 group-hover:scale-105',
+              'h-full w-full object-cover transition-transform duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110',
               phase === 'cancelled' && 'grayscale',
             )}
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
         <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
-          <span className="rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+          <span className="rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white ring-1 ring-inset ring-white/15 backdrop-blur-md">
             {game?.shortName ?? tournament.game}
             {teamSize > 1 && <span className="text-white/70"> · {teamSize}v{teamSize}</span>}
           </span>
-          {phase === 'live' && <LiveBadge size="sm" className="bg-black/55 backdrop-blur-sm" />}
+          {phase === 'live' && <LiveBadge size="sm" className="bg-black/40 backdrop-blur-md" />}
           {phase === 'starting' && (
-            <span className="rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">Starting</span>
+            <span className="rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white ring-1 ring-inset ring-white/15 backdrop-blur-md">Starting</span>
           )}
           {phase === 'cancelled' && (
             <span className="rounded-full bg-destructive/90 px-2.5 py-1 text-[11px] font-semibold text-white">Cancelled</span>
           )}
           {phase === 'completed' && (
-            <span className="rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white/80 backdrop-blur-sm">Finished</span>
+            <span className="rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-inset ring-white/15 backdrop-blur-md">Finished</span>
           )}
           {phase === 'open' && hasReminder && (
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm" title="Reminder on">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/40 ring-1 ring-inset ring-white/15 backdrop-blur-md" title="Reminder on">
               <Bell className="h-3.5 w-3.5 text-white" />
             </span>
           )}
@@ -113,7 +114,7 @@ export function TournamentCard({
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-xs text-muted-foreground">{isSliding(tournament) ? 'Prize pool, growing' : 'Prize pool'}</p>
-            <p className="font-score text-3xl leading-none text-gold">
+            <p className="font-score text-3xl leading-none text-gold-sheen drop-shadow-[0_2px_12px_hsl(var(--gold)/0.25)]">
               {formatArenaAmount(livePrizePool(tournament))}
               <span className="ml-1 text-sm text-gold/70">KES</span>
             </p>
@@ -156,9 +157,9 @@ export function TournamentCard({
               )}
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]" aria-hidden>
             <div
-              className={cn('h-full rounded-full', isFull ? 'bg-gold' : 'bg-primary')}
+              className={cn('h-full origin-left rounded-full transition-[width] duration-700 ease-out', isFull ? 'bg-[linear-gradient(90deg,hsl(var(--gold-2)),hsl(var(--gold)))] shadow-[0_0_10px_hsl(var(--gold)/0.6)]' : 'bg-[linear-gradient(90deg,hsl(var(--primary)),hsl(var(--primary-2)))] shadow-[0_0_10px_hsl(var(--primary)/0.7)]')}
               style={{ width: `${Math.max(4, filled * 100)}%` }}
             />
           </div>
@@ -166,7 +167,7 @@ export function TournamentCard({
 
         <div className="mt-auto">
           {joined ? (
-            <div className="flex h-10 items-center justify-center gap-2 rounded-lg bg-success/15 text-sm font-semibold text-success">
+            <div className="flex h-10 items-center justify-center gap-2 rounded-full bg-success/15 text-sm font-semibold text-success ring-1 ring-inset ring-success/25">
               <Check className="h-4 w-4" />
               Registered
             </div>
@@ -175,13 +176,13 @@ export function TournamentCard({
               type="button"
               onClick={handleJoin}
               disabled={joining}
-              className="relative z-10 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+              className="btn-shine relative z-10 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(180deg,hsl(var(--primary-2)),hsl(var(--primary)))] text-sm font-semibold text-primary-foreground shadow-[0_8px_22px_-10px_hsl(var(--primary)/0.9),inset_0_1px_0_hsl(0_0%_100%/0.25)] transition-[filter,box-shadow] duration-200 hover:brightness-110 disabled:opacity-60"
             >
               {joining && <Loader2 className="h-4 w-4 animate-spin" />}
               {joining ? 'Joining…' : teamSize > 1 ? 'Register team' : isFull ? 'Join standby' : 'Join tournament'}
             </button>
           ) : (
-            <div className="flex h-10 items-center justify-center rounded-lg border border-border text-sm font-semibold text-muted-foreground transition-colors group-hover:text-foreground">
+            <div className="flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-sm font-semibold text-muted-foreground transition-colors group-hover:border-white/20 group-hover:text-foreground">
               {phase === 'live' || phase === 'starting' ? 'Watch bracket' : 'View results'}
             </div>
           )}
@@ -195,7 +196,6 @@ export function TournamentCardSkeleton({ layout = 'grid' }: { layout?: 'rail' | 
   return (
     <div className={cn('surface overflow-hidden', layout === 'rail' ? 'w-[260px] shrink-0 sm:w-[280px]' : 'w-full')}>
       <div className="relative aspect-[16/9] overflow-hidden bg-secondary">
-        <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/5 to-transparent" />
       </div>
       <div className="space-y-4 p-4">
         <div className="h-5 w-3/4 rounded bg-muted" />

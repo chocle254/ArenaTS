@@ -48,7 +48,7 @@ export default function AdminSetup() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#08090E' }}>
-      <Card className="w-full max-w-md backdrop-blur-card border-border">
+      <Card className="w-full max-w-md border-border">
         <CardHeader>
           <CardTitle className="text-2xl font-display gradient-text">Admin Setup</CardTitle>
           <CardDescription>
@@ -66,7 +66,7 @@ export default function AdminSetup() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
+                    placeholder="Your email address"
                     disabled={loading}
                   />
                 </div>
@@ -121,10 +121,10 @@ export default function AdminSetup() {
 
           {success && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
+              <div className="flex items-center gap-3 p-4 bg-success/10 border border-success/20 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-success flex-shrink-0" />
                 <div className="space-y-1">
-                  <p className="font-semibold text-green-500">Admin Account Created!</p>
+                  <p className="font-semibold text-success">Admin Account Created!</p>
                   <p className="text-sm text-muted-foreground">
                     You can now sign in with the credentials you just set.
                   </p>
@@ -142,10 +142,10 @@ export default function AdminSetup() {
 
           {error && (
             <div className="space-y-4">
-              <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <AlertCircle className="h-6 w-6 text-destructive flex-shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="font-semibold text-red-500">Error Creating Admin</p>
+                  <p className="font-semibold text-destructive">Error Creating Admin</p>
                   <p className="text-sm text-muted-foreground">{error}</p>
                 </div>
               </div>

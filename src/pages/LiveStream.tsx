@@ -117,7 +117,7 @@ export default function LiveStream() {
     return (
       <div className="mx-auto max-w-6xl space-y-4">
         <div className="h-8 w-64 animate-pulse rounded bg-secondary" />
-        <div className="aspect-video animate-pulse rounded-2xl bg-card" />
+        <div className="aspect-video animate-pulse rounded-2xl glass" />
       </div>
     );
   }
@@ -174,7 +174,7 @@ export default function LiveStream() {
       </div>
 
       {streamers.length === 0 ? (
-        <div className="flex aspect-video flex-col items-center justify-center rounded-2xl border border-border bg-card p-6 text-center">
+        <div className="flex aspect-video flex-col items-center justify-center rounded-2xl border border-border glass p-6 text-center">
           <Radio className="h-10 w-10 text-muted-foreground/50" />
           <p className="mt-3 text-lg font-semibold">Neither player is streaming</p>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">Players add their Twitch channel in Settings. You can still follow the result on the bracket.</p>

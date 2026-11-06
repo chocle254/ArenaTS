@@ -90,7 +90,7 @@ export default function Invite() {
         <p className="rounded-2xl border border-border bg-card/60 p-4 text-sm text-muted-foreground">Invite rewards are paused right now. Friends can still join with your link.</p>
       )}
 
-      <section className="relative overflow-hidden rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 sm:p-7">
+      <section className="relative overflow-hidden rounded-lg glass p-5 sm:p-7">
         <Gift className="absolute -right-5 -top-5 h-32 w-32 text-primary/[0.07]" aria-hidden />
         <p className="text-sm font-semibold text-primary-soft">Your invite code</p>
         <p className="mt-1 font-score text-5xl font-bold tracking-[0.2em]">{data.code}</p>

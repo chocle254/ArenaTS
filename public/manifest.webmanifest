@@ -6,8 +6,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#090B10",
-  "theme_color": "#090B10",
+  "background_color": "#06070C",
+  "theme_color": "#06070C",
   "categories": ["games", "entertainment", "sports"],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },

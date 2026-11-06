@@ -130,7 +130,7 @@ export function TournamentRules({
 
       <div className="grid gap-4 md:grid-cols-2">
         {groups.map((g) => (
-          <section key={g.id} className="rounded-2xl border border-border bg-card p-5">
+          <section key={g.id} className="rounded-2xl border border-border glass p-5">
             <h3 className="mb-3 flex items-center gap-2 text-lg">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15 text-primary-soft">{g.icon}</span>
               {g.title}

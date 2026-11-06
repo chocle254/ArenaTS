@@ -73,7 +73,7 @@ export function Rail({ children, className, label }: RailProps) {
           type="button"
           aria-label="Scroll left"
           onClick={() => scrollBy(-1)}
-          className="absolute -left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card/95 shadow-lg backdrop-blur md:flex"
+          className="absolute -left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-secondary md:flex"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -83,7 +83,7 @@ export function Rail({ children, className, label }: RailProps) {
           type="button"
           aria-label="Scroll right"
           onClick={() => scrollBy(1)}
-          className="absolute -right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card/95 shadow-lg backdrop-blur md:flex"
+          className="absolute -right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-secondary md:flex"
         >
           <ChevronRight className="h-5 w-5" />
         </button>

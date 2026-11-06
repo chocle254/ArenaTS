@@ -45,12 +45,12 @@ export function MatchTimer({ deadline, onExpire }: MatchTimerProps) {
     <div className="flex items-center justify-center gap-1.5">
       <Clock className={`h-3 w-3 ${
         isCritical ? 'text-destructive animate-pulse' : 
-        isWarning ? 'text-orange-500' : 
+        isWarning ? 'text-warning' : 
         'text-muted-foreground'
       }`} />
-      <span className={`text-xs font-mono ${
+      <span className={`text-xs tabular-nums ${
         isCritical ? 'text-destructive font-semibold animate-pulse' : 
-        isWarning ? 'text-orange-500 font-medium' : 
+        isWarning ? 'text-warning font-medium' : 
         'text-muted-foreground'
       }`}>
         {isExpired ? 'EXPIRED' : formattedTime}

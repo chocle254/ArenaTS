@@ -11,6 +11,7 @@ import { TopUpDialog } from '@/components/wallet/TopUpDialog';
 import { WithdrawDialog } from '@/components/wallet/WithdrawDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { NumberTicker } from '@/components/ui/number-ticker';
 import { formatKES } from '@/lib/arena-currency';
 import { cn } from '@/lib/utils';
 
@@ -120,7 +121,7 @@ export default function Wallet() {
     <div className="mx-auto max-w-3xl space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-4xl">Wallet</h1>
+          <h1 className="text-sheen text-4xl sm:text-5xl">Wallet</h1>
           <p className="text-muted-foreground">
             {profile?.mpesa_phone ? `M-Pesa ${maskPhone(profile.mpesa_phone)}` : 'Top up with M-Pesa to start playing for money.'}
           </p>
@@ -128,21 +129,30 @@ export default function Wallet() {
       </div>
 
       {/* Balances */}
-      <section className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col justify-between gap-4 rounded-3xl border border-gold/30 bg-gradient-to-br from-gold/[0.12] to-card p-5">
-          <div>
-            <p className="text-sm text-muted-foreground">Play balance</p>
-            <p className="mt-1 font-score text-4xl font-bold leading-none text-gold">{formatKES(play)}</p>
+      <section className="stagger-children grid gap-3 sm:grid-cols-2">
+        <div className="spotlight relative flex flex-col justify-between gap-4 overflow-hidden rounded-3xl border border-primary/30 bg-[linear-gradient(140deg,hsl(226_80%_30%/0.55),hsl(230_40%_10%/0.6)_55%,hsl(232_38%_6%/0.7))] p-5 shadow-[0_24px_60px_-28px_hsl(var(--primary)/0.9),inset_0_1px_0_hsl(0_0%_100%/0.12)]">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-primary/35 blur-3xl" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_35%,hsl(0_0%_100%/0.06)_50%,transparent_65%)]" aria-hidden />
+          <div className="relative z-[2]">
+            <p className="flex items-center justify-between text-sm text-primary-soft">
+              Play balance
+              <Smartphone className="h-4 w-4 opacity-70" />
+            </p>
+            <NumberTicker value={play} format={formatKES} className="mt-2 block font-score text-5xl font-bold leading-none text-gold-sheen drop-shadow-[0_2px_18px_hsl(var(--gold)/0.35)]" />
             <p className="mt-2 text-xs text-muted-foreground">For entry fees and stakes. Can’t be withdrawn.</p>
           </div>
-          <Button onClick={() => setTopUp(true)} className="h-11">
+          <Button onClick={() => setTopUp(true)} className="relative z-[2] h-11">
             <Plus className="h-4 w-4" /> Top up with M-Pesa
           </Button>
         </div>
-        <div className="flex flex-col justify-between gap-4 rounded-3xl border border-border bg-card p-5">
-          <div>
-            <p className="text-sm text-muted-foreground">Winnings</p>
-            <p className="mt-1 font-score text-4xl font-bold leading-none">{formatKES(winnings)}</p>
+        <div className="spotlight relative flex flex-col justify-between gap-4 overflow-hidden rounded-3xl border border-gold/25 bg-[linear-gradient(140deg,hsl(40_70%_25%/0.35),hsl(230_30%_10%/0.6)_55%,hsl(232_38%_6%/0.7))] p-5 shadow-[0_24px_60px_-30px_hsl(var(--gold)/0.6),inset_0_1px_0_hsl(0_0%_100%/0.1)]">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-gold/20 blur-3xl" aria-hidden />
+          <div className="relative z-[2]">
+            <p className="flex items-center justify-between text-sm text-gold/90">
+              Winnings
+              <Trophy className="h-4 w-4 opacity-80" />
+            </p>
+            <NumberTicker value={winnings} format={formatKES} className="mt-2 block font-score text-5xl font-bold leading-none text-gold-sheen drop-shadow-[0_2px_18px_hsl(var(--gold)/0.35)]" />
             <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               {held > 0 ? (
                 <>
@@ -153,9 +163,9 @@ export default function Wallet() {
               )}
             </p>
           </div>
-          <div className="space-y-2">
+          <div className="relative z-[2] space-y-2">
             <div className="grid grid-cols-2 gap-2">
-              <Button className="h-11" onClick={() => setWithdraw(true)} disabled={winnings < WITHDRAW_MIN}>
+              <Button variant="gold" className="h-11" onClick={() => setWithdraw(true)} disabled={winnings < WITHDRAW_MIN}>
                 <ArrowUpRight className="h-4 w-4" /> Withdraw
               </Button>
               <Button variant="outline" className="h-11" onClick={() => setMove(true)} disabled={winnings <= 0}>
@@ -211,7 +221,7 @@ export default function Wallet() {
       {payouts.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xl">M-Pesa activity</h2>
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border glass">
             {payouts.map((p) => (
               <li key={`${p.kind}-${p.id}`} className="flex items-center gap-3 px-4 py-3">
                 <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', p.kind === 'deposit' ? 'bg-success/15 text-success' : 'bg-primary/15 text-primary-soft')}>
@@ -254,13 +264,13 @@ export default function Wallet() {
         {loading && tx.length === 0 ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-14 animate-pulse rounded-2xl bg-card" />
+              <div key={i} className="h-14 animate-pulse rounded-2xl glass" />
             ))}
           </div>
         ) : tx.length === 0 ? (
-          <p className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Nothing here yet.</p>
+          <p className="rounded-2xl border border-border glass p-8 text-center text-sm text-muted-foreground">Nothing here yet.</p>
         ) : (
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border glass">
             {tx.map((t) => {
               const value = Number(t.amount) || 0;
               const win = ['tournament_win', 'challenge_win', 'payout'].includes(t.type);

@@ -6,6 +6,8 @@ import { RouteGuard } from '@/components/common/RouteGuard';
 import MainLayout from '@/components/layouts/MainLayout';
 import { Toaster } from '@/components/ui/sonner';
 import { usePresence } from '@/hooks/use-presence';
+import { useReveal } from '@/hooks/use-reveal';
+import { useSpotlight } from '@/hooks/use-spotlight';
 import { useTournamentReminders } from '@/hooks/use-tournament-reminders';
 import { routes } from './routes';
 
@@ -26,9 +28,12 @@ function RouteFallback() {
 function AppContent() {
   useTournamentReminders();
   usePresence();
+  useSpotlight();
+  useReveal();
 
   return (
     <>
+      <div className="arena-backdrop" aria-hidden="true" />
       <IntersectObserver />
       <MainLayout>
         <Suspense fallback={<RouteFallback />}>

@@ -30,16 +30,12 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
 
       {/* Form panel */}
       <div className="relative flex items-center justify-center px-5 py-10 sm:px-8">
-        <div
-          className="pointer-events-none absolute inset-0 lg:hidden"
-          style={{ background: 'radial-gradient(600px 400px at 50% 0%, hsl(224 100% 55% / 0.18), transparent 70%)' }}
-        />
         <div className="relative w-full max-w-md">
           <Link to="/" className="mb-8 flex justify-center lg:hidden" aria-label="Arena Royal home">
             <img src="/images/logo-sm.webp" alt="Arena Royal" className="h-16 w-auto" />
           </Link>
           <div className="mb-8 space-y-2">
-            <h1 className="text-4xl">{title}</h1>
+            <h1 className="text-3xl">{title}</h1>
             <p className="text-muted-foreground">{subtitle}</p>
           </div>
           {children}

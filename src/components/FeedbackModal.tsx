@@ -77,7 +77,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <div className="flex items-center justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-600 to-primary flex items-center justify-center">
+            <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center">
               <Trophy className="h-8 w-8 text-white" />
             </div>
           </div>
@@ -104,7 +104,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
                   <Star
                     className={`h-8 w-8 ${
                       star <= (hoveredRating || rating)
-                        ? 'fill-amber-400 text-amber-400'
+                        ? 'fill-warning text-warning'
                         : 'text-muted-foreground'
                     }`}
                   />
@@ -127,7 +127,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
           </div>
 
           {/* Info Box */}
-          <div className="p-4 rounded-lg bg-blue-950/20 border border-blue-500/20">
+          <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
             <p className="text-sm text-muted-foreground font-light">
               <strong className="text-foreground">What's next?</strong><br />
               Wait for the official ARENA launch to start playing with real funds. We'll notify you via email when we go live!

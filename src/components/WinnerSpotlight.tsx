@@ -58,7 +58,7 @@ export function WinnerSpotlight({ open, onOpenChange, winner, tournamentId, tour
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -68,7 +68,7 @@ export function WinnerSpotlight({ open, onOpenChange, winner, tournamentId, tour
           aria-labelledby="winner-title"
         >
           <motion.div
-            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-gold/30 bg-card shadow-[0_0_80px_-20px_hsl(var(--gold)/0.5)]"
+            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-gold/30 glass"
             initial={reduceMotion ? { opacity: 0 } : { scale: 0.85, y: 30, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
@@ -106,7 +106,7 @@ export function WinnerSpotlight({ open, onOpenChange, winner, tournamentId, tour
                 animate={{ y: 0, opacity: 1, rotate: 0 }}
                 transition={{ delay: 0.25, type: 'spring', damping: 10 }}
               >
-                <Crown className="h-10 w-10 text-gold drop-shadow-[0_0_12px_hsl(var(--gold)/0.7)]" />
+                <Crown className="h-10 w-10 text-gold" />
               </motion.div>
               <Avatar className="mt-2 h-24 w-24 ring-4 ring-gold ring-offset-4 ring-offset-card">
                 <AvatarImage src={winner.avatar_url || undefined} alt="" />

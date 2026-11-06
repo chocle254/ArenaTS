@@ -213,7 +213,7 @@ function CreateTournamentDialog({
   isMobile = false
 }: { 
   game: GameType;
-  gameModes: Array<{ value: GameMode; label: string; icon: string }>;
+  gameModes: Array<{ value: GameMode; label: string }>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
@@ -481,7 +481,7 @@ function CreateTournamentDialog({
               <SelectContent>
                 {gameModes.map((mode) => (
                   <SelectItem key={mode.value} value={mode.value}>
-                    {mode.icon} {mode.label}
+                    {mode.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -562,7 +562,7 @@ function CreateTournamentDialog({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="sponsorName">Sponsor name</Label>
-                  <Input id="sponsorName" maxLength={60} placeholder="e.g. Acme Energy" value={sponsor.name} onChange={(e) => setSponsor({ ...sponsor, name: e.target.value })} />
+                  <Input id="sponsorName" maxLength={60} placeholder="e.g. Safaricom" value={sponsor.name} onChange={(e) => setSponsor({ ...sponsor, name: e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="sponsorUrl">Website</Label>

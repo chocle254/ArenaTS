@@ -38,7 +38,7 @@ export function AdminDisputes({ disputes, names }: { disputes: Dispute[]; names:
           const game = d.game ? GAME_INFO[d.game as GameType] : null;
           return (
             <li key={d.id}>
-              <Link to="/referee" className={cn('flex items-center gap-3 rounded-2xl border bg-card px-3 py-2.5 hover:border-primary/60', d.status === 'human_review' ? 'border-live/40' : 'border-border')}>
+              <Link to="/referee" className={cn('flex items-center gap-3 rounded-2xl border glass px-3 py-2.5 hover:border-primary/60', d.status === 'human_review' ? 'border-live/40' : 'border-border')}>
                 {game && <img src={game.icon} alt="" className="h-10 w-10 rounded-xl object-cover" loading="lazy" />}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">

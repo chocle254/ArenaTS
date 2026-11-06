@@ -172,7 +172,7 @@ export default function AdminReferees() {
                     {app.status === 'pending' ? (
                       <span className="admin-badge-pending">Pending</span>
                     ) : (
-                      <Badge variant={app.status === 'approved' ? 'default' : 'destructive'} className="text-[10px] uppercase tracking-wider">
+                      <Badge variant={app.status === 'approved' ? 'default' : 'destructive'} className="text-xs">
                         {app.status}
                       </Badge>
                     )}
@@ -240,9 +240,9 @@ export default function AdminReferees() {
 
       {/* Approval Dialog */}
       <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-card border-white/10 max-w-[calc(100%-2rem)] md:max-w-lg">
+        <DialogContent className="sm:max-w-[425px] glass border-white/10 max-w-[calc(100%-2rem)] md:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-white font-rajdhani text-2xl uppercase tracking-wider">Approve Referee</DialogTitle>
+            <DialogTitle className="text-white font-rajdhani text-2xl">Approve referee</DialogTitle>
             <DialogDescription className="text-muted-foreground">
               Select the games this referee will be responsible for.
             </DialogDescription>
@@ -266,7 +266,7 @@ export default function AdminReferees() {
             ))}
           </div>
           <DialogFooter>
-            <button onClick={handleApprove} className="w-full btn-approve py-3 uppercase tracking-widest text-sm">
+            <button onClick={handleApprove} className="w-full btn-approve py-3 text-sm">
               Confirm Approval
             </button>
           </DialogFooter>

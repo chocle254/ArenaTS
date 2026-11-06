@@ -27,13 +27,13 @@ type Row = Pick<Profile, 'id' | 'gamertag' | 'avatar_url' | 'role' | 'wins' | 'l
 function metric(board: Board, p: Row): { value: string; className?: string } {
   if (board === 'earnings') return { value: formatEarnings(p.total_earnings), className: 'text-gold' };
   if (board === 'wins') return { value: `${formatCompactNumber(p.wins || 0)} W` };
-  return { value: `${p.current_streak || 0} 🔥` };
+  return { value: `${p.current_streak || 0} in a row` };
 }
 
 const PODIUM = {
-  1: { ring: 'ring-gold', bar: 'from-gold/60 to-gold/5', h: 'h-28 md:h-36', label: 'text-gold' },
-  2: { ring: 'ring-slate-300', bar: 'from-slate-300/40 to-slate-300/5', h: 'h-20 md:h-24', label: 'text-slate-200' },
-  3: { ring: 'ring-amber-600', bar: 'from-amber-600/50 to-amber-600/5', h: 'h-14 md:h-16', label: 'text-amber-500' },
+  1: { ring: 'ring-gold', bar: 'bg-gold/25', h: 'h-28 md:h-36', label: 'text-gold' },
+  2: { ring: 'ring-neutral-300', bar: 'bg-neutral-300/15', h: 'h-20 md:h-24', label: 'text-neutral-200' },
+  3: { ring: 'ring-warning', bar: 'bg-warning/20', h: 'h-14 md:h-16', label: 'text-warning' },
 } as const;
 
 export default function Leaderboard() {
@@ -149,7 +149,7 @@ export default function Leaderboard() {
                       <span className="mt-2 w-full truncate font-score text-base font-bold group-hover:text-primary-soft md:text-xl">{p.gamertag || 'Player'}</span>
                       <span className={cn('font-score text-lg font-bold md:text-2xl', m.className)}>{m.value}</span>
                     </Link>
-                    <div className={cn('mt-3 flex w-full items-start justify-center rounded-t-xl bg-gradient-to-b pt-2', style.bar, style.h)}>
+                    <div className={cn('mt-3 flex w-full items-start justify-center rounded-t-lg pt-2', style.bar, style.h)}>
                       <span className={cn('font-score text-3xl font-bold md:text-4xl', style.label)}>{rank}</span>
                     </div>
                   </motion.div>
@@ -186,7 +186,7 @@ function LeaderRow({ rank, player, board, isMe }: { rank: number; player: Row; b
         to={`/profile/${player.id}`}
         className={cn(
           'flex items-center gap-3 rounded-xl border p-3 transition-colors',
-          isMe ? 'border-primary/60 bg-primary/15 backdrop-blur' : 'border-border bg-card/70 hover:border-primary/40',
+          isMe ? 'border-primary/60 bg-primary/15' : 'border-border bg-card/70 hover:border-primary/40',
         )}
       >
         <span className="w-8 shrink-0 text-center font-score text-lg font-bold text-muted-foreground">{rank}</span>

@@ -245,14 +245,14 @@ function NextMatch({ tournament }: { tournament: Tournament }) {
   return (
     <Link
       to={`/tournaments/${tournament.id}`}
-      className="flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/10 p-3 transition-colors hover:bg-primary/15"
+      className="ring-glow spotlight flex items-center gap-3 rounded-2xl bg-[linear-gradient(120deg,hsl(var(--primary)/0.22),hsl(var(--primary)/0.05)_60%)] p-3 shadow-[0_14px_40px_-20px_hsl(var(--primary)/0.9)] transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5"
     >
-      <img src={game?.icon} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
-      <div className="min-w-0 flex-1">
+      <img src={game?.icon} alt="" className="relative z-[2] h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-white/15" />
+      <div className="relative z-[2] min-w-0 flex-1">
         <p className="text-xs font-semibold text-primary-soft">{phase === 'live' ? 'You’re playing now' : 'Your next match'}</p>
         <p className="truncate font-semibold">{tournament.name}</p>
       </div>
-      <div className="shrink-0 text-right">
+      <div className="relative z-[2] shrink-0 text-right">
         <CountdownTimer targetDate={new Date(tournament.start_time)} status={tournament.status} className="text-xl leading-none" />
         <p className="mt-0.5 text-[11px] text-muted-foreground">{phase === 'open' ? 'Check-in opens 15 min before' : 'Open the bracket'}</p>
       </div>
@@ -306,11 +306,11 @@ function FeaturedCarousel({
     return () => clearInterval(t);
   }, [count, index, goTo, reduce]);
 
-  if (loading) return <div className="h-[230px] animate-pulse rounded-3xl bg-card sm:h-[280px]" aria-busy="true" />;
+  if (loading) return <div className="h-[230px] animate-pulse rounded-3xl glass sm:h-[280px]" aria-busy="true" />;
 
   if (count === 0) {
     return (
-      <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 sm:p-8" aria-label="Get started">
+      <section className="relative overflow-hidden rounded-3xl border border-border glass p-6 sm:p-8" aria-label="Get started">
         <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-primary/20 blur-3xl" aria-hidden />
         <p className="text-sm font-semibold text-primary-soft">Be the first today</p>
         <h2 className="mt-1 max-w-lg text-4xl leading-[0.95] sm:text-5xl">Host a tournament or jump into a 1v1</h2>
@@ -350,21 +350,27 @@ function FeaturedCarousel({
           return (
             <article
               key={t.id}
-              className="relative h-[250px] w-full shrink-0 snap-center overflow-hidden rounded-3xl border border-border sm:h-[280px]"
+              className="group relative h-[250px] w-full shrink-0 snap-center overflow-hidden rounded-3xl border border-white/10 shadow-[0_30px_60px_-30px_hsl(var(--primary)/0.6)] sm:h-[300px]"
               aria-roledescription="slide"
               aria-label={`${i + 1} of ${count}: ${t.name}`}
             >
-              <img src={game?.banner} alt="" className="absolute inset-0 h-full w-full object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
+              <img
+                src={game?.banner}
+                alt=""
+                className={cn('absolute inset-0 h-full w-full object-cover transition-transform [transition-duration:8000ms] ease-out motion-reduce:transition-none', index === i ? 'scale-110' : 'scale-100')}
+                loading={i === 0 ? 'eager' : 'lazy'}
+              />
               <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/10" />
               <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent" />
+              <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-primary/30 blur-3xl" aria-hidden />
               <div className="relative flex h-full flex-col p-5 sm:p-7">
                 <p className="flex items-center gap-2 text-xs font-semibold">
-                  <span className="rounded-md bg-gold/15 px-2 py-0.5 text-gold">{t.featured ? 'Featured' : i === 0 ? 'Biggest prize' : 'Coming up'}</span>
+                  <span className="rounded-full bg-[linear-gradient(135deg,hsl(var(--gold)/0.3),hsl(var(--gold)/0.1))] px-2.5 py-0.5 text-gold ring-1 ring-inset ring-gold/30 shadow-[0_0_16px_-4px_hsl(var(--gold)/0.6)]">{t.featured ? 'Featured' : i === 0 ? 'Biggest prize' : 'Coming up'}</span>
                   <span className="text-muted-foreground">
                     {game?.name ?? t.game}, {(t.team_size || 1) > 1 ? `${t.team_size}v${t.team_size}` : 'solo'}
                   </span>
                 </p>
-                <h2 className="mt-2 max-w-[18ch] text-3xl leading-[0.95] sm:max-w-xl sm:text-5xl">
+                <h2 className="text-sheen mt-2 max-w-[18ch] text-3xl leading-[0.95] sm:max-w-xl sm:text-5xl">
                   <Link to={`/tournaments/${t.id}`} className="hover:underline decoration-2 underline-offset-4">
                     {t.name}
                   </Link>
@@ -373,7 +379,7 @@ function FeaturedCarousel({
                 <div className="mt-auto flex flex-wrap items-end gap-x-6 gap-y-3">
                   <div>
                     <p className="text-[11px] text-muted-foreground">Prize pool</p>
-                    <p className="font-score text-3xl font-bold leading-none text-gold sm:text-4xl">
+                    <p className="font-score text-3xl font-bold leading-none text-gold-sheen drop-shadow-[0_2px_16px_hsl(var(--gold)/0.35)] sm:text-4xl">
                       {formatArenaAmount(livePrizePool(t))}
                       <span className="ml-1 text-base text-gold/70">KES</span>
                     </p>
@@ -386,7 +392,7 @@ function FeaturedCarousel({
                     <Users className="h-3.5 w-3.5" /> {spotsLeft} spot{spotsLeft === 1 ? '' : 's'} left
                   </p>
                   <div className="ml-auto flex gap-2">
-                    <Button asChild variant="outline" className="hidden bg-background/40 backdrop-blur sm:inline-flex">
+                    <Button asChild variant="outline" className="hidden sm:inline-flex">
                       <Link to={`/tournaments/${t.id}`}>Details</Link>
                     </Button>
                     <Button onClick={() => onJoin(t)} disabled={joiningId === t.id || spotsLeft === 0}>
@@ -418,8 +424,18 @@ function FeaturedCarousel({
               aria-selected={index === i}
               aria-label={`Show ${t.name}`}
               onClick={() => goTo(i)}
-              className={cn('h-1.5 rounded-full transition-all', index === i ? 'w-6 bg-primary' : 'w-1.5 bg-muted-foreground/40 hover:bg-muted-foreground')}
-            />
+              className={cn(
+                'relative h-1.5 overflow-hidden rounded-full transition-[width,background-color] duration-300',
+                index === i ? 'w-8 bg-white/15' : 'w-1.5 bg-muted-foreground/40 hover:bg-muted-foreground',
+              )}
+            >
+              {index === i && (
+                <span
+                  key={index}
+                  className="absolute inset-y-0 left-0 w-full origin-left rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))] motion-safe:animate-[slide-progress_7s_linear_forwards]"
+                />
+              )}
+            </button>
           ))}
         </div>
       )}

@@ -63,7 +63,7 @@ export function AchievementWatcher() {
                   toast.dismiss(t);
                   navigate('/achievements');
                 }}
-                className="flex w-[356px] max-w-[92vw] items-center gap-3 rounded-xl border border-gold/40 bg-card p-3 text-left shadow-2xl"
+                className="flex w-[356px] max-w-[92vw] items-center gap-3 rounded-xl border border-gold/40 glass p-3 text-left shadow-2xl"
               >
                 <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ring-2', style.bg, style.ring)}>
                   <Icon className={cn('h-6 w-6', style.text)} />

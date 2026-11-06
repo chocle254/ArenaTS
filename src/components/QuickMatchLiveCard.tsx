@@ -124,7 +124,7 @@ export function QuickMatchLiveCard({ challenge, currentUserId }: QuickMatchLiveC
   return (
     <>
       <Card 
-        className="overflow-hidden cursor-pointer hover:border-primary/50 transition-all group relative border-primary/20 bg-primary/5"
+        className="overflow-hidden cursor-pointer hover:border-primary/50 transition-colors group relative border-primary/20 bg-primary/5"
         onClick={() => setModalOpen(true)}
       >
         <CardContent className="p-4">
@@ -135,12 +135,12 @@ export function QuickMatchLiveCard({ challenge, currentUserId }: QuickMatchLiveC
                 {GAME_LABELS[challenge.game] || challenge.game}
               </span>
               {['accepted', 'disputed'].includes(challenge.status) ? (
-                <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 animate-pulse text-[8px] uppercase tracking-wider h-4 px-1">
+                <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 text-[10px] h-4 px-1">
                   Live
                 </Badge>
               ) : (
-                <Badge variant="outline" className={`text-[8px] uppercase tracking-wider h-4 px-1 ${
-                  challenge.status === 'completed' ? 'border-green-500/50 text-green-500' : 
+                <Badge variant="outline" className={`text-xs h-4 px-1 ${
+                  challenge.status === 'completed' ? 'border-success/50 text-success' : 
                   challenge.status === 'cancelled' ? 'border-destructive/50 text-destructive' :
                   'border-muted text-muted-foreground'
                 }`}>
@@ -148,7 +148,7 @@ export function QuickMatchLiveCard({ challenge, currentUserId }: QuickMatchLiveC
                 </Badge>
               )}
             </div>
-            <div className="text-xs font-mono font-bold text-green-500">
+            <div className="text-xs tabular-nums font-bold text-success">
               {Number(challenge.stake_amount) > 0 ? formatArenaCurrency(challenge.prize_pool) : 'Free'}
             </div>
           </div>
@@ -159,14 +159,14 @@ export function QuickMatchLiveCard({ challenge, currentUserId }: QuickMatchLiveC
                 <AvatarImage src={otherEntity?.avatar_url || ''} />
                 <AvatarFallback>{otherEntity?.gamertag?.[0]?.toUpperCase()}</AvatarFallback>
               </Avatar>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-background rounded-full" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success border-2 border-background rounded-full" />
             </div>
             
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold truncate">{otherEntity?.gamertag}</span>
                 {challenge.both_players_ready && (
-                  <Badge variant="outline" className="h-4 px-1 text-[8px] border-green-500/50 text-green-500">READY</Badge>
+                  <Badge variant="outline" className="h-4 px-1 text-[11px] border-success/50 text-success">Ready</Badge>
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -187,10 +187,10 @@ export function QuickMatchLiveCard({ challenge, currentUserId }: QuickMatchLiveC
             {!challenge.both_players_ready && (
               <div className="flex flex-col items-end gap-1">
                 <div className="flex gap-1">
-                  <div className={`w-1.5 h-1.5 rounded-full ${myCheckedIn ? 'bg-green-500' : 'bg-muted'}`} />
-                  <div className={`w-1.5 h-1.5 rounded-full ${opponentCheckedIn ? 'bg-green-500' : 'bg-muted'}`} />
+                  <div className={`w-1.5 h-1.5 rounded-full ${myCheckedIn ? 'bg-success' : 'bg-muted'}`} />
+                  <div className={`w-1.5 h-1.5 rounded-full ${opponentCheckedIn ? 'bg-success' : 'bg-muted'}`} />
                 </div>
-                <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Check-in</span>
+                <span className="text-xs text-muted-foreground font-medium">Check-in</span>
               </div>
             )}
           </div>

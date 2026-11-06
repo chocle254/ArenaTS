@@ -17,6 +17,7 @@ import { useInstallPrompt } from '@/hooks/use-install-prompt';
 import { formatArenaAmount } from '@/lib/arena-currency';
 import { getLevelInfo } from '@/lib/progression';
 import { cn } from '@/lib/utils';
+import { NumberTicker } from '@/components/ui/number-ticker';
 import { CommandSearch } from './CommandSearch';
 import { ACCOUNT_NAV, isActivePath, type NavItem, PRIMARY_NAV, SEARCH_ONLY_NAV, SOCIAL_NAV, STAFF_NAV } from './nav-config';
 
@@ -68,12 +69,12 @@ function SideNavLink({ item, active, count }: { item: NavItem; active: boolean; 
           {active && (
             <motion.span
               layoutId="sidenav-active"
-              className="absolute inset-0 rounded-xl bg-primary/20 ring-1 ring-inset ring-primary/40"
+              className="absolute inset-0 rounded-xl bg-[linear-gradient(90deg,hsl(var(--primary)/0.32),hsl(var(--primary)/0.06))] shadow-[0_8px_24px_-12px_hsl(var(--primary)/0.8)] ring-1 ring-inset ring-primary/30"
               transition={{ type: 'spring', stiffness: 500, damping: 40 }}
             />
           )}
-          {active && <span className="absolute left-0 top-1/2 hidden h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary xl:block" />}
-          <Icon className="relative h-5 w-5 shrink-0" />
+          {active && <span className="absolute left-0 top-1/2 hidden h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary-soft shadow-[0_0_12px_hsl(var(--primary))] xl:block" />}
+          <Icon className={cn('relative h-5 w-5 shrink-0 transition-colors', active && 'text-primary-soft')} />
           <span className="relative hidden xl:inline">{item.name}</span>
           {!!count && (
             <>
@@ -146,20 +147,20 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
       <Link
         to={href}
         aria-current={active ? 'page' : undefined}
-        className={cn('relative flex flex-1 flex-col items-center justify-center gap-1 pt-2 text-[11px] font-medium', active ? 'text-white' : 'text-muted-foreground')}
+        className={cn('relative flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors', active ? 'text-white' : 'text-muted-foreground')}
       >
         {active && (
           <motion.span
             layoutId="bottomnav-active"
-            className="absolute top-0 h-0.5 w-8 rounded-full bg-primary"
+            className="absolute inset-x-1.5 inset-y-1.5 rounded-2xl bg-white/[0.07] ring-1 ring-inset ring-white/10"
             transition={{ type: 'spring', stiffness: 500, damping: 40 }}
           />
         )}
         <span className="relative">
-          <Icon className="h-[22px] w-[22px]" />
+          <Icon className={cn('h-[22px] w-[22px]', active && 'text-primary-soft drop-shadow-[0_0_8px_hsl(var(--primary)/0.8)]')} />
           {count > 0 && <CountBadge count={count} className="absolute -right-3 -top-2 h-4 min-w-4 px-1 text-[10px]" />}
         </span>
-        {label}
+        <span className="relative">{label}</span>
       </Link>
     );
   };
@@ -168,8 +169,8 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/90 backdrop-blur-xl md:hidden"
-      style={{ paddingBottom: 'var(--safe-bottom)' }}
+      className="fixed inset-x-2 z-40 rounded-[26px] border border-white/10 glass-float shadow-[0_20px_50px_-12px_hsl(232_60%_2%/0.95)] md:hidden"
+      style={{ bottom: 'calc(0.5rem + var(--safe-bottom))' }}
       aria-label="Main"
     >
       <LayoutGroup id="bottomnav">
@@ -182,8 +183,8 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
               aria-label="Quick match"
               aria-current={playActive ? 'page' : undefined}
               className={cn(
-                '-mt-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_10px_24px_-10px_hsl(224_100%_50%/0.9)] ring-4 ring-background transition-transform active:scale-95',
-                playActive && 'ring-primary/40',
+                'btn-shine -mt-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(160deg,hsl(var(--primary-2)),hsl(var(--primary)))] text-white shadow-[0_10px_28px_-6px_hsl(var(--primary)/0.9),inset_0_1px_0_hsl(0_0%_100%/0.3)] ring-4 ring-[hsl(var(--background))] transition-transform active:scale-95',
+                playActive && 'ring-primary/30',
               )}
             >
               <Swords className="h-6 w-6" />
@@ -193,7 +194,7 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
           <button
             type="button"
             onClick={onMenu}
-            className="flex flex-1 flex-col items-center justify-center gap-1 pt-2 text-[11px] font-medium text-muted-foreground"
+            className="flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground"
           >
             <Menu className="h-[22px] w-[22px]" />
             More
@@ -232,7 +233,7 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
         onClick={() => onOpenChange(false)}
         className={cn(
           'relative flex flex-col items-start gap-3 rounded-2xl border p-3.5 text-sm font-semibold transition-colors',
-          active ? 'border-primary/50 bg-primary/10' : 'border-border bg-card active:bg-secondary',
+          active ? 'border-primary/40 bg-primary/15 shadow-[0_8px_24px_-12px_hsl(var(--primary)/0.8)]' : 'border-white/[0.07] bg-white/[0.04] active:bg-white/[0.08]',
         )}
       >
         <Icon className={cn('h-5 w-5', active ? 'text-primary-soft' : 'text-muted-foreground')} />
@@ -244,13 +245,13 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-3xl border-t border-border bg-background p-0">
+      <SheetContent side="bottom" className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-[28px] border-t border-white/10 p-0">
         <SheetTitle className="sr-only">More</SheetTitle>
         <SheetDescription className="sr-only">Your account and the rest of Arena</SheetDescription>
         <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-muted" />
         {/* Top padding leaves room for the sheet's close button */}
         <div className="grid grid-cols-2 gap-2 p-4 pb-2 pt-12">
-          <Link to="/profile" onClick={() => onOpenChange(false)} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+          <Link to="/profile" onClick={() => onOpenChange(false)} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.04] p-3">
             <Avatar className="h-10 w-10">
               <AvatarImage src={profile?.avatar_url || ''} alt="" />
               <AvatarFallback className="bg-secondary font-score">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
@@ -260,10 +261,10 @@ function MoreSheet({ open, onOpenChange, onSignOut }: { open: boolean; onOpenCha
               <span className="block text-xs text-muted-foreground">Level {level.level}</span>
             </span>
           </Link>
-          <Link to="/wallet" onClick={() => onOpenChange(false)} className="flex items-center gap-3 rounded-2xl border border-gold/25 bg-gold/[0.06] p-3">
+          <Link to="/wallet" onClick={() => onOpenChange(false)} className="flex items-center gap-3 rounded-2xl border border-gold/25 bg-[linear-gradient(135deg,hsl(var(--gold)/0.14),hsl(var(--gold)/0.03))] p-3">
             <Coins className="h-5 w-5 shrink-0 text-gold" />
             <span className="min-w-0">
-              <span className="block font-score text-lg font-bold leading-tight text-gold">KES {formatArenaAmount(ac)}</span>
+              <span className="block font-score text-lg font-bold leading-tight text-gold-sheen">KES {formatArenaAmount(ac)}</span>
               <span className="block text-xs text-muted-foreground">Wallet</span>
             </span>
           </Link>
@@ -357,11 +358,11 @@ function TopBar({ onSearch, onSignOut }: { onSearch: () => void; onSignOut: () =
         <button
           type="button"
           onClick={onSearch}
-          className="hidden h-10 max-w-md flex-1 items-center gap-3 rounded-xl border border-border bg-white/[0.03] px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground md:flex"
+          className="hidden h-10 max-w-md flex-1 items-center gap-3 rounded-full border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-muted-foreground shadow-[inset_0_1px_2px_hsl(232_50%_2%/0.5)] transition-[border-color,background-color,color] duration-200 hover:border-primary/40 hover:bg-white/[0.06] hover:text-foreground md:flex"
         >
           <Search className="h-4 w-4" />
           <span className="flex-1 text-left">Search players and tournaments</span>
-          <kbd className="rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px]">Ctrl K</kbd>
+          <kbd className="rounded-md border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[11px]">Ctrl K</kbd>
         </button>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
@@ -376,11 +377,11 @@ function TopBar({ onSearch, onSignOut }: { onSearch: () => void; onSignOut: () =
 
           <Link
             to="/wallet"
-            className="flex h-9 items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 pl-2 pr-3 text-gold transition-colors hover:bg-gold/15"
+            className="group flex h-9 items-center gap-1.5 rounded-full border border-gold/30 bg-[linear-gradient(135deg,hsl(var(--gold)/0.18),hsl(var(--gold)/0.05))] pl-2 pr-3 text-gold shadow-[0_6px_20px_-10px_hsl(var(--gold)/0.7)] transition-[box-shadow,border-color] duration-200 hover:border-gold/50 hover:shadow-[0_8px_26px_-8px_hsl(var(--gold)/0.8)]"
             aria-label={`Play balance: KES ${ac}`}
           >
-            <Coins className="h-4 w-4" />
-            <span className="font-score text-base leading-none">{formatArenaAmount(ac)}</span>
+            <Coins className="h-4 w-4 transition-transform duration-500 group-hover:rotate-[20deg]" />
+            <NumberTicker value={ac} format={formatArenaAmount} className="font-score text-base leading-none text-gold-sheen" />
             <span className="hidden text-[11px] font-semibold text-gold/70 sm:inline">KES</span>
           </Link>
 
@@ -390,7 +391,7 @@ function TopBar({ onSearch, onSignOut }: { onSearch: () => void; onSignOut: () =
             <DropdownMenuTrigger asChild>
               <button type="button" className="flex items-center gap-3 rounded-xl p-1 pr-1 transition-colors hover:bg-white/5 lg:pr-3" aria-label="Account menu">
                 <span className="relative">
-                  <Avatar className="h-9 w-9 ring-2 ring-primary/40">
+                  <Avatar className="h-9 w-9 ring-2 ring-primary/50 ring-offset-2 ring-offset-[hsl(var(--background))]">
                     <AvatarImage src={profile?.avatar_url || ''} alt="" />
                     <AvatarFallback className="bg-primary/20 font-score">{profile?.gamertag?.[0]?.toUpperCase() || 'P'}</AvatarFallback>
                   </Avatar>
@@ -546,10 +547,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 fixed layout on phones. */}
             <motion.div
               key={path}
-              className={immersive ? 'md:h-full' : undefined}
-              initial={reduceMotion ? false : immersive ? { opacity: 0 } : { opacity: 0, y: 8 }}
-              animate={immersive ? { opacity: 1 } : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className={immersive ? 'md:h-full' : 'page-stagger'}
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
             >
               {children}
             </motion.div>

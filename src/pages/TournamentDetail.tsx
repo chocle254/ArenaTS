@@ -130,7 +130,7 @@ function JoinTeamDialog({ tournament, open, onOpenChange, onSuccess, loading }: 
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 pt-4">
           <div className="space-y-2">
-            <Label htmlFor="teamName" className="text-sm font-light text-muted-foreground uppercase tracking-wider">Team Name</Label>
+            <Label htmlFor="teamName" className="text-sm font-medium text-muted-foreground">Team name</Label>
             <Input
               id="teamName"
               value={teamName}
@@ -142,7 +142,7 @@ function JoinTeamDialog({ tournament, open, onOpenChange, onSuccess, loading }: 
           </div>
 
           <div className="space-y-4">
-            <Label className="text-sm font-light text-muted-foreground uppercase tracking-wider">Teammates (Gamertags)</Label>
+            <Label className="text-sm font-medium text-muted-foreground">Teammates (gamertags)</Label>
             {Array.from({ length: teamSize - 1 }).map((_, i) => (
               <div key={i} className="space-y-1">
                 <Label htmlFor={`member-${i}`} className="text-xs font-light text-muted-foreground">Member {i + 2}</Label>
@@ -161,7 +161,7 @@ function JoinTeamDialog({ tournament, open, onOpenChange, onSuccess, loading }: 
           <div className="pt-4">
             <Button 
               type="submit" 
-              className="w-full sheen-effect bg-gradient-to-r from-blue-600 to-primary hover:scale-[1.02] transition-transform"
+              className="w-full"
               disabled={loading}
             >
               {loading ? 'Registering Team...' : 'Register Team & Join'}
@@ -1116,23 +1116,23 @@ export default function TournamentDetail() {
                   <CardContent className="space-y-6">
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground uppercase tracking-wider">Format</p>
+                        <p className="text-sm text-muted-foreground">Format</p>
                         <p className="text-lg font-semibold capitalize">{tournament.format}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground uppercase tracking-wider">Bracket Type</p>
+                        <p className="text-sm text-muted-foreground">Bracket type</p>
                         <p className="text-lg font-semibold capitalize">
                           {tournament.bracket_type.replace('_', ' ')}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground uppercase tracking-wider">Start Time</p>
+                        <p className="text-sm text-muted-foreground">Start time</p>
                         <p className="text-lg font-semibold">
                           {startTime.toLocaleString()}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground uppercase tracking-wider">Check-in Window</p>
+                        <p className="text-sm text-muted-foreground">Check-in window</p>
                         <p className="text-lg font-semibold">{tournament.check_in_window} minutes</p>
                       </div>
                     </div>
@@ -1140,7 +1140,7 @@ export default function TournamentDetail() {
                     <Separator className="bg-border/50" />
 
                     <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground uppercase tracking-wider">Prize Distribution</p>
+                      <p className="text-sm text-muted-foreground">Prize distribution</p>
                       <div className="space-y-3">
                         {Object.entries(distribution).map(([place, rawShare]) => {
                           // Shares are stored as fractions (0.5); tolerate whole percentages (50)
@@ -1153,7 +1153,7 @@ export default function TournamentDetail() {
                             <div key={place} className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
                               <span className="font-semibold text-lg">{ordinal(place)} place</span>
                               <div className="text-right">
-                                <div className="text-gold font-mono font-bold text-lg">
+                                <div className="text-gold tabular-nums font-bold text-lg">
                                   {formatArenaCurrency(netAmount)}
                                   <span className="text-sm text-muted-foreground ml-2">
                                     ({Math.round(percentage * 100)}%)
@@ -1185,7 +1185,7 @@ export default function TournamentDetail() {
                           <div className="relative">
                             <Trophy className="h-24 w-24 text-muted-foreground/30" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <Clock className="h-12 w-12 text-primary animate-pulse" />
+                              <Clock className="h-12 w-12 text-primary" />
                             </div>
                           </div>
                         </div>
@@ -1339,10 +1339,10 @@ export default function TournamentDetail() {
                         const renderParticipantRow = (participant: TournamentParticipant, index: number) => (
                           <div 
                             key={participant.id}
-                            className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 hover:bg-muted/30 transition-all duration-200"
+                            className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors duration-200"
                           >
-                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-blue-600/20 to-primary/20 font-bold text-sm shadow-lg shadow-blue-500/30">
-                              <span className="gradient-primary-text">{tournamentWinner ? index + 2 : index + 1}</span>
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary font-bold text-sm tabular-nums">
+                              <span>{tournamentWinner ? index + 2 : index + 1}</span>
                             </div>
                             <Avatar className="h-10 w-10">
                               <AvatarImage src={participant.profiles?.avatar_url || ''} />
@@ -1356,7 +1356,7 @@ export default function TournamentDetail() {
                                   {participant.profiles?.gamertag || 'Anonymous'}
                                 </p>
                                 {participant.is_standby && (
-                                  <Badge variant="outline" className="h-4 text-[10px] px-1 font-light border-blue-500/30 text-blue-400">
+                                  <Badge variant="outline" className="h-4 text-[10px] px-1 font-light border-primary/30 text-primary-soft">
                                     Standby
                                   </Badge>
                                 )}
@@ -1387,9 +1387,9 @@ export default function TournamentDetail() {
                           return (
                             <div className="space-y-4">
                               {Object.entries(teamGroups).map(([teamId, group]) => (
-                                <div key={teamId} className="p-4 rounded-xl border border-blue-500/20 bg-blue-950/20 space-y-3">
+                                <div key={teamId} className="p-4 rounded-xl border border-primary/20 bg-primary/10 space-y-3">
                                   <div className="flex items-center justify-between">
-                                    <h4 className="font-bold text-blue-400 flex items-center gap-2">
+                                    <h4 className="font-bold text-primary-soft flex items-center gap-2">
                                       <Users className="h-4 w-4" />
                                       {group.name}
                                     </h4>
@@ -1403,7 +1403,7 @@ export default function TournamentDetail() {
                                           <AvatarFallback className="text-[10px]">{m.profiles?.gamertag?.[0]?.toUpperCase()}</AvatarFallback>
                                         </Avatar>
                                         <span className="truncate flex-1 font-light">{m.profiles?.gamertag}</span>
-                                        {m.user_id === teams[teamId]?.captain_id && <Badge variant="secondary" className="text-[8px] h-4 px-1">Captain</Badge>}
+                                        {m.user_id === teams[teamId]?.captain_id && <Badge variant="secondary" className="text-[11px] h-4 px-1">Captain</Badge>}
                                       </div>
                                     ))}
                                   </div>
@@ -1411,7 +1411,7 @@ export default function TournamentDetail() {
                               ))}
                               {individuals.length > 0 && (
                                 <div className="space-y-2">
-                                  <h4 className="text-xs font-light text-muted-foreground uppercase tracking-widest px-1">Individuals</h4>
+                                  <h4 className="text-sm font-medium text-muted-foreground px-1">Individuals</h4>
                                   {individuals.map((participant, index) => renderParticipantRow(participant, index))}
                                 </div>
                               )}
@@ -1431,7 +1431,7 @@ export default function TournamentDetail() {
               <Card className="netflix-card border-0 border-primary/50">
                 <CardContent className="pt-6">
                   <div className="text-center space-y-3">
-                    <Users className="h-16 w-16 mx-auto" style={{ color: '#3b82f6', filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 0.6))' }} />
+                    <Users className="h-16 w-16 mx-auto text-primary-soft" />
                     <h4 className="font-semibold text-lg">Tournament Full!</h4>
                     <p className="text-sm text-muted-foreground">
                       Main spots are filled, but you can still join as a <span className="font-semibold text-foreground">standby player</span>.
@@ -1448,7 +1448,7 @@ export default function TournamentDetail() {
 
       {/* Sticky join bar on phones, above the bottom navigation */}
       {canJoin && !isPastTournament && (
-        <div className="fixed inset-x-0 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-xl md:hidden" style={{ bottom: 'calc(4rem + var(--safe-bottom))' }}>
+        <div className="fixed inset-x-2 z-30 rounded-2xl border border-white/10 glass-float px-4 py-3 shadow-[0_16px_40px_-12px_hsl(232_60%_2%/0.9)] md:hidden" style={{ bottom: 'calc(5.25rem + var(--safe-bottom))' }}>
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs text-muted-foreground">{joinAsStandby ? 'Standby spot' : 'Entry'}</p>

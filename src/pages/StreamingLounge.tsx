@@ -81,7 +81,7 @@ export default function StreamingLounge() {
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="overflow-hidden rounded-2xl border border-border bg-card">
+            <div key={i} className="overflow-hidden rounded-2xl border border-border glass">
               <div className="aspect-video animate-pulse bg-secondary" />
               <div className="space-y-2 p-3">
                 <div className="h-4 w-2/3 animate-pulse rounded bg-secondary" />

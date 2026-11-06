@@ -3,10 +3,10 @@ export const getRankScore = (profile: { wins?: number; tournaments_won?: number 
 };
 
 export const getRankColor = (score: number) => {
-  if (score >= 15) return 'text-amber-400';
-  if (score >= 8) return 'text-purple-400';
-  if (score >= 3) return 'text-blue-400';
-  return 'text-green-400';
+  if (score >= 15) return 'text-gold';
+  if (score >= 8) return 'text-foreground';
+  if (score >= 3) return 'text-primary-soft';
+  return 'text-success';
 };
 
 export const getRankTitle = (score: number) => {
@@ -17,8 +17,8 @@ export const getRankTitle = (score: number) => {
 };
 
 export const getRankBadgeColor = (score: number) => {
-  if (score >= 15) return 'bg-amber-500/15 text-amber-400 border-amber-500/25';
-  if (score >= 8) return 'bg-purple-500/15 text-purple-400 border-purple-500/25';
-  if (score >= 3) return 'bg-blue-500/15 text-blue-400 border-blue-500/25';
-  return 'bg-green-500/15 text-green-400 border-green-500/25';
+  if (score >= 15) return 'bg-gold/15 text-gold border-transparent';
+  if (score >= 8) return 'bg-white/10 text-foreground border-transparent';
+  if (score >= 3) return 'bg-primary/15 text-primary-soft border-transparent';
+  return 'bg-success/15 text-success border-transparent';
 };

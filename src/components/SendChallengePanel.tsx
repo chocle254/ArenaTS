@@ -84,7 +84,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
           .insert({
             sender_id: user.id,
             receiver_id: opponent.user_id,
-            message: `🎮 I challenged you to a ${GAME_INFO[selectedGame].name} quick match. Accept it from your notifications within 5 minutes.`,
+            message: `I challenged you to a ${GAME_INFO[selectedGame].name} quick match. Accept it from your notifications within 5 minutes.`,
           })
           .then(
             () => undefined,
@@ -117,14 +117,14 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center md:items-center md:p-4" role="dialog" aria-modal="true" aria-labelledby="send-challenge-title">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} className="absolute inset-0 bg-black/80" />
 
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-            className="relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-2xl md:max-w-xl md:rounded-2xl"
+            className="relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-border glass pb-[env(safe-area-inset-bottom)] shadow-2xl md:max-w-xl md:rounded-2xl"
           >
             <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-muted md:hidden" />
             <div className="space-y-6 p-5 md:p-7">

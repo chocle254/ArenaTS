@@ -379,68 +379,68 @@ export const GAME_INFO: Record<GameType, { name: string; shortName: string; icon
 };
 
 // Game modes configuration
-export const GAME_MODES: Record<GameType, Array<{ value: GameMode; label: string; icon: string }>> = {
+export const GAME_MODES: Record<GameType, Array<{ value: GameMode; label: string }>> = {
   codm: [
-    { value: 'codm_1v1', label: '1v1', icon: '⚔️' },
-    { value: 'codm_tdm', label: 'Team Deathmatch', icon: '💀' },
-    { value: 'codm_2v2', label: '2v2', icon: '👥' },
-    { value: 'codm_snd', label: 'Search & Destroy', icon: '💣' },
-    { value: 'codm_br', label: 'Battle Royale', icon: '🎯' },
-    { value: 'codm_domination', label: 'Domination', icon: '🏴' },
-    { value: 'codm_hardpoint', label: 'Hardpoint', icon: '📍' },
-    { value: 'codm_ffa', label: 'Free For All', icon: '🔥' }
+    { value: 'codm_1v1', label: '1v1' },
+    { value: 'codm_tdm', label: 'Team Deathmatch' },
+    { value: 'codm_2v2', label: '2v2' },
+    { value: 'codm_snd', label: 'Search & Destroy' },
+    { value: 'codm_br', label: 'Battle Royale' },
+    { value: 'codm_domination', label: 'Domination' },
+    { value: 'codm_hardpoint', label: 'Hardpoint' },
+    { value: 'codm_ffa', label: 'Free For All' }
   ],
   fortnite: [
-    { value: 'fortnite_solo', label: 'Solo', icon: '🎮' },
-    { value: 'fortnite_duo', label: 'Duo', icon: '👥' },
-    { value: 'fortnite_squad', label: 'Squad', icon: '👨‍👩‍👦‍👦' },
-    { value: 'fortnite_arena', label: 'Arena', icon: '🏆' },
-    { value: 'fortnite_creative', label: 'Creative', icon: '🎨' }
+    { value: 'fortnite_solo', label: 'Solo' },
+    { value: 'fortnite_duo', label: 'Duo' },
+    { value: 'fortnite_squad', label: 'Squad' },
+    { value: 'fortnite_arena', label: 'Arena' },
+    { value: 'fortnite_creative', label: 'Creative' }
   ],
   fifa: [
-    { value: 'fifa_1v1', label: '1v1', icon: '⚽' },
-    { value: 'fifa_2v2', label: '2v2', icon: '👥' },
-    { value: 'fifa_pro_clubs', label: 'Pro Clubs', icon: '🏟️' },
-    { value: 'fifa_ultimate_team', label: 'Ultimate Team', icon: '⭐' }
+    { value: 'fifa_1v1', label: '1v1' },
+    { value: 'fifa_2v2', label: '2v2' },
+    { value: 'fifa_pro_clubs', label: 'Pro Clubs' },
+    { value: 'fifa_ultimate_team', label: 'Ultimate Team' }
   ],
   warzone: [
-    { value: 'warzone_solo', label: 'Solo', icon: '🎯' },
-    { value: 'warzone_duo', label: 'Duo', icon: '👥' },
-    { value: 'warzone_trio', label: 'Trio', icon: '👨‍👩‍👦' },
-    { value: 'warzone_quad', label: 'Quad', icon: '👨‍👩‍👦‍👦' },
-    { value: 'warzone_plunder', label: 'Plunder', icon: '💰' }
+    { value: 'warzone_solo', label: 'Solo' },
+    { value: 'warzone_duo', label: 'Duo' },
+    { value: 'warzone_trio', label: 'Trio' },
+    { value: 'warzone_quad', label: 'Quad' },
+    { value: 'warzone_plunder', label: 'Plunder' }
   ],
   apex: [
-    { value: 'apex_solo', label: 'Solo', icon: '🎮' },
-    { value: 'apex_duo', label: 'Duo', icon: '👥' },
-    { value: 'apex_trio', label: 'Trio', icon: '👨‍👩‍👦' },
-    { value: 'apex_arena', label: 'Arena', icon: '🏆' }
+    { value: 'apex_solo', label: 'Solo' },
+    { value: 'apex_duo', label: 'Duo' },
+    { value: 'apex_trio', label: 'Trio' },
+    { value: 'apex_arena', label: 'Arena' }
   ],
   valorant: [
-    { value: 'valorant_5v5', label: '5v5 Competitive', icon: '⚔️' },
-    { value: 'valorant_spike_rush', label: 'Spike Rush', icon: '⚡' },
-    { value: 'valorant_deathmatch', label: 'Deathmatch', icon: '💀' },
-    { value: 'valorant_escalation', label: 'Escalation', icon: '📈' }
+    { value: 'valorant_5v5', label: '5v5 Competitive' },
+    { value: 'valorant_spike_rush', label: 'Spike Rush' },
+    { value: 'valorant_deathmatch', label: 'Deathmatch' },
+    { value: 'valorant_escalation', label: 'Escalation' }
   ],
   injustice: [
-    { value: 'injustice_1v1', label: '1v1 Ranked', icon: '⚔️' },
-    { value: 'injustice_king_of_the_hill', label: 'King of the Hill', icon: '👑' },
-    { value: 'injustice_survivor', label: 'Survivor', icon: '🛡️' },
-    { value: 'injustice_tournament', label: 'Tournament', icon: '🏆' }
+    { value: 'injustice_1v1', label: '1v1 Ranked' },
+    { value: 'injustice_king_of_the_hill', label: 'King of the Hill' },
+    { value: 'injustice_survivor', label: 'Survivor' },
+    { value: 'injustice_tournament', label: 'Tournament' }
   ],
   mortal_kombat: [
-    { value: 'mortal_kombat_1v1', label: '1v1 Ranked', icon: '⚔️' },
-    { value: 'mortal_kombat_king_of_the_hill', label: 'King of the Hill', icon: '👑' },
-    { value: 'mortal_kombat_tower', label: 'Tower Challenge', icon: '🗼' },
-    { value: 'mortal_kombat_tournament', label: 'Tournament', icon: '🏆' }
+    { value: 'mortal_kombat_1v1', label: '1v1 Ranked' },
+    { value: 'mortal_kombat_king_of_the_hill', label: 'King of the Hill' },
+    { value: 'mortal_kombat_tower', label: 'Tower Challenge' },
+    { value: 'mortal_kombat_tournament', label: 'Tournament' }
   ],
   efootball: [
-    { value: 'efootball_1v1', label: '1v1', icon: '⚽' }
+    { value: 'efootball_1v1', label: '1v1' }
   ],
   pubg_mobile: [
-    { value: 'pubg_mobile_solo', label: 'Solo', icon: '🎯' },
-    { value: 'pubg_mobile_duo', label: 'Duo', icon: '👥' },
-    { value: 'pubg_mobile_squad', label: 'Squad', icon: '👨‍👩‍👦‍👦' }
+    { value: 'pubg_mobile_solo', label: 'Solo' },
+    { value: 'pubg_mobile_duo', label: 'Duo' },
+    { value: 'pubg_mobile_squad', label: 'Squad' }
   ]
 };
 

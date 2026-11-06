@@ -119,7 +119,7 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md w-full max-w-[calc(100%-2rem)] p-0 overflow-hidden bg-card border-border">
+      <DialogContent className="sm:max-w-md w-full max-w-[calc(100%-2rem)] p-0 overflow-hidden glass border-border">
         <div className="flex flex-col h-full max-h-[85vh]">
           <div className="px-6 py-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10">
             <div className="flex items-center gap-2 text-primary">
@@ -324,7 +324,7 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
                   animate={{ opacity: 1, scale: 1 }}
                   className="flex flex-col items-center justify-center py-8 space-y-6 text-center"
                 >
-                  <div className="w-20 h-20 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mb-2">
+                  <div className="w-20 h-20 bg-success/20 text-success rounded-full flex items-center justify-center mb-2">
                     <Check className="h-10 w-10" />
                   </div>
                   

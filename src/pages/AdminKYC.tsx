@@ -189,7 +189,7 @@ export default function AdminKYC() {
     switch (status) {
       case 'verified':
         return (
-          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30">
+          <Badge className="bg-success/20 text-success border-success/30 hover:bg-success/30">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Verified
           </Badge>
@@ -203,7 +203,7 @@ export default function AdminKYC() {
         );
       case 'pending':
         return (
-          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30">
+          <Badge className="bg-warning/20 text-warning border-warning/30 hover:bg-warning/30">
             <Clock className="h-3 w-3 mr-1" />
             Pending
           </Badge>
@@ -387,7 +387,7 @@ export default function AdminKYC() {
 
       {/* Rejection / Detail Dialog */}
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg bg-card border-border">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg glass border-border">
           <DialogHeader>
             <DialogTitle className="text-white">
               {selected?.profile.kyc_status === 'pending' ? 'Reject KYC' : 'KYC Details'}
@@ -492,7 +492,7 @@ export default function AdminKYC() {
             {selected?.profile.kyc_status === 'pending' && (
               <Button
                 variant="outline"
-                className="w-full md:w-auto border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                className="w-full md:w-auto border-success/30 text-success hover:bg-success/10"
                 onClick={() => handleApprove(selected)}
                 disabled={processing}
               >

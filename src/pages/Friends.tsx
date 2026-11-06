@@ -25,7 +25,7 @@ export default function Friends() {
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center relative">
               <UserPlus className="h-5 w-5 text-primary" />
-              <Badge className="absolute -top-1 -right-1 bg-red-500 text-white border-2 border-background animate-pulse">
+              <Badge className="absolute -top-1 -right-1 bg-destructive text-white border-2 border-background">
                 {pendingRequests.length}
               </Badge>
             </div>
@@ -50,7 +50,7 @@ export default function Friends() {
         </div>
         
         {friends.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-12 rounded-2xl border border-white/5 bg-white/5 backdrop-blur-sm text-center space-y-4">
+          <div className="flex flex-col items-center justify-center p-12 rounded-lg glass text-center space-y-4">
             <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
               <Users className="h-8 w-8 text-primary/50" />
             </div>
@@ -69,7 +69,7 @@ export default function Friends() {
             {friends.map((friend) => (
               <div 
                 key={friend.id}
-                className="group p-4 rounded-xl border border-white/5 bg-white/5 backdrop-blur-sm hover:bg-white/10 hover:border-white/10 transition-all duration-300 flex flex-col gap-4"
+                className="group p-4 rounded-lg glass hover:bg-secondary transition-colors duration-200 flex flex-col gap-4"
               >
                 <div className="flex items-center gap-3">
                   <div className="relative">
@@ -80,7 +80,7 @@ export default function Friends() {
                       </AvatarFallback>
                     </Avatar>
                     {/* Simplified online status - in a real app this would use a presence hook */}
-                    <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 border-2 border-[#0a0015] animate-pulse" />
+                    <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-success border-2 border-card" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold truncate group-hover:text-primary transition-colors">{friend.gamertag}</h4>

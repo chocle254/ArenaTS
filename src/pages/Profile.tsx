@@ -249,7 +249,7 @@ export default function Profile() {
                 player.last_seen_at && <span>Seen {formatRelativeTime(player.last_seen_at)}</span>
               )}
               {(player.current_streak || 0) >= 2 && (
-                <span className="flex items-center gap-1 text-orange-400">
+                <span className="flex items-center gap-1 text-foreground">
                   <Flame className="h-4 w-4" /> {player.current_streak} win streak
                 </span>
               )}
@@ -315,7 +315,7 @@ export default function Profile() {
 
         <dl className="relative mt-6 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-border bg-border md:grid-cols-6">
           {stats.map((s) => (
-            <div key={s.label} className="bg-card px-3 py-3 text-center">
+            <div key={s.label} className="glass px-3 py-3 text-center">
               <dd className={cn('font-score text-2xl font-bold leading-none md:text-3xl', s.tone)}>{s.value}</dd>
               <dt className="mt-1 text-xs text-muted-foreground">{s.label}</dt>
             </div>
@@ -345,7 +345,7 @@ export default function Profile() {
         </div>
         {badges.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-            {isOwn ? 'Play your first match to unlock your first achievement.' : 'No achievements yet.'}
+            {isOwn ? 'Play your first match to earn your first achievement.' : 'No achievements yet.'}
           </p>
         ) : (
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">

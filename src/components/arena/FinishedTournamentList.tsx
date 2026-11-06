@@ -50,7 +50,7 @@ export function FinishedTournamentList({ tournaments, className }: { tournaments
           <li key={t.id}>
             <Link
               to={`/tournaments/${t.id}`}
-              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex items-center gap-3 rounded-2xl border border-border glass px-3 py-2.5 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <img
                 src={game?.icon}

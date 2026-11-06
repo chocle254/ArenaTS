@@ -302,7 +302,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[95dvh] md:h-[90vh] p-0 overflow-hidden flex flex-col bg-background/95 backdrop-blur-xl border-border/50 shadow-2xl max-sm:w-screen max-sm:max-w-none">
+      <DialogContent className="max-w-4xl h-[95dvh] md:h-[90vh] p-0 overflow-hidden flex flex-col bg-background border-border/50 shadow-2xl max-sm:w-screen max-sm:max-w-none">
         <DialogHeader className="p-3 md:p-6 border-b border-border/50 bg-muted/20 shrink-0">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
             <div className="flex items-center gap-3 md:gap-4">
@@ -313,7 +313,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                 <DialogTitle className="text-base md:text-xl font-bold uppercase tracking-tight" style={{ fontFamily: "'Saira Condensed', sans-serif" }}>
                   {challenge.game.toUpperCase()} MATCH
                 </DialogTitle>
-                <p className="text-[10px] md:text-xs text-muted-foreground font-mono flex items-center gap-2 mt-0.5 md:mt-1">
+                <p className="text-[10px] md:text-xs text-muted-foreground tabular-nums flex items-center gap-2 mt-0.5 md:mt-1">
                   ID {challenge.id.substring(0, 8)}, {Number(challenge.stake_amount) > 0 ? `stake ${formatArenaCurrency(challenge.stake_amount)}` : 'free match'}
                 </p>
               </div>
@@ -332,7 +332,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                 </div>
               )}
               {challenge.status !== 'disputed' && challenge.status !== 'disputed_warning' && (
-                <Badge variant="outline" className="px-2 md:px-3 py-0.5 md:py-1 border-primary/30 text-primary bg-primary/5 uppercase text-[8px] md:text-[10px] tracking-widest font-bold">
+                <Badge variant="outline" className="px-2 md:px-3 py-0.5 md:py-1 border-primary/30 text-primary bg-primary/5 text-xs font-semibold">
                   {challenge.status}
                 </Badge>
               )}
@@ -346,7 +346,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
             <ScrollArea className="flex-1">
               <div className="p-4 md:p-6 flex flex-col gap-4 md:gap-6 pb-20">
                 <section className="order-2 md:order-1">
-                  <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-muted-foreground mb-4 flex items-center gap-2">
                     <Info className="h-3 w-3" />
                     Match Rules
                   </h3>
@@ -363,7 +363,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                 <Separator className="bg-border/50 hidden md:block" />
 
                 <section className="space-y-4 order-1 md:order-2">
-                  <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-muted-foreground flex items-center gap-2">
                     <CheckCircle className="h-3 w-3" />
                     Match Actions
                   </h3>
@@ -371,7 +371,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                   {['completed', 'cancelled', 'expired', 'declined'].includes(challenge.status) ? (
                     <div className="p-4 bg-muted/20 rounded-lg border border-border/50 text-center space-y-2">
                       {challenge.status === 'completed' ? (
-                        <Trophy className="h-8 w-8 mx-auto text-gold animate-bounce" />
+                        <Trophy className="h-8 w-8 mx-auto text-gold" />
                       ) : (
                         <AlertTriangle className="h-8 w-8 mx-auto text-muted-foreground" />
                       )}
@@ -397,9 +397,9 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                           
                           <div className="space-y-2">
                             <Button 
-                              className={`w-full py-6 font-bold tracking-tight transition-all duration-300 ${
+                              className={`w-full py-6 font-bold tracking-tight transition-colors duration-200 ${
                                 myCheckedIn 
-                                  ? 'bg-green-500/10 text-green-500 border-2 border-green-500/50 hover:bg-green-500/20' 
+                                  ? 'bg-success/10 text-success border-2 border-success/50 hover:bg-success/20' 
                                   : isDeadlinePassed
                                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
                                     : 'bg-primary hover:bg-primary/90'
@@ -423,13 +423,13 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                             </Button>
                             
                             {isDeadlinePassed && !myCheckedIn && (
-                              <p className="text-[10px] text-center text-destructive font-bold uppercase tracking-tight">
+                              <p className="text-xs text-center text-destructive font-bold">
                                 You missed the check-in deadline
                               </p>
                             )}
                             
                             {myCheckedIn && !opponentCheckedIn && !isDeadlinePassed && (
-                              <p className="text-[10px] text-center text-muted-foreground animate-pulse font-medium">
+                              <p className="text-[10px] text-center text-muted-foreground font-medium">
                                 Waiting for opponent to check in...
                               </p>
                             )}
@@ -441,10 +441,9 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                             )}
                             
                             {!myCheckedIn && opponentCheckedIn && !isDeadlinePassed && (
-                              <div className="flex items-center justify-center gap-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
-                                <p className="text-[10px] text-amber-500 font-bold uppercase tracking-tight">
-                                  Opponent is ready!
+                              <div className="flex items-center justify-center gap-2 p-2 bg-warning/10 border border-warning/20 rounded-lg">
+                                <p className="text-sm text-warning font-semibold">
+                                  Your opponent is ready
                                 </p>
                               </div>
                             )}
@@ -454,10 +453,10 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
 
                       {challenge.both_players_ready && challenge.status !== 'completed' && challenge.status !== 'disputed' && challenge.status !== 'disputed_warning' && (
                         <div className="space-y-3">
-                          <p className="text-[10px] text-center text-muted-foreground uppercase font-bold tracking-tighter">Report Result</p>
+                          <p className="text-sm text-center text-muted-foreground font-medium">Report the result</p>
                           <Button 
                             variant="outline"
-                            className={`w-full py-6 border-2 font-bold ${myReported === currentUserId ? 'border-green-500 bg-green-500/10 text-green-600' : 'border-border'}`}
+                            className={`w-full py-6 border-2 font-bold ${myReported === currentUserId ? 'border-success bg-success/10 text-success' : 'border-border'}`}
                             onClick={() => handleReportResult(currentUserId)}
                             disabled={submitting}
                           >
@@ -466,7 +465,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                           </Button>
                           <Button 
                             variant="outline"
-                            className={`w-full py-6 border-2 font-bold ${myReported === opponentEntity.id ? 'border-red-500 bg-red-500/10 text-red-600' : 'border-border'}`}
+                            className={`w-full py-6 border-2 font-bold ${myReported === opponentEntity.id ? 'border-destructive bg-destructive/10 text-destructive' : 'border-border'}`}
                             onClick={() => handleReportResult(opponentEntity.id)}
                             disabled={submitting}
                           >
@@ -499,30 +498,30 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                           <Separator className="bg-destructive/20" />
                           
                           <div className="space-y-3">
-                            <p className="text-[10px] text-center text-muted-foreground uppercase font-bold tracking-tighter">Report Result Again</p>
+                            <p className="text-sm text-center text-muted-foreground font-medium">Report the result again</p>
                             <div className="flex flex-col gap-2">
                               <Button 
                                 variant="outline"
-                                className={`w-full py-6 border-2 font-bold relative ${myReported === currentUserId ? 'border-green-500 bg-green-500/10 text-green-600' : 'border-border'}`}
+                                className={`w-full py-6 border-2 font-bold relative ${myReported === currentUserId ? 'border-success bg-success/10 text-success' : 'border-border'}`}
                                 onClick={() => handleReportResult(currentUserId)}
                                 disabled={submitting}
                               >
                                 <Trophy className="h-4 w-4 mr-2" />
                                 I WON
                                 {opponentReported === currentUserId && (
-                                  <Badge variant="secondary" className="absolute -top-2 -right-2 bg-green-500 text-white border-none text-[8px] px-1">Opponent Agreed</Badge>
+                                  <Badge variant="secondary" className="absolute -top-2 -right-2 bg-success text-white border-none text-[11px] px-1">Opponent Agreed</Badge>
                                 )}
                               </Button>
                               <Button 
                                 variant="outline"
-                                className={`w-full py-6 border-2 font-bold relative ${myReported === opponentEntity.id ? 'border-red-500 bg-red-500/10 text-red-600' : 'border-border'}`}
+                                className={`w-full py-6 border-2 font-bold relative ${myReported === opponentEntity.id ? 'border-destructive bg-destructive/10 text-destructive' : 'border-border'}`}
                                 onClick={() => handleReportResult(opponentEntity.id)}
                                 disabled={submitting}
                               >
                                 <XCircle className="h-4 w-4 mr-2" />
                                 I LOST
                                 {opponentReported === opponentEntity.id && (
-                                  <Badge variant="secondary" className="absolute -top-2 -right-2 bg-red-500 text-white border-none text-[8px] px-1">Opponent Claims Win</Badge>
+                                  <Badge variant="secondary" className="absolute -top-2 -right-2 bg-destructive text-white border-none text-[11px] px-1">Opponent Claims Win</Badge>
                                 )}
                               </Button>
                             </div>
@@ -534,7 +533,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                         <div className="mt-8 pt-6 border-t border-destructive/20 space-y-4">
                           <div className="flex items-center gap-2 text-destructive">
                             <ShieldAlert className="h-3 w-3" />
-                            <h4 className="text-[10px] font-bold uppercase tracking-widest">Moderator Override</h4>
+                            <h4 className="text-xs font-bold">Moderator override</h4>
                           </div>
                           <div className="grid grid-cols-1 gap-2">
                             <Button 
@@ -588,10 +587,10 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                     <AvatarFallback>{entities.opponent.gamertag[0]}</AvatarFallback>
                   </Avatar>
                 </div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Match Room Chat</span>
+                <span className="text-sm font-medium text-muted-foreground">Match chat</span>
               </div>
               {opponentCheckedIn && !challenge.both_players_ready && (
-                <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px]">
+                <Badge variant="secondary" className="bg-success/10 text-success border-success/20 text-[10px]">
                   OPPONENT IS READY
                 </Badge>
               )}
@@ -601,7 +600,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
               <div className="space-y-6">
                 {loadingMessages ? (
                   <div className="flex flex-col items-center justify-center h-40 gap-3 opacity-30">
-                    <MessageCircle className="h-8 w-8 animate-pulse" />
+                    <MessageCircle className="h-8 w-8" />
                     <p className="text-xs">Connecting to match room...</p>
                   </div>
                 ) : messages.length === 0 ? (
@@ -615,7 +614,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                       const isAi = String(msg.message).startsWith('🤖');
                       return (
                         <div key={msg.id} className="flex flex-col items-center">
-                          <span className={`mb-1 text-[10px] font-bold uppercase tracking-wider ${isAi ? 'text-primary-soft' : 'text-gold'}`}>{isAi ? 'AI referee' : 'Arena'}</span>
+                          <span className={`mb-1 text-xs font-bold ${isAi ? 'text-primary-soft' : 'text-gold'}`}>{isAi ? 'AI referee' : 'Arena'}</span>
                           <div className={`max-w-[92%] rounded-xl border px-4 py-2.5 text-center text-sm ${isAi ? 'border-primary/30 bg-primary/10' : 'border-gold/30 bg-gold/10'}`}>
                             {isAi ? String(msg.message).replace(/^🤖\s*AI referee:\s*/, '') : msg.message}
                           </div>
@@ -668,7 +667,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                   <Send className="h-5 w-5" />
                 </Button>
               </div>
-              <p className="text-[9px] text-center text-muted-foreground mt-2 uppercase tracking-widest opacity-50">
+              <p className="text-xs text-center text-muted-foreground mt-2 opacity-50">
                 Messages are recorded for dispute resolution
               </p>
             </div>

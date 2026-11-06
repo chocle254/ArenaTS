@@ -75,7 +75,7 @@ async function mpesaAdmin<T>(body: Record<string, unknown>) {
 
 function Figure({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: 'gold' | 'warn' }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-2xl border border-border glass p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className={cn('mt-1 font-score text-3xl font-bold leading-none', tone === 'gold' && 'text-gold', tone === 'warn' && 'text-destructive')}>{value}</p>
       {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
@@ -218,7 +218,7 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
       <section className="space-y-3">
         <h2 className="text-xl">Withdrawals to review</h2>
         {review.length === 0 ? (
-          <p className="flex items-center gap-2 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 rounded-2xl border border-border glass p-4 text-sm text-muted-foreground">
             <CheckCircle2 className="h-5 w-5 text-success" /> Nothing waiting.
           </p>
         ) : (
@@ -226,7 +226,7 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
             {review.map((w) => {
               const own = w.user_id === currentUserId;
               return (
-                <li key={w.id} className="space-y-3 rounded-2xl border border-gold/30 bg-card p-4">
+                <li key={w.id} className="space-y-3 rounded-2xl border border-gold/30 glass p-4">
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <Link to={`/profile/${w.user_id}`} className="font-semibold hover:underline">
@@ -267,7 +267,7 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
       {stuck.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xl">Payouts in flight</h2>
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border glass">
             {stuck.map((w) => (
               <li key={w.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
@@ -291,11 +291,11 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
           <Snowflake className="h-5 w-5 text-primary-soft" /> Frozen winnings
         </h2>
         {holds.length === 0 ? (
-          <p className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">No winnings frozen.</p>
+          <p className="rounded-2xl border border-border glass p-4 text-sm text-muted-foreground">No winnings frozen.</p>
         ) : (
           <ul className="space-y-2">
             {holds.map((h) => (
-              <li key={h.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4">
+              <li key={h.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-border glass p-4">
                 <div className="min-w-0 flex-1">
                   <Link to={`/profile/${h.user_id}`} className="font-semibold hover:underline">
                     {h.profiles?.gamertag || 'Player'}
@@ -322,9 +322,9 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
           <ShieldAlert className="h-5 w-5 text-live" /> Laundering flags
         </h2>
         {flags.length === 0 ? (
-          <p className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">No open flags.</p>
+          <p className="rounded-2xl border border-border glass p-4 text-sm text-muted-foreground">No open flags.</p>
         ) : (
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border glass">
             {flags.map((f) => (
               <li key={f.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
@@ -356,9 +356,9 @@ export function AdminMoney({ revenueBalance, tournaments, currentUserId, onChang
           </Button>
         </div>
         {tournaments.length === 0 ? (
-          <p className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">No finished tournaments yet.</p>
+          <p className="rounded-2xl border border-border glass p-8 text-center text-sm text-muted-foreground">No finished tournaments yet.</p>
         ) : (
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border glass">
             {tournaments.slice(0, 50).map((t) => (
               <li key={t.id} className="flex items-center gap-3 px-4 py-3">
                 <img src={GAME_INFO[t.game as GameType]?.icon} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" loading="lazy" />

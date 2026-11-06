@@ -5,7 +5,7 @@ interface LiveBadgeProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-/** Live status chip. Cyan is reserved for live / online across the app. */
+/** Live status chip: red is reserved for live / on air across the app. */
 export function LiveBadge({ className = '', size = 'md' }: LiveBadgeProps) {
   const sizeClasses = {
     sm: 'text-[11px] px-2 py-0.5 gap-1.5',
@@ -15,7 +15,7 @@ export function LiveBadge({ className = '', size = 'md' }: LiveBadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border border-live/40 bg-live/10 font-semibold text-live',
+        'inline-flex items-center rounded-full border border-live/40 bg-live/15 font-semibold text-live shadow-[0_0_18px_-4px_hsl(var(--live)/0.7)]',
         sizeClasses[size],
         className,
       )}

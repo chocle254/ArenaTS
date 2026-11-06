@@ -88,18 +88,18 @@ export function AdminTournaments() {
       {loading ? (
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-2xl bg-card" />
+            <div key={i} className="h-16 animate-pulse rounded-2xl glass" />
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <p className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Nothing here right now.</p>
+        <p className="rounded-2xl border border-border glass p-8 text-center text-sm text-muted-foreground">Nothing here right now.</p>
       ) : (
         <ul className="space-y-2">
           {rows.map((t) => {
             const game = GAME_INFO[t.game as GameType];
             const phase = getTournamentPhase(t);
             return (
-              <li key={t.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 sm:flex-nowrap">
+              <li key={t.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-border glass px-3 py-2.5 sm:flex-nowrap">
                 <img src={game?.icon} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" loading="lazy" />
                 <Link to={`/tournaments/${t.id}`} className="min-w-0 flex-1 hover:underline">
                   <p className="truncate font-semibold">{t.name}</p>

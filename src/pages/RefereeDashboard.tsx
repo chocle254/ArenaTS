@@ -96,7 +96,7 @@ export default function RefereeDashboard() {
       {loading && rows.length === 0 ? (
         <div className="grid gap-3 md:grid-cols-2">
           {[0, 1].map((i) => (
-            <div key={i} className="h-32 animate-pulse rounded-2xl bg-card" />
+            <div key={i} className="h-32 animate-pulse rounded-2xl glass" />
           ))}
         </div>
       ) : rows.length === 0 ? (
@@ -114,7 +114,7 @@ export default function RefereeDashboard() {
                 <button
                   type="button"
                   onClick={() => setOpen(d)}
-                  className={cn('flex w-full flex-col gap-3 rounded-2xl border bg-card p-4 text-left hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', d.status === 'human_review' ? 'border-live/40' : 'border-border')}
+                  className={cn('flex w-full flex-col gap-3 rounded-2xl border glass p-4 text-left hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', d.status === 'human_review' ? 'border-live/40' : 'border-border')}
                 >
                   <div className="flex items-center gap-2.5">
                     {game && <img src={game.icon} alt="" className="h-8 w-8 rounded-lg object-cover" loading="lazy" />}

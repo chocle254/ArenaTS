@@ -56,7 +56,7 @@ function TaskTile({ icon, count, label, action, onClick, to, urgent = true }: { 
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
     </>
   );
-  const cls = 'flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const cls = 'flex w-full items-center gap-3 rounded-2xl border border-border glass p-3 text-left transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   return to ? (
     <Link to={to} className={cls}>
       {body}
@@ -70,7 +70,7 @@ function TaskTile({ icon, count, label, action, onClick, to, urgent = true }: { 
 
 function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: 'gold' | 'live' }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-2xl border border-border glass p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className={cn('mt-1 font-score text-3xl font-bold leading-none', tone === 'gold' && 'text-gold', tone === 'live' && 'text-live')}>{value}</p>
       {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
@@ -244,7 +244,7 @@ export default function AdminDashboard() {
           <section className="space-y-3">
             <h2 className="text-xl">Needs you</h2>
             {allClear && !loading ? (
-              <p className="flex items-center gap-2 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+              <p className="flex items-center gap-2 rounded-2xl border border-border glass p-4 text-sm text-muted-foreground">
                 <CheckCircle2 className="h-5 w-5 text-success" /> All clear. No disputes, payouts, flags, KYC reviews or referee applications waiting.
               </p>
             ) : (

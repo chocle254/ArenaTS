@@ -125,7 +125,7 @@ export function AdminPlayers() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="overflow-hidden rounded-2xl border border-border glass">
         {/* Header row only where there's room for columns */}
         <div className="hidden grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_1fr] gap-3 border-b border-border px-4 py-2.5 text-xs font-semibold text-muted-foreground md:grid">
           <span>Player</span>
@@ -183,7 +183,7 @@ export function AdminPlayers() {
                   aria-pressed={!!p.organizer_verified}
                   title="Verified organizers (sponsors, brands) can run prize tournaments without caps"
                 >
-                  {p.organizer_verified ? 'Organizer ✓' : 'Make organizer'}
+                  {p.organizer_verified ? 'Organizer' : 'Make organizer'}
                 </button>
               </li>
             ))}

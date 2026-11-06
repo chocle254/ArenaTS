@@ -16,7 +16,7 @@ import { type Notification, useNotifications } from '@/hooks/use-notifications';
 const NotificationIcon = ({ type }: { type: Notification['type'] }) => {
   switch (type) {
     case 'tournament':
-      return <Trophy className="h-4 w-4 text-blue-500" />;
+      return <Trophy className="h-4 w-4 text-primary-soft" />;
     case 'match':
       return <Trophy className="h-4 w-4 text-primary" />;
     case 'payment':
@@ -117,7 +117,7 @@ export function NotificationDropdown() {
                               {notification.title}
                             </p>
                             {!notification.read && (
-                              <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-1" />
+                              <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1" />
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground font-light line-clamp-2">
@@ -146,7 +146,7 @@ export function NotificationDropdown() {
                               {notification.title}
                             </p>
                             {!notification.read && (
-                              <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-1" />
+                              <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1" />
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground font-light line-clamp-2">

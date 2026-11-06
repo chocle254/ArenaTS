@@ -98,7 +98,7 @@ export function RefereeApplicationChat({ applicationId, userId, isAdmin = false 
   return (
     <div className="flex flex-col h-[500px] bg-background rounded-lg border border-border overflow-hidden">
       <div className="p-4 border-b border-border bg-muted/20">
-        <h3 className="text-sm font-medium uppercase tracking-wider flex items-center gap-2">
+        <h3 className="text-sm font-medium flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-primary" />
           Referee Application Chat
         </h3>

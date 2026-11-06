@@ -11,7 +11,7 @@ import { type Notification, useNotifications } from '@/hooks/use-notifications';
 const NotificationIcon = ({ type }: { type: Notification['type'] }) => {
   switch (type) {
     case 'tournament':
-      return <Trophy className="h-5 w-5 text-blue-500" />;
+      return <Trophy className="h-5 w-5 text-primary-soft" />;
     case 'match':
       return <Trophy className="h-5 w-5 text-primary" />;
     case 'payment':
@@ -64,8 +64,8 @@ export default function NotificationsPage() {
         <Card className="border-border/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-blue-500/10">
-                <Bell className="h-6 w-6 text-blue-500" />
+              <div className="p-3 rounded-lg bg-primary/10">
+                <Bell className="h-6 w-6 text-primary-soft" />
               </div>
               <div>
                 <p className="text-2xl font-light">{notifications.length}</p>
@@ -78,8 +78,8 @@ export default function NotificationsPage() {
         <Card className="border-border/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-red-500/10">
-                <Bell className="h-6 w-6 text-red-500" />
+              <div className="p-3 rounded-lg bg-destructive/10">
+                <Bell className="h-6 w-6 text-destructive" />
               </div>
               <div>
                 <p className="text-2xl font-light">{unreadCount}</p>
@@ -92,8 +92,8 @@ export default function NotificationsPage() {
         <Card className="border-border/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-green-500/10">
-                <CheckCheck className="h-6 w-6 text-green-500" />
+              <div className="p-3 rounded-lg bg-success/10">
+                <CheckCheck className="h-6 w-6 text-success" />
               </div>
               <div>
                 <p className="text-2xl font-light">{notifications.length - unreadCount}</p>
@@ -106,7 +106,7 @@ export default function NotificationsPage() {
 
       {/* Filters */}
       <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'unread')} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 bg-gradient-to-br from-blue-950/30 via-primary/10 to-blue-950/30 border border-blue-500/20">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="all" className="font-light">
             All ({notifications.length})
           </TabsTrigger>
@@ -143,7 +143,7 @@ export default function NotificationsPage() {
               {filteredNotifications.map((notification) => (
                 <Card
                   key={notification.id}
-                  className={`border-border/50 transition-all hover:border-border ${
+                  className={`border-border/50 transition-colors hover:border-border ${
                     !notification.read ? 'bg-muted/10' : ''
                   }`}
                 >
@@ -166,7 +166,7 @@ export default function NotificationsPage() {
                                     {notification.title}
                                   </h3>
                                   {!notification.read && (
-                                    <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" />
+                                    <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
                                   )}
                                 </div>
                                 <p className="text-sm text-muted-foreground font-light">
@@ -202,7 +202,7 @@ export default function NotificationsPage() {
                                     {notification.title}
                                   </h3>
                                   {!notification.read && (
-                                    <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" />
+                                    <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
                                   )}
                                 </div>
                                 <p className="text-sm text-muted-foreground font-light">

@@ -260,25 +260,25 @@ export default function FinanceAnalytics() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="border-border bg-card/50">
               <CardContent className="pt-6">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">Revenue (period)</div>
+                <div className="text-sm text-muted-foreground">Revenue (period)</div>
                 <div className="text-2xl font-bold mt-1">{fmt(totals.revenue)}</div>
               </CardContent>
             </Card>
             <Card className="border-border bg-card/50">
               <CardContent className="pt-6">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">Deposits (period)</div>
+                <div className="text-sm text-muted-foreground">Deposits (period)</div>
                 <div className="text-2xl font-bold mt-1">{fmt(totals.deposits)}</div>
               </CardContent>
             </Card>
             <Card className="border-border bg-card/50">
               <CardContent className="pt-6">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawals (period)</div>
+                <div className="text-sm text-muted-foreground">Withdrawals (period)</div>
                 <div className="text-2xl font-bold mt-1">{fmt(totals.withdrawals)}</div>
               </CardContent>
             </Card>
             <Card className="border-border bg-card/50">
               <CardContent className="pt-6">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">Float top-ups (period)</div>
+                <div className="text-sm text-muted-foreground">Float top-ups (period)</div>
                 <div className="text-2xl font-bold mt-1">{fmt(totals.floatTopups)}</div>
               </CardContent>
             </Card>

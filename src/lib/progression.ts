@@ -71,7 +71,7 @@ export const TIERS: Tier[] = [
   { name: 'Rookie', minLevel: 1, text: 'text-muted-foreground', bg: 'bg-white/5' },
   { name: 'Contender', minLevel: 5, text: 'text-success', bg: 'bg-success/10' },
   { name: 'Pro', minLevel: 10, text: 'text-primary-soft', bg: 'bg-primary/15' },
-  { name: 'Elite', minLevel: 20, text: 'text-fuchsia-300', bg: 'bg-fuchsia-500/10' },
+  { name: 'Elite', minLevel: 20, text: 'text-foreground', bg: 'bg-white/10' },
   { name: 'Legend', minLevel: 35, text: 'text-gold', bg: 'bg-gold/10' },
 ];
 
@@ -179,9 +179,9 @@ export function evaluateAchievements(ctx: AchievementContext): AchievementState[
 }
 
 export const RARITY_STYLES: Record<AchievementDef['rarity'], { ring: string; text: string; bg: string; label: string }> = {
-  common: { ring: 'ring-white/15', text: 'text-foreground', bg: 'bg-white/5', label: 'Common' },
+  common: { ring: 'ring-white/10', text: 'text-muted-foreground', bg: 'bg-white/5', label: 'Common' },
   rare: { ring: 'ring-primary/50', text: 'text-primary-soft', bg: 'bg-primary/10', label: 'Rare' },
-  epic: { ring: 'ring-fuchsia-400/50', text: 'text-fuchsia-300', bg: 'bg-fuchsia-500/10', label: 'Epic' },
+  epic: { ring: 'ring-white/40', text: 'text-foreground', bg: 'bg-white/10', label: 'Epic' },
   legendary: { ring: 'ring-gold/60', text: 'text-gold', bg: 'bg-gold/10', label: 'Legendary' },
 };
 

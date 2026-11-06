@@ -379,7 +379,6 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
             toast(`Message from ${sender.gamertag}`, {
               description: text.substring(0, 50) + (text.length > 50 ? '…' : ''),
               position: 'top-center',
-              icon: '💬',
             });
             try {
               buzz(30);
