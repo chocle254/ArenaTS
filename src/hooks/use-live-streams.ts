@@ -82,13 +82,12 @@ async function load(): Promise<LiveMatch[]> {
     ]),
   );
 
-  // Quick matches: only players who opted in. Tournament matches: opted-in
-  // players first, otherwise anyone with Twitch linked (as before).
+  // Streaming is off unless the player switched it on for this match
   const pick = (kind: LiveMatch['kind'], id: string, a: StreamPlayer | null, b: StreamPlayer | null) => {
     const opted = streamsFor.get(`${kind}:${id}`);
     const candidates = [a, b]
       .filter((p): p is StreamPlayer => !!p)
-      .map((p) => (opted?.has(p.id) ? { ...p, twitch: opted.get(p.id)! } : kind === 'quick' || opted?.size ? null : p))
+      .map((p) => (opted?.has(p.id) ? { ...p, twitch: opted.get(p.id)! } : null))
       .filter((p): p is StreamPlayer => !!p?.twitch);
     return candidates.sort((x, y) => (y.wins || 0) - (x.wins || 0))[0] || null;
   };

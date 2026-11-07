@@ -1,0 +1,2 @@
+-- Applied to production via MCP on 2026-11-07 (migration "assign_only_active_referees").
+-- _assign_referee only picks referees seen in the last 24h; if none, all admins are notified.

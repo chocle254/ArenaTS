@@ -1002,7 +1002,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
           <Button
             size="sm"
             variant="outline"
-            className="w-full h-8 gap-2 border-border text-muted-foreground hover:text-primary hover:border-primary/30 text-[10px] font-bold tracking-tight bg-transparent"
+            className="w-full h-8 gap-2 border-border text-muted-foreground hover:text-primary hover:border-primary/30 text-xs font-semibold bg-transparent"
             onClick={(e) => {
               e.stopPropagation();
               const params = new URLSearchParams({
@@ -1017,7 +1017,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
             }}
           >
             <Play className="h-3 w-3" />
-            VIEW STREAM
+            Watch match
           </Button>
         )}
 
