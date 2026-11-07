@@ -62,7 +62,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
 
       await refreshProfile();
       
-      toast.success('Thank you for your feedback! Wait for the official launch to continue playing.');
+      toast.success('Thanks for the feedback. We read every one.');
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error submitting feedback:', error);
@@ -81,9 +81,9 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
               <Trophy className="h-8 w-8 text-white" />
             </div>
           </div>
-          <DialogTitle className="text-center text-2xl">Demo Complete!</DialogTitle>
+          <DialogTitle className="text-center text-2xl">How is Arena so far?</DialogTitle>
           <DialogDescription className="text-center text-base">
-            Your play balance is empty. Top up with M-Pesa from your wallet to keep playing.
+            Your play balance is empty. Tell us how your first games went, then top up from your wallet to keep playing.
           </DialogDescription>
         </DialogHeader>
 
@@ -118,7 +118,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
             <Label htmlFor="feedback" className="text-base">Share your thoughts</Label>
             <Textarea
               id="feedback"
-              placeholder="What did you like? What could be improved? Any suggestions for the official launch?"
+              placeholder="What did you like? What should we fix?"
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               rows={5}
@@ -129,8 +129,8 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
           {/* Info Box */}
           <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
             <p className="text-sm text-muted-foreground font-light">
-              <strong className="text-foreground">What's next?</strong><br />
-              Wait for the official ARENA launch to start playing with real funds. We'll notify you via email when we go live!
+              <strong className="text-foreground">Keep playing</strong><br />
+              Top up with M-Pesa from your wallet. Free quick matches stay open for XP and rank.
             </p>
           </div>
 
@@ -141,7 +141,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
             className="w-full"
             size="lg"
           >
-            {loading ? 'Submitting...' : 'Submit Feedback'}
+            {loading ? 'Submitting...' : 'Send feedback'}
           </Button>
         </div>
       </DialogContent>

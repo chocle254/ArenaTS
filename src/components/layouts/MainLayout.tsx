@@ -496,9 +496,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener('keydown', onKey);
   }, [user]);
 
-  // Players who run out of Arena Currency are asked for feedback once
+  // Players who have played and run out of balance are asked for feedback once (not brand-new players)
   useEffect(() => {
-    if (user && profile && profile.arena_currency !== undefined && profile.arena_currency <= 0 && !profile.feedback_submitted) {
+    const played = Number(profile?.wins || 0) + Number(profile?.losses || 0) + Number(profile?.tournaments_played || 0) > 0;
+    if (user && profile && played && profile.arena_currency !== undefined && profile.arena_currency <= 0 && !profile.feedback_submitted) {
       setFeedbackModalOpen(true);
     }
   }, [user, profile]);

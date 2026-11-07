@@ -1,5 +1,6 @@
 import { Check, Gamepad2, MessageCircle, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { RefereeApplicationChat } from '@/components/RefereeApplicationChat';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -45,7 +46,15 @@ const GAMES = [
   { id: 'pubg_mobile', name: 'PUBG Mobile' }
 ];
 
+/** Admins only; everyone else goes back to the dashboard. */
 export default function AdminReferees() {
+  const { user, profile, loading } = useAuth();
+  if (!loading && (!user || (profile && profile.role !== 'admin'))) return <Navigate to="/dashboard" replace />;
+  if (!profile) return null;
+  return <AdminRefereesPanel />;
+}
+
+function AdminRefereesPanel() {
   const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);

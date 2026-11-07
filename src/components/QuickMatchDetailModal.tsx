@@ -342,8 +342,8 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
 
         <div className="flex-1 flex flex-col md:flex-row min-h-0 max-md:overflow-y-auto md:overflow-hidden">
           {/* Left Side: Rules & Actions */}
-          <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-border/50 bg-muted/5 flex flex-col min-h-0 max-md:shrink-0 md:h-full">
-            <ScrollArea className="flex-1">
+          <div className="w-full md:w-80 md:shrink-0 border-b md:border-b-0 md:border-r border-border/50 bg-muted/5 flex flex-col min-h-0 max-md:shrink-0 md:h-full">
+            <ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block">
               <div className="p-4 md:p-6 flex flex-col gap-4 md:gap-6 pb-20">
                 <section className="order-2 md:order-1">
                   <h3 className="text-xs font-bold text-muted-foreground mb-4 flex items-center gap-2">
@@ -360,7 +360,7 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
                   </ul>
                 </section>
 
-                <Separator className="bg-border/50 hidden md:block" />
+                <Separator className="bg-border/50 hidden md:order-1 md:block" />
 
                 <section className="space-y-4 order-1 md:order-2">
                   <h3 className="text-xs font-bold text-muted-foreground flex items-center gap-2">
