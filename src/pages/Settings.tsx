@@ -142,7 +142,8 @@ export default function Settings() {
       // Confirm the current password first. Previously it was collected but
       // never checked, so anyone with an unlocked session could change it.
       const { error: verifyError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword });
-      if (verifyError) {
+      // login_code_required means the password was right and only the sign-in code is missing
+      if (verifyError && !/login_code_required/i.test(verifyError.message)) {
         toast.error('Your current password is incorrect');
         return;
       }

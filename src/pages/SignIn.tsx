@@ -25,6 +25,8 @@ export default function SignIn() {
   // Set before signIn() so the session that arrives during password sign-in
   // can't trigger the redirect before the code dialog opens.
   const otpPendingRef = React.useRef(false);
+  // True when the server refused the session until the code is verified
+  const [codeBeforeSession, setCodeBeforeSession] = React.useState(false);
   const { user, loading: authLoading, signIn, signInWithGoogle, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -67,13 +69,25 @@ export default function SignIn() {
 
     setLoading(true);
     otpPendingRef.current = true;
+    const typed = usernameOrEmail.trim();
+    const resolvedEmail = typed.includes('@') ? typed : `${typed}@miaoda.com`;
     try {
-      const resolvedEmail = await signIn(usernameOrEmail, password);
+      // With the login-code hook on, this is refused until the email code is verified
+      await signIn(usernameOrEmail, password);
+      // Hook not enabled yet: fall back to asking for the code over the session
+      setCodeBeforeSession(false);
       setPendingEmail(resolvedEmail);
       setShowOtpDialog(true);
     } catch (error: any) {
-      otpPendingRef.current = false;
       const msg = String(error?.message || '');
+      if (/login_code_required/i.test(msg)) {
+        // Password was right; the server wants the email code before it opens a session
+        setCodeBeforeSession(true);
+        setPendingEmail(resolvedEmail);
+        setShowOtpDialog(true);
+        return;
+      }
+      otpPendingRef.current = false;
       toast.error(/invalid login credentials/i.test(msg) ? 'That email and password don’t match.' : msg || 'Could not sign in');
     } finally {
       setLoading(false);
@@ -184,7 +198,17 @@ export default function SignIn() {
           purpose="signin"
           open={showOtpDialog}
           onOpenChange={setShowOtpDialog}
-          onVerified={() => {
+          onVerified={async () => {
+            if (codeBeforeSession) {
+              try {
+                await signIn(pendingEmail, password);
+              } catch (error: any) {
+                toast.error(String(error?.message || '').replace('login_code_required', 'That code has already been used. Sign in again.') || 'Could not sign in');
+                otpPendingRef.current = false;
+                setShowOtpDialog(false);
+                return;
+              }
+            }
             otpPendingRef.current = false;
             setShowOtpDialog(false);
             toast.success('Welcome back to Arena!');

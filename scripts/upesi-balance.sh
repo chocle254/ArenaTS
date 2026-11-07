@@ -14,10 +14,23 @@ email="${ARENA_EMAIL:-}"
 [ -n "$email" ] || read -rp "Admin email: " email
 read -rsp "Password: " password; echo
 
-token=$(curl -s "$URL/auth/v1/token?grant_type=password" \
-  -H "apikey: $KEY" -H "Content-Type: application/json" \
-  -d "$(python3 -c 'import json,sys; print(json.dumps({"email": sys.argv[1], "password": sys.argv[2]}))' "$email" "$password")" \
-  | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("access_token") or "")')
+login() {
+  curl -s "$URL/auth/v1/token?grant_type=password" \
+    -H "apikey: $KEY" -H "Content-Type: application/json" \
+    -d "$(python3 -c 'import json,sys; print(json.dumps({"email": sys.argv[1], "password": sys.argv[2]}))' "$email" "$password")"
+}
+fn() { # POST to an edge function
+  curl -s -X POST "$URL/functions/v1/$1" -H "apikey: $KEY" -H "Content-Type: application/json" -d "$2"
+}
+resp=$(login)
+# Password sign-ins need the emailed sign-in code first (login-code hook)
+if grep -q login_code_required <<<"$resp"; then
+  fn send-otp "$(python3 -c 'import json,sys; print(json.dumps({"email": sys.argv[1], "purpose": "signin"}))' "$email")" >/dev/null
+  read -rp "Code sent to $email: " code
+  fn verify-otp "$(python3 -c 'import json,sys; print(json.dumps({"email": sys.argv[1], "code": sys.argv[2], "purpose": "signin"}))' "$email" "$code")" >/dev/null
+  resp=$(login)
+fi
+token=$(python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("access_token") or "")' <<<"$resp")
 unset password
 [ -n "$token" ] || { echo "Sign-in failed. Check the email and password." >&2; exit 1; }
 
