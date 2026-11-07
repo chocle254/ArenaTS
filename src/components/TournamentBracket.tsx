@@ -817,20 +817,18 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
 
       toast.success('You are ready! Waiting for opponent...');
 
-      // Notify opponent via Edge Function
-      try {
-        await supabase.functions.invoke('send-match-notifications', {
-          body: {
-            type: 'opponent_checked_in',
-            matchId: matchResult.id,
-            tournamentId,
-            player1Id: matchResult.player1_id,
-            player2Id: matchResult.player2_id,
-            tournamentName: tournamentName || 'Tournament',
-          },
-        });
-      } catch (notifError) {
-        console.error('Error sending notifications:', notifError);
+      // Tell the opponent (rate-limited, sender-tagged in-app notification)
+      const opponentId = isPlayer1 ? matchResult.player2_id : matchResult.player1_id;
+      if (opponentId) {
+        supabase
+          .rpc('notify_player', {
+            p_user_id: opponentId,
+            p_type: 'match',
+            p_title: 'is ready',
+            p_message: `Your opponent checked in for ${tournamentName || 'your tournament'} match. Tap “I’m ready” within 5 minutes.`,
+            p_link: `/tournaments/${tournamentId}?match=${match.id}`,
+          })
+          .then(() => undefined, (e) => console.error('Could not notify opponent:', e));
       }
     } catch (error: any) {
       console.error('Error checking in:', error);

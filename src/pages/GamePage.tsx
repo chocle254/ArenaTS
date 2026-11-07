@@ -434,6 +434,11 @@ function CreateTournamentDialog({
       return;
     }
 
+    // Nothing to pay: create straight away instead of showing a "Pay KES 0" screen
+    if (deduction <= 0) {
+      void executeCreateTournament(0);
+      return;
+    }
     setArenaDeduction(deduction);
     setConsentOpen(true);
   };

@@ -17,7 +17,6 @@ interface RuleSettings {
 
 /** House rules that apply to every Arena tournament. */
 export function defaultRuleGroups(t: RuleSettings = {}): RuleGroup[] {
-  const checkIn = t.check_in_window || 30;
   const limit = t.match_time_limit || 60;
   const team = (t.team_size || 1) > 1;
   return [
@@ -29,7 +28,7 @@ export function defaultRuleGroups(t: RuleSettings = {}): RuleGroup[] {
         'Play on a stable connection. Use Wi-Fi or strong 4G/5G, and close downloads and other apps that eat bandwidth.',
         'A disconnect is not an automatic rematch. Replays happen only if your opponent agrees or a referee allows it.',
         'Update the game before the tournament starts and keep your device charged or plugged in.',
-        `Check in within ${checkIn} minutes of the start time or your slot goes to the next player.`,
+        'When your match opens, both players tap “I’m ready” within 5 minutes. A no-show forfeits the match.',
       ],
     },
     {
@@ -50,7 +49,6 @@ export function defaultRuleGroups(t: RuleSettings = {}): RuleGroup[] {
       icon: <Radio className="h-4 w-4" />,
       rules: [
         "Start your Twitch stream before you press “I'm ready”. Unstreamed matches can be voided.",
-        'Both players complete the ready check within 5 minutes once the match opens. A no-show forfeits.',
         `Finish and report each match within ${limit} minutes.`,
       ],
     },

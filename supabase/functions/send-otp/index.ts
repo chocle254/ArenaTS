@@ -31,7 +31,15 @@ function generateOTP(): string {
   return code;
 }
 
-function arenaEmailTemplate(code: string, email: string) {
+const PURPOSE_TEXT: Record<string, { title: string; body: string }> = {
+  signup: { title: 'Verify your email', body: 'Enter this code to finish creating your Arena account.' },
+  signin: { title: 'Your sign-in code', body: 'Enter this code to finish signing in to Arena.' },
+  withdrawal: { title: 'Confirm your withdrawal', body: 'Enter this code to confirm your withdrawal.' },
+  kyc: { title: 'Confirm your identity', body: 'Enter this code to continue your ID check.' },
+};
+
+function arenaEmailTemplate(code: string, email: string, purpose = 'signup') {
+  const text = PURPOSE_TEXT[purpose] || PURPOSE_TEXT.signup;
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -42,13 +50,13 @@ function arenaEmailTemplate(code: string, email: string) {
       <style>
         body { margin: 0; padding: 0; background-color: #08090E; color: #E5E7EB; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         .container { max-width: 480px; margin: 0 auto; padding: 40px 24px; }
-        .card { background: linear-gradient(180deg, #11121A 0%, #0B0C12 100%); border: 1px solid #1F2937; border-radius: 16px; padding: 36px 28px; text-align: center; }
+        .card { box-sizing: border-box; background: linear-gradient(180deg, #11121A 0%, #0B0C12 100%); border: 1px solid #1F2937; border-radius: 16px; padding: 36px 28px; text-align: center; }
         .logo { font-size: 32px; font-weight: 800; letter-spacing: 0.08em; background: linear-gradient(to right, #3B82F6, #9333EA, #3B82F6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
         .tagline { color: #9CA3AF; font-size: 14px; margin-bottom: 28px; }
         .title { font-size: 20px; font-weight: 700; color: #F3F4F6; margin-bottom: 12px; }
         .body { font-size: 15px; line-height: 1.6; color: #D1D5DB; margin-bottom: 28px; }
-        .code-box { display: inline-block; background: #0F1119; border: 1px solid #374151; border-radius: 10px; padding: 18px 32px; margin-bottom: 24px; }
-        .code { font-size: 36px; font-weight: 800; letter-spacing: 0.18em; color: #F3F4F6; font-family: 'SF Mono', ui-monospace, monospace; }
+        .code-box { display: block; box-sizing: border-box; width: 100%; max-width: 320px; margin: 0 auto 24px; background: #0F1119; border: 1px solid #374151; border-radius: 10px; padding: 16px 8px; }
+        .code { font-size: 32px; font-weight: 800; letter-spacing: 0.12em; color: #F3F4F6; font-family: 'SF Mono', ui-monospace, monospace; white-space: nowrap; }
         .expiry { font-size: 13px; color: #6B7280; margin-bottom: 28px; }
         .footer { font-size: 12px; color: #4B5563; margin-top: 28px; line-height: 1.5; }
         .divider { height: 1px; background: #1F2937; margin: 24px 0; }
@@ -60,8 +68,8 @@ function arenaEmailTemplate(code: string, email: string) {
         <div class="card">
           <div class="logo">ARENA</div>
           <div class="tagline">Compete. Win. Earn.</div>
-          <div class="title">Verify your email</div>
-          <div class="body">Enter the verification code below to complete your ARENA setup. If you didn't request this, you can safely ignore this email.</div>
+          <div class="title">${text.title}</div>
+          <div class="body">${text.body} If you didn't ask for it, ignore this email and nobody can use it without your password.</div>
           <div class="code-box">
             <div class="code">${code}</div>
           </div>
@@ -166,8 +174,8 @@ serve(async (req) => {
       await client.send({
         from: fromEmail,
         to: normalizedEmail,
-        subject: 'Your ARENA Verification Code',
-        html: arenaEmailTemplate(code, normalizedEmail),
+        subject: `Arena: ${(PURPOSE_TEXT[purpose] || PURPOSE_TEXT.signup).title.toLowerCase()}`,
+        html: arenaEmailTemplate(code, normalizedEmail, purpose),
         // A few headers that help avoid spam-filter penalties on personal Gmail sending
         headers: {
           'Reply-To': gmailUser,

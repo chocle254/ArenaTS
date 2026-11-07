@@ -1132,8 +1132,8 @@ export default function TournamentDetail() {
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Check-in window</p>
-                        <p className="text-lg font-semibold">{tournament.check_in_window} minutes</p>
+                        <p className="text-sm text-muted-foreground">Check-in</p>
+                        <p className="text-lg font-semibold">5 minutes once your match opens</p>
                       </div>
                     </div>
 
