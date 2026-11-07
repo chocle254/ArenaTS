@@ -236,7 +236,7 @@ export default function TournamentDetail() {
           ? supabase.from('tournament_reminders').select('*').eq('user_id', user.id).eq('tournament_id', id).maybeSingle()
           : Promise.resolve({ data: null }),
         user
-          ? supabase.from('referee_applications').select('id, status').eq('user_id', user.id).maybeSingle()
+          ? supabase.from('referee_applications').select('id, status').eq('user_id', user.id).eq('tournament_id', id).in('status', ['pending', 'approved']).order('created_at', { ascending: false }).limit(1).maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
 
@@ -321,7 +321,9 @@ export default function TournamentDetail() {
   const confirmedParticipants = participants.filter(p => !p.is_standby);
   const isFull = tournament ? confirmedParticipants.length >= tournament.max_players : false;
   const isBeforeStart = tournament ? new Date(tournament.start_time) > new Date() : false;
-  const canJoin = tournament?.status === 'open' && !isParticipant && isBeforeStart;
+  // Referee applicants can't play in the tournament they applied to referee (the server enforces it too)
+  const canJoin = tournament?.status === 'open' && !isParticipant && isBeforeStart && !hasAppliedForReferee;
+  const canApplyReferee = !isParticipant && tournament?.created_by !== user?.id && ['open', 'active'].includes(String(tournament?.status));
   const joinAsStandby = isFull && canJoin;
 
   useEffect(() => {
@@ -1018,7 +1020,7 @@ export default function TournamentDetail() {
                 View Champion
               </Button>
             )}
-            {user && !isPastTournament && tournament.status !== 'cancelled' && (
+            {user && !isPastTournament && tournament.status !== 'cancelled' && (hasAppliedForReferee || canApplyReferee) && (
               <Button 
                 size="sm" 
                 onClick={async () => {
@@ -1028,16 +1030,16 @@ export default function TournamentDetail() {
                     try {
                       const { data, error } = await supabase
                         .from('referee_applications')
-                        .insert({ user_id: user.id })
+                        .insert({ user_id: user.id, tournament_id: tournament.id })
                         .select()
                         .single();
                       if (error) throw error;
                       setHasAppliedForReferee(true);
                       setRefereeApplicationId(data.id);
                       setRefereeChatOpen(true);
-                      toast.success('Application submitted! Chat with admin to proceed.');
-                    } catch (error) {
-                      toast.error('Failed to submit application');
+                      toast.success('Application sent', { description: 'You can’t play in a tournament you referee. Chat with an admin here.' });
+                    } catch (error: any) {
+                      toast.error(error?.message || 'Could not send your application');
                     }
                   }
                 }}

@@ -1,0 +1,6 @@
+-- Applied to production via MCP on 2026-11-07 (migration "referees_per_tournament").
+-- Referees are per-tournament by default (role ends when the tournament ends), or standing
+-- for a game when an admin chooses. Players can't apply for a tournament they play in or host,
+-- and can't join a tournament they applied to referee. Admin RPCs: admin_approve_referee,
+-- admin_reject_referee, admin_close_referee_applications, admin_terminate_referee.
+-- See the production schema for the full function bodies.
