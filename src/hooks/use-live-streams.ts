@@ -87,7 +87,7 @@ async function load(): Promise<LiveMatch[]> {
     const opted = streamsFor.get(`${kind}:${id}`);
     const candidates = [a, b]
       .filter((p): p is StreamPlayer => !!p)
-      .map((p) => (opted?.has(p.id) ? { ...p, twitch: opted.get(p.id)! } : null))
+      .map((p): StreamPlayer | null => (opted?.has(p.id) ? { ...p, twitch: opted.get(p.id)! } : null))
       .filter((p): p is StreamPlayer => !!p?.twitch);
     return candidates.sort((x, y) => (y.wins || 0) - (x.wins || 0))[0] || null;
   };
