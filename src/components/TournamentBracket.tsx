@@ -899,7 +899,8 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
   const showCheckIn = isActiveTournament(tournamentStatus) && matchResult && !matchResult.both_players_ready && matchResult.status !== 'confirmed';
   const isWinnerMatch = winnerId && (match.player1?.user_id === winnerId || match.player2?.user_id === winnerId);
   const winnerPlayer = winnerId && match.player1?.user_id === winnerId ? match.player1 : match.player2?.user_id === winnerId ? match.player2 : null;
-  const isMatchLive = matchResult?.both_players_ready && matchResult?.status !== 'confirmed';
+  const isDisputed = matchResult?.status === 'disputed';
+  const isMatchLive = matchResult?.both_players_ready && matchResult?.status === 'pending';
   const streamer = match.player2; // 2nd person is the streamer
   
   return (
@@ -910,6 +911,9 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
         <div className="flex items-center justify-between mb-2">
           <div className="flex flex-col">
             <span className="text-xs text-muted-foreground">Match {match.matchNumber}</span>
+            {isDisputed && (
+              <span className="mt-0.5 text-xs font-semibold text-warning">In dispute · referee reviewing</span>
+            )}
             {isMatchLive && (
               <div className="flex items-center gap-1 mt-0.5">
                 <div className="w-1 h-1 bg-destructive rounded-full animate-pulse" />
@@ -1052,7 +1056,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
         )}
 
         {/* Match Timer */}
-        {hasPlayers && matchResult && matchResult.both_players_ready && matchResult.status !== 'confirmed' && (
+        {hasPlayers && matchResult && matchResult.both_players_ready && matchResult.status === 'pending' && (
           <div className="flex items-center justify-between py-1 px-2 bg-muted/20 rounded">
             <MatchTimer 
               deadline={matchResult.match_deadline} 
