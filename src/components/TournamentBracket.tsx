@@ -905,7 +905,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
   const streamer = match.player2; // 2nd person is the streamer
   
   return (
-    <Card className={`p-3 min-w-[220px] border-border glass ${
+    <Card className={`w-full p-3 border-border glass ${
       isWinnerMatch && match.winner === winnerId ? 'ring-1 ring-primary/30' : ''
     }`}>
       <div className="space-y-2">
@@ -929,7 +929,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
                 Bye
               </Badge>
             )}
-            {matchResult?.admin_override && matchResult?.status === 'confirmed' && !matchResult.both_players_ready && (
+            {!match.isBye && matchResult?.admin_override && matchResult?.status === 'confirmed' && !matchResult.both_players_ready && (
               <Badge variant="destructive" className="text-xs">
                 Forfeit
               </Badge>
@@ -938,7 +938,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
         </div>
         
         <div className={`p-2 rounded border ${
-          match.winner === match.player1?.user_id 
+          (!!match.winner && match.winner === match.player1?.user_id) 
             ? 'border-success/50 bg-success/10' 
             : matchResult?.status === 'confirmed' && matchResult?.winner_id && matchResult.winner_id !== match.player1?.user_id
               ? 'border-destructive/50 bg-destructive/5 opacity-60'
@@ -953,7 +953,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
             }`}>
               {match.player1?.gamertag || 'TBD'}
             </span>
-            {match.winner === match.player1?.user_id && (
+            {(!!match.winner && match.winner === match.player1?.user_id) && (
               <Trophy className="h-3 w-3 text-success ml-auto" />
             )}
             {matchResult?.status === 'confirmed' && matchResult?.winner_id && matchResult.winner_id !== match.player1?.user_id && (
@@ -967,7 +967,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
 
         {!match.isBye && (
           <div className={`p-2 rounded border ${
-            match.winner === match.player2?.user_id 
+            (!!match.winner && match.winner === match.player2?.user_id) 
               ? 'border-success/50 bg-success/10' 
               : matchResult?.status === 'confirmed' && matchResult?.winner_id && matchResult.winner_id !== match.player2?.user_id
                 ? 'border-destructive/50 bg-destructive/5 opacity-60'
@@ -982,7 +982,7 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
               }`}>
                 {match.player2?.gamertag || 'TBD'}
               </span>
-              {match.winner === match.player2?.user_id && (
+              {(!!match.winner && match.winner === match.player2?.user_id) && (
                 <Trophy className="h-3 w-3 text-success ml-auto" />
               )}
               {matchResult?.status === 'confirmed' && matchResult?.winner_id && matchResult.winner_id !== match.player2?.user_id && (
@@ -1328,38 +1328,76 @@ export function TournamentBracket({ participants, maxPlayers, tournamentId, isAd
         </Badge>
       </div>
 
-      <div className="overflow-x-auto pb-4">
-        <div className="flex gap-8 min-w-max">
-          {rounds.map((round, roundIndex) => (
-            <div key={roundIndex} className="space-y-4">
-              <div className="text-center mb-4">
-                <Badge variant="secondary" className="font-light">
-                  {roundIndex === rounds.length - 1 ? 'Finals' : 
-                   roundIndex === rounds.length - 2 ? 'Semi-Finals' :
-                   roundIndex === rounds.length - 3 ? 'Quarter-Finals' :
-                   `Round ${roundIndex + 1}`}
-                </Badge>
+      {/* Bracket tree: every round shares one height and splits it into equal slots, so each
+          match sits halfway between the two matches that feed it. Lines show where winners go. */}
+      {rounds.length > 1 && <p className="-mb-3 text-xs text-muted-foreground md:hidden">Swipe sideways to follow the bracket to the final.</p>}
+      <div className="-mx-1 overflow-x-auto px-1 pb-4">
+        <div className="flex min-w-max">
+          {rounds.map((round, roundIndex) => {
+            const isFinal = roundIndex === rounds.length - 1;
+            const label = isFinal ? 'Final' : roundIndex === rounds.length - 2 ? 'Semi-finals' : roundIndex === rounds.length - 3 ? 'Quarter-finals' : `Round ${roundIndex + 1}`;
+            return (
+              <div key={roundIndex} className="flex flex-col">
+                <div className="mb-3 flex h-7 items-center justify-center px-6">
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isFinal ? 'bg-gold/15 text-gold' : 'bg-white/[0.06] text-muted-foreground'}`}>{label}</span>
+                </div>
+                <div className="flex flex-1 flex-col">
+                  {round.map((match, matchIndex) => {
+                    const decided = !!match.winner;
+                    const top = matchIndex % 2 === 0;
+                    const line = decided ? 'border-primary/70' : 'border-white/10';
+                    return (
+                      <div key={match.id} className={`relative flex flex-1 items-center px-6 py-3 ${roundIndex === 0 ? 'min-h-[230px]' : ''}`}>
+                        {/* line in from the previous round */}
+                        {roundIndex > 0 && <span aria-hidden="true" className="absolute left-0 top-1/2 w-6 border-t border-white/10" />}
+                        {/* line out to the next round, then the elbow that joins this pair */}
+                        {!isFinal && (
+                          <>
+                            <span aria-hidden="true" className={`absolute right-0 top-1/2 w-6 border-t transition-colors ${line}`} />
+                            <span aria-hidden="true" className={`absolute right-0 border-r transition-colors ${line} ${top ? 'top-1/2 bottom-0' : 'top-0 bottom-1/2'}`} />
+                          </>
+                        )}
+                        {/* the final feeds the champion */}
+                        {isFinal && <span aria-hidden="true" className={`absolute right-0 top-1/2 w-6 border-t ${decided ? 'border-gold/70' : 'border-white/10'}`} />}
+                        <div className="relative z-[1] w-[240px]">
+                          <MatchCard
+                            match={match}
+                            currentUserId={user?.id || ''}
+                            tournamentId={tournamentId}
+                            isAdmin={isAdmin}
+                            winnerId={winnerId}
+                            tournamentStatus={tournamentStatus}
+                            tournamentStartTime={tournamentStartTime}
+                            tournamentName={tournamentName}
+                            participants={participants}
+                            initialOpen={match.id === targetMatchId}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              
-              <div className="space-y-8">
-                {round.map((match) => (
-                  <MatchCard 
-                    key={match.id} 
-                    match={match} 
-                    currentUserId={user?.id || ''} 
-                    tournamentId={tournamentId}
-                    isAdmin={isAdmin}
-                    winnerId={winnerId}
-                    tournamentStatus={tournamentStatus}
-                    tournamentStartTime={tournamentStartTime}
-                    tournamentName={tournamentName}
-                    participants={participants}
-                    initialOpen={match.id === targetMatchId}
-                  />
-                ))}
+            );
+          })}
+          {/* Champion */}
+          {(() => {
+            const final = rounds[rounds.length - 1]?.[0];
+            const champ = final?.winner ? (final.player1?.user_id === final.winner ? final.player1 : final.player2) : null;
+            return (
+              <div className="flex flex-col">
+                <div className="mb-3 flex h-7 items-center justify-center px-6">
+                  <span className="rounded-full bg-gold/15 px-3 py-1 text-xs font-semibold text-gold">Champion</span>
+                </div>
+                <div className="flex flex-1 items-center pl-6 pr-2">
+                  <div className={`w-[180px] rounded-2xl border p-4 text-center ${champ ? 'border-gold/40 bg-gold/10 shadow-[0_0_40px_-12px_hsl(var(--gold)/0.6)]' : 'border-dashed border-white/10 bg-white/[0.02]'}`}>
+                    <Trophy className={`mx-auto h-7 w-7 ${champ ? 'text-gold' : 'text-muted-foreground/40'}`} />
+                    <p className={`mt-2 truncate text-sm font-semibold ${champ ? 'text-gold-sheen' : 'text-muted-foreground'}`}>{champ?.gamertag || 'To be decided'}</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })()}
         </div>
       </div>
 

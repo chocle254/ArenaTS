@@ -23,6 +23,7 @@ interface MatchInfo {
   tournamentId: string | null;
   players: Player[];
   finished: boolean;
+  winnerId?: string | null;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,17 +52,17 @@ async function loadMatch(matchId: string, params: URLSearchParams): Promise<Matc
   const names = [params.get('p1') || '', params.get('p2') || ''];
 
   if (kind === 'quick') {
-    const { data } = await supabase.from('challenges').select('id, game, challenger_id, opponent_id, status, stake_amount').eq('id', matchId).maybeSingle();
+    const { data } = await supabase.from('challenges').select('id, game, challenger_id, opponent_id, status, stake_amount, winner_id').eq('id', matchId).maybeSingle();
     if (!data) return null;
-    return { title: 'Quick match', game: data.game, tournamentId: null, players: await loadPlayers([data.challenger_id, data.opponent_id], names), finished: ['completed', 'cancelled', 'expired', 'declined'].includes(data.status) };
+    return { title: 'Quick match', game: data.game, tournamentId: null, players: await loadPlayers([data.challenger_id, data.opponent_id], names), finished: ['completed', 'cancelled', 'expired', 'declined'].includes(data.status), winnerId: data.winner_id };
   }
 
-  let q = supabase.from('match_results').select('id, tournament_id, player1_id, player2_id, status, tournaments(name, game)');
+  let q = supabase.from('match_results').select('id, tournament_id, player1_id, player2_id, status, winner_id, tournaments(name, game)');
   q = UUID.test(matchId) ? q.eq('id', matchId) : tid ? q.eq('tournament_id', tid).eq('match_id', matchId) : q.eq('id', '00000000-0000-0000-0000-000000000000');
   const { data } = await q.maybeSingle();
   if (data) {
     const t = (Array.isArray(data.tournaments) ? data.tournaments[0] : data.tournaments) as { name?: string; game?: string } | null;
-    return { title: t?.name || 'Tournament match', game: t?.game || null, tournamentId: data.tournament_id, players: await loadPlayers([data.player1_id, data.player2_id], names), finished: data.status === 'confirmed' };
+    return { title: t?.name || 'Tournament match', game: t?.game || null, tournamentId: data.tournament_id, players: await loadPlayers([data.player1_id, data.player2_id], names), finished: data.status === 'confirmed', winnerId: data.winner_id };
   }
   // Older links carry only gamertags
   if (names.some(Boolean)) {
@@ -93,6 +94,17 @@ export default function LiveStream() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, params.toString()]);
+
+  // Spectators see the result without reloading: re-check every 15s until the match ends
+  const finished = info?.finished;
+  useEffect(() => {
+    if (!info || finished) return;
+    const id = window.setInterval(() => {
+      loadMatch(matchId, params).then((m) => m && setInfo(m), () => undefined);
+    }, 15_000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId, params.toString(), !!info, finished]);
 
   // Spectators: one presence channel per match, so a join only notifies people watching this match
   useEffect(() => {
@@ -145,6 +157,11 @@ export default function LiveStream() {
             {!info.finished && (
               <span className="flex items-center gap-1 rounded-md bg-live px-1.5 py-0.5 text-[11px] font-bold text-white">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
+              </span>
+            )}
+            {info.finished && (
+              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-bold text-foreground">
+                {info.winnerId ? `Final · ${info.players.find((pl) => pl?.id === info.winnerId)?.gamertag ?? 'Winner decided'} won` : 'Finished'}
               </span>
             )}
             {game?.name ?? info.game ?? 'Match'}

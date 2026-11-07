@@ -109,7 +109,7 @@ export function DisputePanel({
             {dispute.status === 'void' && 'Settled'}
           </p>
           <p className="text-sm text-muted-foreground">
-            {dispute.status === 'collecting' && `Upload a photo or short screen recording of the final score. ${timeLeft(dispute.evidence_deadline)} left.`}
+            {dispute.status === 'collecting' && `Tell the referee in the chat what decided the match and which rule was broken, then upload the proof it asks for. ${timeLeft(dispute.evidence_deadline)} left.`}
             {dispute.status === 'ai_review' && 'This usually takes a couple of minutes.'}
             {dispute.status === 'proposed' && `Decided from the evidence. You can appeal for ${timeLeft(dispute.appeal_deadline)}.`}
             {dispute.status === 'human_review' && 'They only see this match and lose access once it’s decided.'}
