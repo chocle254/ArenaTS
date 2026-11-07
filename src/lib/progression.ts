@@ -36,6 +36,9 @@ export const XP_RULES = {
  * columns that are public on every profile are used, for that reason.
  */
 export function computeXp(profile: Partial<Profile> | null | undefined): number {
+  // XP is a stored balance now (quick matches can stake it); older rows fall back to the formula
+  const stored = (profile as { xp?: number | null } | null | undefined)?.xp;
+  if (typeof stored === 'number') return stored;
   return xpBreakdown(profile).reduce((sum, row) => sum + row.xp, 0);
 }
 

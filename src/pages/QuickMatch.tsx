@@ -5,11 +5,10 @@ import { OnlinePlayers } from '@/components/OnlinePlayers';
 import { OnlineTeams } from '@/components/OnlineTeams';
 import { PastChallengesList } from '@/components/PastChallengesList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { XP_RULES } from '@/lib/progression';
 
 const STEPS = [
   { title: 'Pick an opponent', text: 'Anyone online below, or a friend from Chats.' },
-  { title: 'Play free', text: `Win for +${XP_RULES.win} XP, lose for +${XP_RULES.loss}. Climb the leaderboard.` },
+  { title: 'Play for XP', text: 'Agree a stake. The winner takes the loser’s XP. Out of XP? You get topped back up to 100 every day.' },
   { title: 'Play and report', text: 'Both report the winner with a screenshot. Clashes go to a referee.' },
 ];
 

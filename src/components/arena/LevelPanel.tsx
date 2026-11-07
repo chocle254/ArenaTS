@@ -1,5 +1,5 @@
 import { formatCompactNumber } from '@/lib/arena-currency';
-import { getLevelInfo, getTier, nextTier, TIERS, xpBreakdown, XP_RULES, xpToReachLevel } from '@/lib/progression';
+import { getLevelInfo, getTier, nextTier, TIERS, XP_RULES, xpToReachLevel } from '@/lib/progression';
 import { cn } from '@/lib/utils';
 import type { Profile } from '@/types/database';
 
@@ -13,7 +13,6 @@ export function LevelPanel({ profile }: { profile: Partial<Profile> | null | und
   const info = getLevelInfo(profile);
   const tier = getTier(info.level);
   const upcoming = nextTier(info.level);
-  const rows = xpBreakdown(profile);
   const toTier = upcoming ? Math.max(0, xpToReachLevel(upcoming.minLevel) - info.xp) : 0;
 
   return (
@@ -37,21 +36,15 @@ export function LevelPanel({ profile }: { profile: Partial<Profile> | null | und
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <div>
           <h3 className="text-lg">How you earn XP</h3>
-          <table className="mt-2 w-full text-sm">
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.key} className="border-b border-border/60 last:border-0">
-                  <td className="py-2 pr-2">{r.label}</td>
-                  <td className="py-2 pr-2 text-right text-muted-foreground">
-                    {r.count} × {r.each}
-                  </td>
-                  <td className="py-2 text-right font-score text-base font-bold">{formatCompactNumber(r.xp)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="mt-2 space-y-2 text-sm">
+            <li className="flex justify-between border-b border-border/60 pb-2"><span>Win a quick match</span><span className="font-score font-bold">+ the stake</span></li>
+            <li className="flex justify-between border-b border-border/60 pb-2"><span>Lose a quick match</span><span className="font-score font-bold">− the stake</span></li>
+            <li className="flex justify-between border-b border-border/60 pb-2"><span>Take part in a tournament</span><span className="font-score font-bold">+{XP_RULES.tournamentEntered}</span></li>
+            <li className="flex justify-between"><span>Daily top-up when below 100</span><span className="font-score font-bold">back to 100</span></li>
+          </ul>
+          <p className="mt-2 text-xs text-muted-foreground">Record: {Number(profile?.wins) || 0} wins, {Number(profile?.losses) || 0} losses, {Number(profile?.tournaments_played) || 0} tournaments.</p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Every win, in a quick match or a tournament round, earns {XP_RULES.win} XP. Taking part always counts: a loss earns {XP_RULES.loss} and entering a tournament earns {XP_RULES.tournamentEntered}.
+            XP is what you play for. In a quick match you and your opponent agree a stake and the winner takes it from the loser. Every tournament you take part in adds {XP_RULES.tournamentEntered} XP. Drop below 100 and you get topped back up to 100 once a day.
           </p>
         </div>
         <div>

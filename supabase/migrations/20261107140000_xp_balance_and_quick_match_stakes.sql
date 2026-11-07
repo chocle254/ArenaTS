@@ -1,4 +1,4 @@
--- NOT YET APPLIED (blocked by the permission check on 2026-11-07).
+-- Applied to production via MCP on 2026-11-07 (migration "xp_balance_and_quick_match_stakes").
 -- XP becomes a stored balance. Quick matches can stake XP: the winner takes the loser's stake.
 -- Tournaments still give +150 XP for taking part. Below 100 XP you get a free top-up to 100 once a day.
 alter table public.profiles add column if not exists xp integer not null default 100;

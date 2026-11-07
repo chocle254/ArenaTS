@@ -10,7 +10,7 @@ import { supabase } from '@/db/supabase';
 import { invalidatePlayerProgress } from '@/hooks/use-player-progress';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
 import { acceptChallenge, friendlyChallengeError } from '@/lib/challenges';
-import { XP_RULES } from '@/lib/progression';
+import { computeXp } from '@/lib/progression';
 import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
 import { ConsentModal } from './ConsentModal';
@@ -116,6 +116,9 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
   };
 
   const free = !(Number(challenge.stake_amount) > 0);
+  const stakeXp = Number((challenge as { stake_xp?: number }).stake_xp) || 0;
+  const myXp = computeXp(profile);
+  const notEnoughXp = stakeXp > myXp;
 
   const handleAccept = () => {
     if (free) {
@@ -204,12 +207,12 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
                 {free ? (
                   <>
                     <div className="rounded-xl border border-border bg-background/40 p-3">
-                      <dt className="text-xs text-muted-foreground">Entry</dt>
-                      <dd className="font-score text-xl font-bold">Free</dd>
+                      <dt className="text-xs text-muted-foreground">At stake</dt>
+                      <dd className="font-score text-xl font-bold">{stakeXp ? `${stakeXp} XP` : 'Friendly'}</dd>
                     </div>
                     <div className="rounded-xl border border-primary/30 bg-primary/10 p-3">
-                      <dt className="text-xs text-primary-soft">Win</dt>
-                      <dd className="font-score text-xl font-bold">+{XP_RULES.win} XP</dd>
+                      <dt className="text-xs text-primary-soft">Win / lose</dt>
+                      <dd className="font-score text-xl font-bold">{stakeXp ? `±${stakeXp} XP` : 'Record only'}</dd>
                     </div>
                   </>
                 ) : (
@@ -231,12 +234,12 @@ export function IncomingChallengeModal({ open, onOpenChange, challenge }: Incomi
                   {declining && <Loader2 className="animate-spin" />}
                   Decline
                 </Button>
-                <Button onClick={handleAccept} disabled={accepting || declining} size="lg" className="flex-[1.6]">
+                <Button onClick={handleAccept} disabled={accepting || declining || notEnoughXp} size="lg" className="flex-[1.6]">
                   {accepting ? <Loader2 className="animate-spin" /> : <Swords />}
                   Accept
                 </Button>
               </div>
-              <p className="text-center text-xs text-muted-foreground">{free ? `Win or lose, you earn XP (+${XP_RULES.loss} for playing). Nothing to pay.` : 'Declining refunds the challenger. Nothing is charged to you.'}</p>
+              <p className="text-center text-xs text-muted-foreground">{notEnoughXp ? `You need ${stakeXp} XP to accept. You have ${myXp}.` : free ? (stakeXp ? `The winner takes ${stakeXp} XP from the loser.` : 'Friendly match: it counts for your record, no XP changes hands.') : 'Declining refunds the challenger. Nothing is charged to you.'}</p>
             </div>
           </motion.div>
 

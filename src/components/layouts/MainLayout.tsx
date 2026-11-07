@@ -1,8 +1,9 @@
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, Coins, Download, Home, LogOut, Menu, MessageSquare, Search, Settings, Swords, Trophy } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { toast } from 'sonner';
+import { supabase } from '@/db/supabase';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
@@ -469,7 +470,7 @@ function PublicShell({ children }: { children: React.ReactNode }) {
 /* ------------------------------------------------------------------ */
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const location = useLocation();
   const navigationType = useNavigationType();
   const navigate = useNavigate();
@@ -495,6 +496,20 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [user]);
+
+  // Free daily top-up: anyone below 100 XP goes back to 100 once a day
+  const xpTopupTried = useRef(false);
+  useEffect(() => {
+    if (!user || !profile || xpTopupTried.current) return;
+    if (Number((profile as { xp?: number }).xp ?? 100) >= 100) return;
+    xpTopupTried.current = true;
+    supabase.rpc('claim_daily_xp').then(({ data }) => {
+      if (data) {
+        toast.success('Daily top-up: you’re back to 100 XP', { description: 'Stake it in a quick match to win more.' });
+        void refreshProfile();
+      }
+    });
+  }, [user, profile, refreshProfile]);
 
   // Players who have played and run out of balance are asked for feedback once (not brand-new players)
   useEffect(() => {

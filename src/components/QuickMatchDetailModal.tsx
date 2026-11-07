@@ -25,7 +25,6 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { formatArenaCurrency } from '@/lib/arena-currency';
-import { XP_RULES } from '@/lib/progression';
 import { StreamToggle } from '@/components/arena/StreamToggle';
 import { MatchTimer } from './MatchTimer';
 
@@ -125,12 +124,12 @@ export function QuickMatchDetailModal({ open, onOpenChange, challenge: initialCh
     if (challenge.status === 'completed' && challenge.winner_id) {
       const isWinner = challenge.winner_id === currentUserId;
       if (isWinner) {
-        toast.success(Number(challenge.stake_amount) > 0 ? `You beat ${opponentEntity?.gamertag || 'your opponent'}! ${formatArenaCurrency(challenge.prize_pool)} is on its way to your winnings.` : `You beat ${opponentEntity?.gamertag || 'your opponent'}! +${XP_RULES.win} XP.`, {
+        toast.success(Number(challenge.stake_amount) > 0 ? `You beat ${opponentEntity?.gamertag || 'your opponent'}! ${formatArenaCurrency(challenge.prize_pool)} is on its way to your winnings.` : `You beat ${opponentEntity?.gamertag || 'your opponent'}!${Number(challenge.stake_xp) > 0 ? ` +${challenge.stake_xp} XP.` : ''}`, {
           duration: 10000,
           position: 'top-center'
         });
       } else {
-        toast.error(`${opponentEntity?.gamertag || 'Your opponent'} won this one.${Number(challenge.stake_amount) > 0 ? '' : ` +${XP_RULES.loss} XP for playing.`}`, {
+        toast.error(`${opponentEntity?.gamertag || 'Your opponent'} won this one.${Number(challenge.stake_xp) > 0 ? ` −${challenge.stake_xp} XP.` : ''}`, {
           duration: 10000,
           position: 'top-center'
         });

@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { invalidatePlayerProgress } from '@/hooks/use-player-progress';
 import { createChallenge, friendlyChallengeError } from '@/lib/challenges';
-import { XP_RULES } from '@/lib/progression';
+import { computeXp } from '@/lib/progression';
 import { cn } from '@/lib/utils';
 import { GAME_INFO, type GameType } from '@/types/database';
 
@@ -29,10 +29,14 @@ interface SendChallengePanelProps {
 
 const ALL_GAMES = (Object.keys(GAME_INFO) as GameType[]).filter((g) => GAME_INFO[g]);
 
+const XP_STAKES = [0, 50, 100, 250, 500, 1000];
+
 export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallengePanelProps) {
   const { user, profile } = useAuth();
+  const myXp = computeXp(profile);
   const [selectedGame, setSelectedGame] = useState<GameType>('codm');
   const [sending, setSending] = useState(false);
+  const [stakeXp, setStakeXp] = useState(0);
 
   const close = () => onOpenChange(false);
 
@@ -73,6 +77,7 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
         opponentTag: opponent.gamertag,
         game: selectedGame,
         stake: 0,
+        stakeXp,
         challengerTeamId: myTeamId,
         opponentTeamId: opponent.team_id ?? null,
       });
@@ -190,6 +195,31 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <Label className="text-sm font-semibold">Play for XP</Label>
+                  <span className="text-xs text-muted-foreground">You have {myXp.toLocaleString()} XP</span>
+                </div>
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="XP stake">
+                  {XP_STAKES.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      role="radio"
+                      aria-checked={stakeXp === v}
+                      disabled={v > myXp}
+                      onClick={() => setStakeXp(v)}
+                      className={cn(
+                        'rounded-full border px-4 py-2 font-score text-sm font-semibold transition-colors disabled:opacity-35',
+                        stakeXp === v ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {v === 0 ? 'Friendly' : `${v} XP`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <dl className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-xl border border-border bg-background/40 p-3">
                   <dt className="text-xs text-muted-foreground">Entry</dt>
@@ -197,14 +227,16 @@ export function SendChallengePanel({ open, onOpenChange, opponent }: SendChallen
                 </div>
                 <div className="rounded-xl border border-primary/30 bg-primary/10 p-3">
                   <dt className="text-xs text-primary-soft">Win</dt>
-                  <dd className="font-score text-xl font-bold">+{XP_RULES.win} XP</dd>
+                  <dd className="font-score text-xl font-bold">+{stakeXp} XP</dd>
                 </div>
                 <div className="rounded-xl border border-border bg-background/40 p-3">
                   <dt className="text-xs text-muted-foreground">Lose</dt>
-                  <dd className="font-score text-xl font-bold">+{XP_RULES.loss} XP</dd>
+                  <dd className="font-score text-xl font-bold">{stakeXp ? `−${stakeXp}` : '0'} XP</dd>
                 </div>
               </dl>
-              <p className="text-xs text-muted-foreground">Wins climb the leaderboard. Your first 3 matches a day against the same player count toward your record.</p>
+              <p className="text-xs text-muted-foreground">
+                The winner takes the loser’s stake. Friendly matches count for your record only. Your first 3 matches a day against the same player count.
+              </p>
 
               <Button onClick={handleSend} disabled={sending} size="lg" className="w-full text-base">
                 {sending ? <Loader2 className="animate-spin" /> : <Swords />}

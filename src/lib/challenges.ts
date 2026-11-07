@@ -11,6 +11,8 @@ export function friendlyChallengeError(error: unknown): string {
 }
 
 interface CreateArgs {
+  /** XP the winner takes from the loser */
+  stakeXp?: number;
   userId: string;
   opponentId: string;
   opponentTag: string;
@@ -28,6 +30,7 @@ export async function createChallenge(args: CreateArgs): Promise<string | null> 
     p_stake: args.stake,
     p_opponent_team_id: args.opponentTeamId ?? null,
     p_challenger_team_id: args.challengerTeamId ?? null,
+    p_stake_xp: args.stakeXp ?? 0,
   });
   if (error) throw error;
   return (data as string) ?? null;
