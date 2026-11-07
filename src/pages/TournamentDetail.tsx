@@ -888,8 +888,7 @@ export default function TournamentDetail() {
             <DialogHeader>
               <DialogTitle>Add your {GAME_INFO[tournament.game]?.name ?? tournament.game} ID</DialogTitle>
               <DialogDescription>
-                We need your in-game ID for {GAME_INFO[tournament.game]?.name ?? tournament.game} before you can
-                join this tournament — this is how opponents and referees identify you in-match.
+                Opponents and referees use it to find you in the match, and results are checked against it.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2 py-2">
@@ -898,16 +897,23 @@ export default function TournamentDetail() {
                 id="pending-game-id"
                 value={pendingGameId}
                 onChange={(e) => setPendingGameId(e.target.value)}
-                placeholder="e.g. your in-game handle or player ID"
+                placeholder="Exactly as it shows in the game"
                 autoFocus
               />
+            </div>
+            <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+              <p className="font-semibold text-warning">Check it before you save</p>
+              <p className="mt-1 text-muted-foreground">
+                It’s locked to your account and used for every {GAME_INFO[tournament.game]?.name ?? tournament.game} tournament. You can’t change it later,
+                and an ID can only be used by one Arena account.
+              </p>
             </div>
             <Button
               className="w-full"
               onClick={saveGameIdAndContinue}
               disabled={!pendingGameId.trim()}
             >
-              Save & Continue Joining
+              Save and join
             </Button>
           </DialogContent>
         </Dialog>

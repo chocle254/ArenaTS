@@ -1,0 +1,4 @@
+-- Applied to production via MCP on 2026-11-07 (migration "one_ign_per_account_and_first_withdrawal_phone").
+-- game_accounts: in-game ID unique per game across accounts (case/space-insensitive), locked once saved
+-- (only admins can change/delete); joining a tournament requires an ID for its game.
+-- link_mpesa_phone(p_phone): first withdrawal without a deposit links the M-Pesa number once.

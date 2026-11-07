@@ -1,4 +1,4 @@
-import { Download, Gamepad2, Loader2, Lock, Save, Trash2, User } from 'lucide-react';
+import { Download, Gamepad2, Loader2, Lock, Save, User } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -118,16 +118,6 @@ export default function Settings() {
     }
   };
 
-  const removeAccount = async (row: GameAccountRow) => {
-    const { error } = await supabase.from('game_accounts').delete().eq('id', row.id);
-    if (error) {
-      toast.error(error.message || 'Could not remove that ID');
-      return;
-    }
-    if (user) invalidatePlayerProgress(user.id);
-    toast.success(`${GAME_INFO[row.game]?.name ?? row.game} ID removed`);
-    loadAccounts();
-  };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,11 +181,11 @@ export default function Settings() {
         </form>
       </Section>
 
-      <Section icon={<Gamepad2 className="h-5 w-5" />} title="In-game IDs" description="Opponents and referees use these to find you in the match lobby.">
+      <Section icon={<Gamepad2 className="h-5 w-5" />} title="In-game IDs" description="Opponents and referees use these to find you. Once saved, an ID is locked to your account and can’t be used by anyone else.">
         <div className="space-y-2">
           {accounts.length === 0 && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No IDs yet. Add one for each game you compete in.</p>}
           {accounts.map((row) => (
-            <GameAccountItem key={row.id} row={row} onSave={saveAccount} onRemove={removeAccount} saving={savingAccount} />
+            <GameAccountItem key={row.id} row={row} />
           ))}
         </div>
         {availableGames.length > 0 && (
@@ -267,40 +257,19 @@ export default function Settings() {
   );
 }
 
-function GameAccountItem({
-  row,
-  onSave,
-  onRemove,
-  saving,
-}: {
-  row: GameAccountRow;
-  onSave: (game: GameType, name: string) => void;
-  onRemove: (row: GameAccountRow) => void;
-  saving: boolean;
-}) {
-  const [value, setValue] = useState(row.in_game_name);
+/** Saved in-game IDs are locked: one ID, one Arena account (stops multi-account entries). */
+function GameAccountItem({ row }: { row: GameAccountRow }) {
   const info = GAME_INFO[row.game];
-  const changed = value.trim() !== row.in_game_name;
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border p-2 pl-3">
       <img src={info?.icon} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" loading="lazy" />
       <div className="min-w-0 flex-1">
         <p className="text-xs text-muted-foreground">{info?.name ?? row.game}</p>
-        <input
-          aria-label={`${info?.name ?? row.game} ID`}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="w-full bg-transparent text-sm font-semibold outline-none"
-        />
+        <p className="truncate text-sm font-semibold">{row.in_game_name}</p>
       </div>
-      {changed && (
-        <Button size="sm" onClick={() => onSave(row.game, value)} disabled={saving || !value.trim()}>
-          Save
-        </Button>
-      )}
-      <Button size="icon" variant="ghost" onClick={() => onRemove(row)} aria-label={`Remove ${info?.name ?? row.game} ID`}>
-        <Trash2 className="text-muted-foreground" />
-      </Button>
+      <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-muted-foreground" title="Contact support if it's wrong">
+        <Lock className="h-3 w-3" /> Locked
+      </span>
     </div>
   );
 }

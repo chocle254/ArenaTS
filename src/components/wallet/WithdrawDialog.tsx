@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/db/supabase';
 import { formatKES } from '@/lib/arena-currency';
 import { UNVERIFIED_MONTHLY_MAX, UNVERIFIED_WITHDRAW_MAX, WITHDRAW_MAX, WITHDRAW_MIN, cheaperFeeHint, maskPhone, quoteWithdrawal, requestWithdrawal } from './mpesa';
 
@@ -30,6 +31,9 @@ export function WithdrawDialog({
   const left = Math.max(0, UNVERIFIED_MONTHLY_MAX - usedWithoutKyc);
   const cap = verified ? Math.min(WITHDRAW_MAX, winnings) : Math.min(UNVERIFIED_WITHDRAW_MAX, winnings, left);
   const [amount, setAmount] = useState('');
+  // First withdrawal without a deposit: the number entered here gets linked for good
+  const [phone, setPhone] = useState('');
+  const needsPhone = !p?.mpesa_phone;
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ status: string; message?: string; send?: number } | null>(null);
 
@@ -41,14 +45,19 @@ export function WithdrawDialog({
   }, [open]);
 
   const value = Math.round(Number(amount)) || 0;
-  const blocked = !p?.mpesa_phone || (!verified && left < WITHDRAW_MIN);
+  const phoneOk = !needsPhone || /^(?:\+?254|0)?[17]\d{8}$/.test(phone.replace(/\s/g, ''));
+  const blocked = !verified && left < WITHDRAW_MIN;
   const quote = value >= WITHDRAW_MIN ? quoteWithdrawal(value) : null;
   const hint = cheaperFeeHint(value);
-  const valid = !blocked && value >= WITHDRAW_MIN && value <= cap && !!quote;
+  const valid = !blocked && phoneOk && value >= WITHDRAW_MIN && value <= cap && !!quote;
 
   const submit = async () => {
     setBusy(true);
     try {
+      if (needsPhone) {
+        const { error } = await supabase.rpc('link_mpesa_phone', { p_phone: phone });
+        if (error) throw error;
+      }
       const r = await requestWithdrawal(value);
       setResult(r);
       await refreshProfile();
@@ -66,7 +75,7 @@ export function WithdrawDialog({
         <DialogHeader>
           <DialogTitle>Withdraw winnings</DialogTitle>
           <DialogDescription>
-            {p?.mpesa_phone ? `Sent to your M-Pesa ${maskPhone(p.mpesa_phone)}.` : 'Make a deposit first to link your M-Pesa number.'}
+            {p?.mpesa_phone ? `Sent to your M-Pesa ${maskPhone(p.mpesa_phone)}.` : 'Choose the M-Pesa number your winnings go to.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -109,6 +118,17 @@ export function WithdrawDialog({
                     Verify ID
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {needsPhone && (
+              <div className="space-y-2">
+                <Label htmlFor="withdraw-phone">Your M-Pesa number</Label>
+                <Input id="withdraw-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0712 345 678" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <p className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-muted-foreground">
+                  <span className="font-semibold text-warning">This is your first withdrawal.</span> The number you enter is saved to your account, and every
+                  future withdrawal and deposit uses it. You can’t change it yourself later, so use your own number.
+                </p>
               </div>
             )}
 
