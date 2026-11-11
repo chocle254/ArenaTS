@@ -23,7 +23,7 @@ import { CommandSearch } from './CommandSearch';
 import { ACCOUNT_NAV, isActivePath, type NavItem, PRIMARY_NAV, SEARCH_ONLY_NAV, SOCIAL_NAV, STAFF_NAV } from './nav-config';
 
 /** Routes that render full-screen without the app chrome. */
-const BARE_ROUTES = ['/', '/sign-in', '/sign-up', '/auth/callback'];
+const BARE_ROUTES = ['/', '/sign-in', '/sign-up', '/forgot-password', '/auth/callback'];
 /** Messaging screens: full height, no page padding (conversations go full-screen on phones). */
 const IMMERSIVE_ROUTES = ['/world-chat', '/messages'];
 /** Public pages that signed-out visitors may see with a minimal header. */
