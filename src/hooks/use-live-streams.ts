@@ -40,9 +40,11 @@ async function load(): Promise<LiveMatch[]> {
   const [tm, qm] = await Promise.all([
     supabase
       .from('match_results')
-      .select('id, tournament_id, player1_id, player2_id, status, both_players_ready, tournaments(name, game)')
+      // Only matches being played now, in tournaments that are still running
+      .select('id, tournament_id, player1_id, player2_id, status, both_players_ready, tournaments!inner(name, game, status)')
       .eq('both_players_ready', true)
-      .neq('status', 'confirmed')
+      .eq('status', 'pending')
+      .eq('tournaments.status', 'active')
       .order('updated_at', { ascending: false })
       .limit(40),
     supabase

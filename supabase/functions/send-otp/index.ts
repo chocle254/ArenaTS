@@ -36,6 +36,7 @@ const PURPOSE_TEXT: Record<string, { title: string; body: string }> = {
   signin: { title: 'Your sign-in code', body: 'Enter this code to finish signing in to Arena.' },
   withdrawal: { title: 'Confirm your withdrawal', body: 'Enter this code to confirm your withdrawal.' },
   kyc: { title: 'Confirm your identity', body: 'Enter this code to continue your ID check.' },
+  reset: { title: 'Reset your password', body: 'Enter this code to choose a new Arena password.' },
 };
 
 function arenaEmailTemplate(code: string, email: string, purpose = 'signup') {
@@ -69,7 +70,7 @@ function arenaEmailTemplate(code: string, email: string, purpose = 'signup') {
           <div class="logo">ARENA</div>
           <div class="tagline">Compete. Win. Earn.</div>
           <div class="title">${text.title}</div>
-          <div class="body">${text.body} If you didn't ask for it, ignore this email and nobody can use it without your password.</div>
+          <div class="body">${text.body} ${purpose === 'reset' ? "If you didn't ask for it, ignore this email and your password stays the same." : "If you didn't ask for it, ignore this email and nobody can use it without your password."}</div>
           <div class="code-box">
             <div class="code">${code}</div>
           </div>
@@ -108,7 +109,7 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const email = String(body.email || '');
-    const purpose = ['signup', 'signin', 'withdrawal', 'kyc'].includes(String(body.purpose)) ? String(body.purpose) : 'signup';
+    const purpose = ['signup', 'signin', 'withdrawal', 'kyc', 'reset'].includes(String(body.purpose)) ? String(body.purpose) : 'signup';
 
     if (!email || email.length > 254 || !/^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/.test(email)) {
       throw new Error('A valid email address is required.');
@@ -133,6 +134,19 @@ serve(async (req) => {
         });
       }
     }
+    // Reset codes only go to emails that have an account, but the reply is the
+    // same either way so this can't be used to find out who has an account.
+    if (purpose === 'reset') {
+      const { data: userId, error: lookupError } = await supabaseAdmin.rpc('password_reset_user_id', { p_email: normalizedEmail });
+      if (lookupError) throw new Error('Please try again in a moment.');
+      if (!userId) {
+        return new Response(JSON.stringify({ success: true, message: 'Verification code sent.', email: normalizedEmail }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+    }
+
     const code = generateOTP();
 
     // Clean up old unverified codes for this email to avoid confusion
