@@ -259,6 +259,10 @@ function CreateTournamentDialog({
   const slotsNum = Math.floor(maxNum / teamSize);
   const canSlide = feeNum > 0 && poolNum > 0;
   const slideOn = sliding && canSlide;
+  // Welcome tickets: official hosts always accept them; other hosts can opt in (ticket seats earn them nothing)
+  const [acceptTickets, setAcceptTickets] = useState(false);
+  const canAcceptTickets = (parseFloat(formData.entryFee) || 0) > 0;
+  const ticketsOn = acceptTickets && canAcceptTickets;
   const slideAfterNum = parseInt(slidingAfter || formData.minParticipants, 10) || 0;
   const perEntry = feeNum * teamSize;
   const fullPool = poolNum + (slideOn ? Math.max(slotsNum - slideAfterNum, 0) * perEntry : 0);
@@ -316,6 +320,7 @@ function CreateTournamentDialog({
         prize_pool: prizePool,
         prize_mode: slideOn ? 'sliding' : 'fixed',
         sliding_after: slideOn ? slideAfterNum : null,
+        ...(ticketsOn ? { accepts_tickets: true } : {}),
         prize_distribution: prizeDistribution,
         ...(canSponsor && sponsor.name.trim()
           ? {
@@ -683,6 +688,22 @@ function CreateTournamentDialog({
                 </div>
               )}
             </div>
+
+            {!canSponsor && (
+              <div className={`rounded-xl border p-3 ${ticketsOn ? 'border-primary/40 bg-primary/[0.05]' : 'border-border'}`}>
+                <label className="flex items-start gap-3">
+                  <Switch checked={ticketsOn} onCheckedChange={setAcceptTickets} disabled={!canAcceptTickets} aria-describedby="tickets-help" className="mt-0.5" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">Accept welcome tickets</span>
+                    <span id="tickets-help" className="block text-xs text-muted-foreground">
+                      {canAcceptTickets
+                        ? 'New players can join with their free welcome ticket. You get no entry fee for those seats, only for players who pay with their balance. It helps fill your bracket faster.'
+                        : 'Set an entry fee to turn this on.'}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Prize Distribution */}

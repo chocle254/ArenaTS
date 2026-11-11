@@ -1,5 +1,6 @@
 import { TournamentRules } from '@/components/arena/TournamentRules';
 import { SponsorPanel } from '@/components/arena/Sponsor';
+import { TrailerPlayer } from '@/components/arena/TrailerPlayer';
 import { isSliding, livePrizePool, perEntryBonus, ticketCover } from '@/lib/prize';
 import { 
   ArrowLeft, 
@@ -1059,6 +1060,15 @@ export default function TournamentDetail() {
             </div>
           </div>
         </div>
+
+        {tournament.official && tournament.trailer_url && (
+          <TrailerPlayer
+            src={tournament.trailer_url}
+            poster={tournament.trailer_poster_url}
+            title={`${tournament.name} trailer`}
+            className="aspect-video w-full"
+          />
+        )}
 
         <SponsorPanel tournament={tournament} />
 

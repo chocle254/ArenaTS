@@ -1,5 +1,6 @@
 import { useReducedMotion } from 'framer-motion';
 import { livePrizePool, ticketCover } from '@/lib/prize';
+import { TrailerPlayer } from '@/components/arena/TrailerPlayer';
 import { SponsorBadge } from '@/components/arena/Sponsor';
 import { CalendarClock, ChevronRight, Plus, Radio, Swords, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -354,12 +355,22 @@ function FeaturedCarousel({
               aria-roledescription="slide"
               aria-label={`${i + 1} of ${count}: ${t.name}`}
             >
-              <img
-                src={game?.banner}
-                alt=""
-                className={cn('absolute inset-0 h-full w-full object-cover transition-transform [transition-duration:8000ms] ease-out motion-reduce:transition-none', index === i ? 'scale-110' : 'scale-100')}
-                loading={i === 0 ? 'eager' : 'lazy'}
-              />
+              {t.official && t.trailer_url ? (
+                <TrailerPlayer
+                  src={t.trailer_url}
+                  poster={t.trailer_poster_url || game?.banner}
+                  title={`${t.name} trailer`}
+                  className="absolute inset-0 rounded-none"
+                  controls="top-right"
+                />
+              ) : (
+                <img
+                  src={game?.banner}
+                  alt=""
+                  className={cn('absolute inset-0 h-full w-full object-cover transition-transform [transition-duration:8000ms] ease-out motion-reduce:transition-none', index === i ? 'scale-110' : 'scale-100')}
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                />
+              )}
               <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/10" />
               <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent" />
               <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-primary/30 blur-3xl" aria-hidden />

@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Camera, 
   Check, 
-  ChevronRight, 
   FileText, 
   Loader2, 
   ScanFace, 
@@ -16,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { uploadKycPhoto } from '@/lib/kyc-upload';
+import { LiveCamera } from './LiveCamera';
 
 interface KYCVerificationDialogProps {
   open: boolean;
@@ -27,8 +27,7 @@ type KYCStep = 'intro' | 'id_capture' | 'selfie_capture' | 'processing' | 'succe
 export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerificationDialogProps) {
   const { user, profile, refreshProfile } = useAuth();
   const [step, setStep] = useState<KYCStep>('intro');
-  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
-  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [idFrontPhoto, setIdFrontPhoto] = useState<Blob | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string>('');
 
@@ -36,8 +35,7 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
     if (!open) {
       setTimeout(() => {
         setStep('intro');
-        setIdFrontFile(null);
-        setSelfieFile(null);
+        setIdFrontPhoto(null);
       }, 300);
     } else {
       if (profile?.kyc_status === 'pending') setStep('processing');
@@ -55,42 +53,26 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
     }
   }, [open]);
 
-  const handleIdFrontCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setIdFrontFile(file);
-      setStep('selfie_capture');
-    }
+  const handleIdFrontCapture = (photo: Blob) => {
+    setIdFrontPhoto(photo);
+    setStep('selfie_capture');
   };
 
-  const handleSelfieCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelfieFile(file);
-      setStep('processing');
-      submitVerification(file);
-    }
+  const handleSelfieCapture = (photo: Blob) => {
+    setStep('processing');
+    void submitVerification(photo);
   };
 
-  const submitVerification = async (selfie: File) => {
+  const submitVerification = async (selfie: Blob) => {
     setIsUploading(true);
 
     try {
       if (!user) throw new Error('Not authenticated');
-      if (!idFrontFile) throw new Error('A photo of your ID is required');
-
-      const uploadDoc = async (file: File, name: string) => {
-        const path = `${user.id}/${name}`;
-        const { error: uploadError } = await supabase.storage
-          .from('kyc-documents')
-          .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
-        if (uploadError) throw uploadError;
-        return path;
-      };
+      if (!idFrontPhoto) throw new Error('A photo of your ID is required');
 
       const [frontPath, selfiePath] = await Promise.all([
-        uploadDoc(idFrontFile, 'id-front.jpg'),
-        uploadDoc(selfie, 'selfie.jpg'),
+        uploadKycPhoto(user.id, idFrontPhoto, 'id-front.jpg'),
+        uploadKycPhoto(user.id, selfie, 'selfie.jpg'),
       ]);
 
       const { error } = await supabase
@@ -160,8 +142,8 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
                     <div className="flex gap-3">
                       <ScanFace className="h-5 w-5 text-muted-foreground shrink-0" />
                       <div>
-                        <p className="font-medium">2. Selfie</p>
-                        <p className="text-muted-foreground text-xs">A quick photo of your face</p>
+                        <p className="font-medium">2. Selfie holding your ID</p>
+                        <p className="text-muted-foreground text-xs">Taken live with your camera. Photos from your gallery can't be used.</p>
                       </div>
                     </div>
                   </div>
@@ -195,46 +177,12 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
                     </p>
                   </div>
 
-                  <div>
-                    <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-muted/30 transition-colors relative cursor-pointer">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={handleIdFrontCapture}
-                      />
-                      {idFrontFile ? (
-                        <div className="space-y-2">
-                          <div className="w-10 h-10 bg-primary/20 text-primary rounded-full flex items-center justify-center mx-auto">
-                            <Check className="h-5 w-5" />
-                          </div>
-                          <p className="text-sm font-medium text-primary">ID Captured</p>
-                          <p className="text-xs text-muted-foreground">{idFrontFile.name}</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <Camera className="h-10 w-10 text-muted-foreground mx-auto" />
-                          <p className="text-sm font-medium">Tap to open camera</p>
-                          <p className="text-xs text-muted-foreground">Front of ID only</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <LiveCamera facing="environment" guide="id" onCapture={handleIdFrontCapture} />
 
                   <div className="flex gap-2 text-xs text-muted-foreground items-start bg-muted/50 p-3 rounded-lg">
                     <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <p>Make sure all corners are visible, text is readable, and there is no glare.</p>
+                    <p>Fit the ID inside the frame. Make sure all corners are visible, text is readable, and there is no glare.</p>
                   </div>
-
-                  <Button
-                    className="w-full"
-                    disabled={!idFrontFile}
-                    onClick={() => setStep('selfie_capture')}
-                  >
-                    Continue
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
                 </motion.div>
               )}
 
@@ -247,36 +195,13 @@ export default function KYCVerificationDialog({ open, onOpenChange }: KYCVerific
                   className="space-y-6"
                 >
                   <div className="text-center space-y-2">
-                    <h3 className="text-xl font-semibold">Take a Selfie</h3>
+                    <h3 className="text-xl font-semibold">Selfie Holding Your ID</h3>
                     <p className="text-sm text-muted-foreground">
-                      A quick, clear photo of your face.
+                      Hold the same ID below your face. Your face goes in the oval, the ID in the box.
                     </p>
                   </div>
 
-                  <div>
-                    <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-muted/30 transition-colors relative cursor-pointer">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="user"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={handleSelfieCapture}
-                      />
-                      {selfieFile ? (
-                        <div className="space-y-2">
-                          <div className="w-10 h-10 bg-primary/20 text-primary rounded-full flex items-center justify-center mx-auto">
-                            <Check className="h-5 w-5" />
-                          </div>
-                          <p className="text-sm font-medium text-primary">Selfie Captured</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <ScanFace className="h-10 w-10 text-muted-foreground mx-auto" />
-                          <p className="text-sm font-medium">Tap to open front camera</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <LiveCamera facing="user" guide="selfie_with_id" onCapture={handleSelfieCapture} disabled={isUploading} />
                 </motion.div>
               )}
 
