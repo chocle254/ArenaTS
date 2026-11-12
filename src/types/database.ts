@@ -117,6 +117,11 @@ export interface Tournament {
   sliding_after?: number | null;
   /** Hosted by Arena or a verified organizer: can show a sponsor and accept welcome tickets */
   official?: boolean;
+  /** Host opted in to welcome tickets (official tournaments always accept them) */
+  accepts_tickets?: boolean;
+  /** Sponsor trailer (official tournaments only): muted autoplay, tap for sound */
+  trailer_url?: string | null;
+  trailer_poster_url?: string | null;
   sponsor_name?: string | null;
   sponsor_logo_url?: string | null;
   sponsor_url?: string | null;

@@ -1,4 +1,5 @@
 import { supabase } from '@/db/supabase';
+import { uploadMedia, viewLinks } from '@/lib/media';
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -103,8 +104,8 @@ export async function uploadEvidence(dispute: Dispute, userId: string, file: Fil
   if (isImage && file.size > MAX_IMAGE_BYTES) throw new Error('Photos must be under 10 MB');
   if (isVideo && file.size > MAX_VIDEO_BYTES) throw new Error('Videos must be under 50 MB. Trim it to the end of the match.');
 
-  const base = `${dispute.id}/${userId}/${Date.now()}`;
-  const bucket = supabase.storage.from('match-evidence');
+  // Stored in the private B2 bucket as <dispute>/<user>/<file>; the server builds the path
+  const stamp = Date.now();
   let frames: string[] = [];
 
   if (isVideo) {
@@ -113,18 +114,14 @@ export async function uploadEvidence(dispute: Dispute, userId: string, file: Fil
     onProgress?.('Uploading frames…');
     frames = await Promise.all(
       blobs.map(async (b, i) => {
-        const path = `${base}-f${i + 1}.jpg`;
-        const { error } = await bucket.upload(path, b, { contentType: 'image/jpeg' });
-        if (error) throw error;
+        const { path } = await uploadMedia<{ path: string }>('evidence', b, { dispute: dispute.id, file: `${stamp}-f${i + 1}.jpg` });
         return path;
       }),
     );
   }
 
   onProgress?.(isVideo ? 'Uploading the video…' : 'Uploading…');
-  const path = `${base}.${ext(file)}`;
-  const { error } = await bucket.upload(path, file, { contentType: file.type });
-  if (error) throw error;
+  const { path } = await uploadMedia<{ path: string }>('evidence', file, { dispute: dispute.id, file: `${stamp}.${ext(file)}` });
 
   const { error: rpcErr } = await supabase.rpc('submit_dispute_evidence', { p_dispute: dispute.id, p_kind: isVideo ? 'video' : 'image', p_path: path, p_frames: frames, p_note: note || null });
   if (rpcErr) throw rpcErr;
@@ -134,9 +131,10 @@ const urlCache = new Map<string, { url: string; at: number }>();
 export async function signedUrl(path: string) {
   const hit = urlCache.get(path);
   if (hit && Date.now() - hit.at < 8 * 60_000) return hit.url;
-  const { data } = await supabase.storage.from('match-evidence').createSignedUrl(path, 600);
-  if (data?.signedUrl) urlCache.set(path, { url: data.signedUrl, at: Date.now() });
-  return data?.signedUrl || '';
+  const urls = await viewLinks('evidence', [path]).catch(() => ({} as Record<string, string>));
+  const url = urls[path] || '';
+  if (url) urlCache.set(path, { url, at: Date.now() });
+  return url;
 }
 
 export function timeLeft(iso: string | null) {

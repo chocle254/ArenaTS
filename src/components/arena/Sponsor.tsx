@@ -1,9 +1,10 @@
-import { BadgeCheck, ExternalLink } from 'lucide-react';
+import { BadgeCheck, ExternalLink, Ticket } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SponsorFields {
   official?: boolean | null;
+  accepts_tickets?: boolean | null;
   sponsor_name?: string | null;
   sponsor_logo_url?: string | null;
   sponsor_url?: string | null;
@@ -52,7 +53,14 @@ export function SponsorBadge({
   tournament: SponsorFields;
   className?: string;
 }) {
-  if (!tournament.official) return null;
+  if (!tournament.official) {
+    if (!tournament.accepts_tickets) return null;
+    return (
+      <p className={cn('flex items-center gap-1 text-xs font-semibold text-primary-soft', className)}>
+        <Ticket className='h-3.5 w-3.5' /> Welcome tickets accepted
+      </p>
+    );
+  }
   if (!tournament.sponsor_name) {
     return (
       <p

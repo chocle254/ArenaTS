@@ -32,14 +32,19 @@ export function livePrizePool(t: PrizeFields): number {
 
 /**
  * Welcome ticket: entry credit (profiles.entry_credit) pays entry fees on
- * official tournaments (hosted by Arena or a verified organizer). Mirrors
- * handle_tournament_join_fee on the server, which is authoritative.
+ * official tournaments (hosted by Arena or a verified organizer) and on
+ * tournaments whose host opted in. Mirrors handle_tournament_join_fee on the
+ * server, which is authoritative.
  */
+export function acceptsTickets(tournament: { official?: boolean | null; accepts_tickets?: boolean | null } | null | undefined): boolean {
+  return !!(tournament?.official || tournament?.accepts_tickets);
+}
+
 export function ticketCover(
-  tournament: { official?: boolean | null } | null | undefined,
+  tournament: { official?: boolean | null; accepts_tickets?: boolean | null } | null | undefined,
   profile: { entry_credit?: number | null; arena_currency?: number | null } | null | undefined,
   fee: number,
 ): { credit: number; cash: number } {
-  const credit = tournament?.official ? Math.min(Math.max(Number(profile?.entry_credit) || 0, 0), fee) : 0;
+  const credit = acceptsTickets(tournament) ? Math.min(Math.max(Number(profile?.entry_credit) || 0, 0), fee) : 0;
   return { credit, cash: Math.max(fee - credit, 0) };
 }

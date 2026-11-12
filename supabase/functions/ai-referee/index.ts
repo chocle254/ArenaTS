@@ -20,6 +20,7 @@
 //      The database decides what happens next: confident and clean ->
 //      proposed with a 10 min appeal window, anything else -> a human referee.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { headObject, viewUrl } from '../_shared/b2.ts';
 
 const MODEL = Deno.env.get('AI_MODEL') || 'qwen/qwen3.8-27b';
 const BASE_URL = (Deno.env.get('AI_BASE_URL') || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
@@ -92,6 +93,17 @@ async function matchRules(db: Admin, d: Record<string, any>): Promise<string[]> 
 }
 
 type Admin = ReturnType<typeof createClient>;
+
+/** A 10-minute link to an evidence file: B2 first, Supabase Storage for files not copied over yet */
+async function evidenceUrl(db: Admin, path: string): Promise<string | null> {
+  try {
+    if (await headObject('private', `evidence/${path}`)) return await viewUrl(`evidence/${path}`, 600);
+  } catch (e) {
+    console.error('B2 lookup failed, trying Supabase Storage', (e as Error).message);
+  }
+  const { data } = await db.storage.from('match-evidence').createSignedUrl(path, 600);
+  return data?.signedUrl || null;
+}
 
 /** Player-controlled text: single line, no tag-like characters, short. JSON-encode before use. */
 function clean(s: unknown, max = 40): string {
@@ -250,10 +262,10 @@ Evidence follows. Each item says who uploaded it. Judge it only for the rule in 
   }
   let images = 0;
   for (const p of picked) {
-    const { data: signed } = await db.storage.from('match-evidence').createSignedUrl(p.path, 600);
-    if (!signed?.signedUrl) continue;
+    const imageUrl = await evidenceUrl(db, p.path);
+    if (!imageUrl) continue;
     content.push({ type: 'text', text: `Image ${images + 1}: from ${p.label}` });
-    content.push({ type: 'image_url', image_url: { url: signed.signedUrl } });
+    content.push({ type: 'image_url', image_url: { url: imageUrl } });
     images++;
   }
   const notShown = items.length && queues.player1.length + queues.player2.length;
