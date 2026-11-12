@@ -10,8 +10,8 @@ export const B2_REGION = 'us-east-005';
 export type BucketKind = 'private' | 'public';
 
 const BUCKETS: Record<BucketKind, string> = {
-  private: 'arena-private',
-  public: 'arena-public',
+  private: 'arena-private-media-7k2x',
+  public: 'arena-public-media-7k2x',
 };
 
 function creds(kind: BucketKind) {

@@ -8,7 +8,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://zzanvdihageyedfnrdcx.supabase.co https://arena-public.s3.us-east-005.backblazeb2.com https://arena-private.s3.us-east-005.backblazeb2.com; connect-src 'self' https://zzanvdihageyedfnrdcx.supabase.co wss://zzanvdihageyedfnrdcx.supabase.co; frame-src https://player.twitch.tv https://www.twitch.tv; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://zzanvdihageyedfnrdcx.supabase.co https://arena-public-media-7k2x.s3.us-east-005.backblazeb2.com https://arena-private-media-7k2x.s3.us-east-005.backblazeb2.com; connect-src 'self' https://zzanvdihageyedfnrdcx.supabase.co wss://zzanvdihageyedfnrdcx.supabase.co; frame-src https://player.twitch.tv https://www.twitch.tv; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         },
         {
           "key": "Strict-Transport-Security",
