@@ -1,5 +1,5 @@
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion';
-import { ArrowRight, BadgeCheck, Camera, Check, Coins, Crown, Gavel, Landmark, Scale, ShieldCheck, Trophy, Wallet } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Camera, Check, Coins, Crown, Gavel, Scale, ShieldCheck, Trophy, Wallet } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -74,7 +74,7 @@ function HeroDevice() {
             <div className="absolute inset-0 bg-gradient-to-t from-card via-card/80 to-card/30" />
             <div className="relative p-4">
               <p className="text-[11px] font-semibold text-primary-soft">Your next match</p>
-              <p className="mt-1 font-score text-[22px] font-bold leading-[1.05]">Kericho Clash: CODM 1v1 Cup</p>
+              <p className="mt-1 font-score text-[22px] font-bold leading-[1.05]">Midnight Snipers: CODM 1v1 Cup</p>
               <div className="mt-4 flex items-end justify-between">
                 <div>
                   <p className="text-[10px] text-muted-foreground">Starts in</p>
@@ -238,14 +238,14 @@ export default function Landing() {
           <div className="text-center lg:text-left">
             <h1 className="font-display text-[clamp(2.6rem,6.4vw,5.75rem)] font-extrabold leading-[0.92] tracking-[-0.015em]">
               <motion.span {...rise(0.08)} className="text-sheen block">
-                Refereed esports,
+                Talk is cheap.
               </motion.span>
               <motion.span {...rise(0.16)} className="text-gold-sheen block pb-1 drop-shadow-[0_4px_30px_hsl(var(--gold)/0.25)]">
-                paid to M-Pesa.
+                Prove it in the Arena.
               </motion.span>
             </h1>
             <motion.p {...rise(0.34)} className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-foreground/85 sm:text-lg lg:mx-0">
-              Daily tournaments and free 1v1 quick matches for CODM, eFootball, PUBG Mobile and FIFA. A referee settles every disputed result, and what you win goes straight to M-Pesa.
+              Daily tournaments and free 1v1 matches in CODM, eFootball, PUBG Mobile and FIFA. Fair brackets, real referees, and prizes for the players who earn them.
             </motion.p>
             <motion.div {...rise(0.42)} className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
               <Link to="/sign-up" className="btn-shine group flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(180deg,hsl(var(--primary-2)),hsl(var(--primary)))] px-7 text-base font-semibold text-white shadow-[0_12px_32px_-10px_hsl(var(--primary)),inset_0_1px_0_hsl(0_0%_100%/0.3)] transition-[filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_16px_40px_-10px_hsl(var(--primary))] sm:w-auto">
@@ -258,13 +258,13 @@ export default function Landing() {
             </motion.div>
             <motion.ul {...rise(0.5)} className="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-foreground/85 lg:justify-start">
               <li className="flex items-center gap-2">
-                <Gavel className="h-4 w-4 text-primary-soft" /> Referees on every bracket
+                <Gavel className="h-4 w-4 text-primary-soft" /> Real referees, fair calls
               </li>
               <li className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-primary-soft" /> Stakes held until the result
+                <ShieldCheck className="h-4 w-4 text-primary-soft" /> Entry held safe until the final
               </li>
               <li className="flex items-center gap-2">
-                <Landmark className="h-4 w-4 text-primary-soft" /> Paid out to M-Pesa
+                <Trophy className="h-4 w-4 text-primary-soft" /> Climb the national leaderboard
               </li>
             </motion.ul>
           </div>
