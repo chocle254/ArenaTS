@@ -34,6 +34,7 @@ import { getProfile } from '@/db/profile';
 import { supabase } from '@/db/supabase';
 import { useJoinTournament } from '@/hooks/use-join-tournament';
 import { formatArenaCurrency } from '@/lib/arena-currency';
+import { type LibraryTrailer, reusableTrailers, uploadMedia } from '@/lib/media';
 import type { GameMode, GameType, Tournament } from '@/types/database';
 import { GAME_INFO, GAME_MODES, MODE_TEAM_SIZES } from '@/types/database';
 
@@ -247,7 +248,17 @@ function CreateTournamentDialog({
   const [sponsor, setSponsor] = useState({ name: '', logo: '', url: '', message: '' });
   const [deal, setDeal] = useState({ contact: '', amount: '', fee: '', paidVia: 'M-Pesa', invoice: '' });
   const [slidingAfter, setSlidingAfter] = useState('');
-  
+  // Sponsor trailer: pick a saved one or upload a new video (+ optional cover)
+  const [trailerFile, setTrailerFile] = useState<File | null>(null);
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [keepTrailer, setKeepTrailer] = useState(false);
+  const [pickedTrailer, setPickedTrailer] = useState<LibraryTrailer | null>(null);
+  const [library, setLibrary] = useState<LibraryTrailer[]>([]);
+  useEffect(() => {
+    if (!canSponsor) return;
+    reusableTrailers().then(setLibrary).catch(() => setLibrary([]));
+  }, [canSponsor]);
+
   // Calculate team size based on selected mode
   const teamSize = formData.gameMode ? MODE_TEAM_SIZES[formData.gameMode as GameMode] : 1;
   const isTeamBased = teamSize > 1;
@@ -346,9 +357,23 @@ function CreateTournamentDialog({
         throw new Error(`You need ${formatArenaCurrency(deduction)} to fund this prize pool.`);
       }
 
+      // Sponsor trailer (official hosts): a saved one, or upload the new one now
+      let trailer: { trailer_url: string; trailer_poster_url: string | null } | null = null;
+      if (canSponsor && pickedTrailer) {
+        trailer = { trailer_url: pickedTrailer.url, trailer_poster_url: pickedTrailer.poster_url };
+      } else if (canSponsor && trailerFile) {
+        toast.info('Uploading the trailer…');
+        const t = await uploadMedia<{ id: string; url: string }>('trailer', trailerFile, {
+          title: formData.name.slice(0, 80),
+          reusable: keepTrailer ? '1' : '0',
+        });
+        const poster = posterFile ? (await uploadMedia<{ url: string }>('poster', posterFile, { trailer: t.id })).url : null;
+        trailer = { trailer_url: t.url, trailer_poster_url: poster };
+      }
+
       const { data: created, error } = await supabase
         .from('tournaments')
-        .insert(tournamentData)
+        .insert({ ...tournamentData, ...(trailer || {}) })
         .select('id')
         .single();
 
@@ -586,6 +611,77 @@ function CreateTournamentDialog({
                   <Label htmlFor="sponsorMessage">Short message</Label>
                   <Input id="sponsorMessage" maxLength={200} placeholder="Powering Kenya's best players" value={sponsor.message} onChange={(e) => setSponsor({ ...sponsor, message: e.target.value })} />
                 </div>
+              </div>
+              <div className="space-y-3 border-t border-border pt-3">
+                <p className="text-sm font-semibold">Trailer (optional)</p>
+                <p className="text-xs text-muted-foreground">
+                  Plays muted on the home page and the tournament page; players tap for sound. MP4 or WebM, up to 40 MB (aim for 15–30 seconds at 720p).
+                </p>
+                {library.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="savedTrailer">Use a saved trailer</Label>
+                    <select
+                      id="savedTrailer"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={pickedTrailer?.id || ''}
+                      onChange={(e) => {
+                        setPickedTrailer(library.find((t) => t.id === e.target.value) || null);
+                        if (e.target.value) setTrailerFile(null);
+                      }}
+                    >
+                      <option value="">Upload a new one instead</option>
+                      {library.map((t) => (
+                        <option key={t.id} value={t.id}>{t.title || 'Untitled trailer'}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {!pickedTrailer && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="trailerFile">Trailer video</Label>
+                      <Input
+                        id="trailerFile"
+                        type="file"
+                        accept="video/mp4,video/webm"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] || null;
+                          if (f && f.size > 40 * 1024 * 1024) {
+                            toast.error('Trailers must be under 40 MB');
+                            e.target.value = '';
+                            return;
+                          }
+                          setTrailerFile(f);
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="posterFile">Cover image (shown before it loads)</Label>
+                      <Input
+                        id="posterFile"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={!trailerFile}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] || null;
+                          if (f && f.size > 3 * 1024 * 1024) {
+                            toast.error('Covers must be under 3 MB');
+                            e.target.value = '';
+                            return;
+                          }
+                          setPosterFile(f);
+                        }}
+                      />
+                    </div>
+                    <label className="flex items-start gap-3 sm:col-span-2">
+                      <Switch checked={keepTrailer} onCheckedChange={setKeepTrailer} disabled={!trailerFile} className="mt-0.5" />
+                      <span className="text-xs text-muted-foreground">
+                        <span className="block text-sm font-semibold text-foreground">Keep for reuse</span>
+                        Otherwise it's deleted a day after this tournament ends.
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
               {isAdmin && sponsor.name.trim() && (
                 <div className="space-y-3 border-t border-border pt-3">

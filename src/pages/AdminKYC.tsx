@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { viewLinks } from '@/lib/media';
 import type { Profile } from '@/types/database';
 
 type KYCStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
@@ -72,18 +73,9 @@ export default function AdminKYC() {
         ['selfie', p.kyc_selfie_path],
       ];
 
-      const entries = await Promise.all(
-        paths.map(async ([key, path]) => {
-          if (!path) return [key, undefined] as const;
-          const { data, error } = await supabase.storage
-            .from('kyc-documents')
-            .createSignedUrl(path, 60 * 10); // 10 minutes
-          if (error || !data) return [key, undefined] as const;
-          return [key, data.signedUrl] as const;
-        })
-      );
-
-      setDocUrls(Object.fromEntries(entries));
+      // 10-minute links from the private B2 bucket (admins only, checked on the server)
+      const links = await viewLinks('kyc', paths.map(([, path]) => path).filter((x): x is string => !!x));
+      setDocUrls(Object.fromEntries(paths.map(([key, path]) => [key, path ? links[path] : undefined])));
     } catch (error) {
       console.error('Error loading KYC documents:', error);
       toast.error('Failed to load submitted documents');

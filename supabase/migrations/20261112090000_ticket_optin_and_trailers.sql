@@ -101,11 +101,12 @@ BEGIN
       IF NEW.sponsor_logo_url IS NOT NULL AND NEW.sponsor_logo_url !~ '^https://' THEN
         RAISE EXCEPTION 'Sponsor logo must be an https:// image link';
       END IF;
-      IF NEW.trailer_url IS NOT NULL AND NEW.trailer_url !~ '^https://' THEN
-        RAISE EXCEPTION 'Trailer must be an https:// video link';
+      -- Trailers and covers must be files uploaded to Arena's public B2 bucket
+      IF NEW.trailer_url IS NOT NULL AND NEW.trailer_url !~ '^https://arena-public\.s3\.us-east-005\.backblazeb2\.com/trailers/[0-9a-f-]{36}\.(mp4|webm)$' THEN
+        RAISE EXCEPTION 'Upload the trailer through Arena';
       END IF;
-      IF NEW.trailer_poster_url IS NOT NULL AND NEW.trailer_poster_url !~ '^https://' THEN
-        RAISE EXCEPTION 'Trailer cover must be an https:// image link';
+      IF NEW.trailer_poster_url IS NOT NULL AND NEW.trailer_poster_url !~ '^https://arena-public\.s3\.us-east-005\.backblazeb2\.com/trailers/[0-9a-f-]{36}\.(jpg|png|webp)$' THEN
+        RAISE EXCEPTION 'Upload the trailer cover through Arena';
       END IF;
     END IF;
     -- Tickets only mean something when there's an entry fee
