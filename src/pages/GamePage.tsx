@@ -272,6 +272,10 @@ function CreateTournamentDialog({
   const slideOn = sliding && canSlide;
   // Welcome tickets: official hosts always accept them; other hosts can opt in (ticket seats earn them nothing)
   const [acceptTickets, setAcceptTickets] = useState(false);
+  // Home and away: two legs per tie (football games only)
+  const canTwoLegs = game === 'efootball' || game === 'fifa';
+  const [twoLegs, setTwoLegs] = useState(false);
+  const twoLegsOn = canTwoLegs && twoLegs;
   const canAcceptTickets = (parseFloat(formData.entryFee) || 0) > 0;
   const ticketsOn = acceptTickets && canAcceptTickets;
   const slideAfterNum = parseInt(slidingAfter || formData.minParticipants, 10) || 0;
@@ -324,6 +328,12 @@ function CreateTournamentDialog({
         rules: parseCustomRules(formData.rules).join('\n') || null,
         format: format,
         bracket_type: 'single_elimination',
+        ...(twoLegsOn
+          ? {
+              two_legged: true,
+              tie_break_rules: 'Home and away: most total goals over both legs goes through. If the total is level, play extra time and then penalties. Extra-time goals count in the leg 2 score.',
+            }
+          : {}),
         max_players: maxPlayersCount,
         min_participants: minParticipantsCount,
         current_players: 0,
@@ -345,7 +355,7 @@ function CreateTournamentDialog({
         status: 'open',
         start_time: new Date(formData.startTime).toISOString(),
         check_in_window: 30,
-        match_time_limit: 60,
+        match_time_limit: twoLegsOn ? 90 : 60,
         score_reporting_type: 'screenshot',
         rounds_to_win: 1,
         created_by: user!.id,
@@ -542,6 +552,20 @@ function CreateTournamentDialog({
               </div>
             )}
           </div>
+
+          {canTwoLegs && (
+            <div className={`rounded-xl border p-3 ${twoLegsOn ? 'border-primary/40 bg-primary/[0.06]' : 'border-border'}`}>
+              <label className="flex items-start gap-3">
+                <Switch checked={twoLegsOn} onCheckedChange={setTwoLegs} aria-describedby="two-legs-help" className="mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Home and away</span>
+                  <span id="two-legs-help" className="block text-xs text-muted-foreground">
+                    Every round is two legs, like the Champions League. Most total goals goes through. If it's level, extra time and then penalties. Players get 90 minutes for both legs.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
 
           {/* Description */}
           <div className="space-y-2">

@@ -107,6 +107,8 @@ export interface Tournament {
   rules: string | null;
   format: TournamentFormat;
   bracket_type: BracketType;
+  /** Home and away: every tie is two legs, most total goals goes through (eFootball / FIFA only) */
+  two_legged?: boolean;
   max_players: number;
   min_participants: number;
   current_players: number;

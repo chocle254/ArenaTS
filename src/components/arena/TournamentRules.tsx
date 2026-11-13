@@ -13,12 +13,14 @@ interface RuleSettings {
   check_in_window?: number | null;
   match_time_limit?: number | null;
   team_size?: number | null;
+  two_legged?: boolean | null;
 }
 
 /** House rules that apply to every Arena tournament. */
 export function defaultRuleGroups(t: RuleSettings = {}): RuleGroup[] {
   const limit = t.match_time_limit || 60;
   const team = (t.team_size || 1) > 1;
+  const legs = !!t.two_legged;
   return [
     {
       id: 'setup',
@@ -49,7 +51,13 @@ export function defaultRuleGroups(t: RuleSettings = {}): RuleGroup[] {
       icon: <Radio className="h-4 w-4" />,
       rules: [
         "Start your Twitch stream before you press “I'm ready”. Unstreamed matches can be voided.",
-        `Finish and report each match within ${limit} minutes.`,
+        ...(legs
+          ? [
+              'Home and away: each round is two legs. Player 1 (top of the match card) hosts leg 1, player 2 hosts leg 2.',
+              'Most total goals over both legs goes through. If the total is level after leg 2, play extra time and then penalties.',
+              `Play both legs and report within ${limit} minutes.`,
+            ]
+          : [`Finish and report each match within ${limit} minutes.`]),
       ],
     },
     {
@@ -57,7 +65,9 @@ export function defaultRuleGroups(t: RuleSettings = {}): RuleGroup[] {
       title: 'Results and disputes',
       icon: <Gavel className="h-4 w-4" />,
       rules: [
-        'Both players report the winner and upload a screenshot of the final score.',
+        legs
+          ? 'Both players report the score of each leg (leg 2 including extra time) and who won on penalties if it went that far. Keep a screenshot of both final scores.'
+          : 'Both players report the winner and upload a screenshot of the final score.',
         "If the reports don't match, a referee reviews the evidence and chat. Their decision is final.",
         'Referees and admins never decide a match they are playing in.',
       ],

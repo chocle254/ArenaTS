@@ -63,6 +63,26 @@ interface MatchResult {
   player2_checked_in: boolean;
   check_in_deadline: string | null;
   both_players_ready: boolean;
+  player1_reported_score?: TwoLegScore | null;
+  player2_reported_score?: TwoLegScore | null;
+  score?: TwoLegScore | null;
+}
+
+/** A home-and-away tie: goals from player 1's and player 2's side in each leg */
+interface TwoLegScore {
+  leg1: [number, number];
+  leg2: [number, number];
+  pens: string | null;
+}
+
+function aggregate(s: TwoLegScore): [number, number] {
+  return [s.leg1[0] + s.leg2[0], s.leg1[1] + s.leg2[1]];
+}
+
+function describeTie(s: TwoLegScore, p1: string, p2: string, ids: { p1?: string; p2?: string }): string {
+  const [a, b] = aggregate(s);
+  const pens = s.pens ? ` · ${s.pens === ids.p1 ? p1 : p2} on penalties` : '';
+  return `${s.leg1[0]}–${s.leg1[1]}, ${s.leg2[0]}–${s.leg2[1]} (agg ${a}–${b})${pens}`;
 }
 
 interface TournamentBracketProps {
@@ -91,6 +111,7 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
   const [submitting, setSubmitting] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [isReferee, setIsReferee] = useState(false);
+  const [twoLegged, setTwoLegged] = useState(false);
 
   const matchResult = match.result;
   const isPlayer1 = match.player1?.user_id === currentUserId;
@@ -106,11 +127,12 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
       
       const { data: tournament } = await supabase
         .from('tournaments')
-        .select('game')
+        .select('game, two_legged')
         .eq('id', tournamentId)
         .single();
         
       if (tournament) {
+        setTwoLegged(!!tournament.two_legged);
         const { data: refereeStatus } = await supabase
           .rpc('is_referee', { uid: currentUserId, p_game: tournament.game });
         
@@ -332,6 +354,52 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
     }
   };
 
+  const handleReportTwoLegs = async (r: TwoLegScore) => {
+    if (!match.player1 || !match.player2) return;
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc('report_two_leg_result', {
+        p_tournament_id: tournamentId,
+        p_match_id: match.id,
+        p_leg1_p1: r.leg1[0],
+        p_leg1_p2: r.leg1[1],
+        p_leg2_p1: r.leg2[0],
+        p_leg2_p2: r.leg2[1],
+        p_pens_winner: r.pens,
+      });
+      if (error) throw error;
+      const result = data as { status: string; winner_id: string };
+      const tie = describeTie(r, match.player1.gamertag || 'Player 1', match.player2.gamertag || 'Player 2', {
+        p1: match.player1.user_id,
+        p2: match.player2.user_id,
+      });
+      const winnerTag = result.winner_id === match.player1.user_id ? match.player1.gamertag : match.player2.gamertag;
+      if (result.status === 'confirmed') {
+        await supabase.from('match_messages').insert({
+          tournament_id: tournamentId,
+          match_id: match.id,
+          user_id: currentUserId,
+          message: `Tie confirmed: ${tie}. ${winnerTag} goes through.`,
+        });
+        toast.success('Tie confirmed! Winner advances to the next round.');
+      } else if (result.status === 'disputed') {
+        await supabase.from('match_messages').insert({
+          tournament_id: tournamentId,
+          match_id: match.id,
+          user_id: currentUserId,
+          message: 'Your reports say different players went through, so this tie moved to a dispute for a referee to review.',
+        });
+        toast.warning('Results disputed! A referee will review it.');
+      } else {
+        toast.success('Result submitted. Waiting for your opponent to report.');
+      }
+    } catch (error: any) {
+      toast.error(`Failed to submit result: ${error.message || 'try again'}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleCancelDispute = async () => {
     if (!isOfficial) return;
     if (!matchResult) return;
@@ -345,6 +413,8 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
           status: 'pending',
           player1_reported_winner: null,
           player2_reported_winner: null,
+          player1_reported_score: null,
+          player2_reported_score: null,
           admin_override: false,
           winner_id: null,
         })
@@ -450,6 +520,14 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
                 <Trophy className="h-4 w-4 text-gold" />
                 Winner: {matchResult.winner_id === match.player1?.user_id ? match.player1?.gamertag : match.player2?.gamertag}
               </p>
+              {matchResult.score && (
+                <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                  {describeTie(matchResult.score, match.player1?.gamertag || 'Player 1', match.player2?.gamertag || 'Player 2', {
+                    p1: match.player1?.user_id,
+                    p2: match.player2?.user_id,
+                  })}
+                </p>
+              )}
               {matchResult.admin_override && (
                 <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
                   <Shield className="h-3 w-3" />
@@ -602,7 +680,17 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
       )}
 
       {/* Result Submission */}
-      {isParticipant && (!matchResult || matchResult.status === 'pending') && (
+      {isParticipant && twoLegged && matchResult?.status === 'pending' && match.player1 && match.player2 && (
+        <TwoLegReport
+          p1={match.player1}
+          p2={match.player2}
+          mine={(isPlayer1 ? matchResult.player1_reported_score : matchResult.player2_reported_score) || null}
+          submitting={submitting}
+          onSubmit={handleReportTwoLegs}
+        />
+      )}
+
+      {isParticipant && !twoLegged && (!matchResult || matchResult.status === 'pending') && (
         <div className="space-y-6 pt-4 border-t border-border">
           <div>
             <h4 className="text-sm font-semibold mb-3">Report the result</h4>
@@ -633,6 +721,122 @@ function MatchChat({ match, currentUserId, tournamentId, isAdmin, participants }
       )}
 
       <div className="h-8 shrink-0" /> {/* Spacer for bottom scroll padding */}
+    </div>
+  );
+}
+
+function ScoreBox({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  return (
+    <Input
+      type="number"
+      inputMode="numeric"
+      min={0}
+      max={50}
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 2))}
+      className="h-12 w-14 text-center text-lg font-semibold tabular-nums"
+    />
+  );
+}
+
+/** Score entry for a home-and-away tie: both legs, then penalties if the total is level */
+function TwoLegReport({
+  p1,
+  p2,
+  mine,
+  submitting,
+  onSubmit,
+}: {
+  p1: Participant;
+  p2: Participant;
+  mine: TwoLegScore | null;
+  submitting: boolean;
+  onSubmit: (r: TwoLegScore) => void;
+}) {
+  const [g, setG] = useState(() =>
+    mine ? [mine.leg1[0], mine.leg1[1], mine.leg2[0], mine.leg2[1]].map(String) : ['', '', '', ''],
+  );
+  const [pens, setPens] = useState<string | null>(mine?.pens ?? null);
+  const set = (i: number) => (v: string) => setG((old) => old.map((x, j) => (j === i ? v : x)));
+  const n = g.map((x) => (x === '' ? null : Number(x)));
+  const complete = n.every((x) => x !== null);
+  const agg1 = (n[0] ?? 0) + (n[2] ?? 0);
+  const agg2 = (n[1] ?? 0) + (n[3] ?? 0);
+  const level = complete && agg1 === agg2;
+  const name1 = p1.gamertag || 'Player 1';
+  const name2 = p2.gamertag || 'Player 2';
+  const leader = !complete ? null : agg1 > agg2 ? name1 : agg2 > agg1 ? name2 : null;
+  const ready = complete && (!level || !!pens);
+
+  const leg = (title: string, hint: string, a: number, b: number) => (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold">{title}</span>
+        <span className="text-xs text-muted-foreground">{hint}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm">{name1}</span>
+        <ScoreBox value={g[a]} onChange={set(a)} label={`${title}: ${name1} goals`} />
+        <span className="text-muted-foreground">–</span>
+        <ScoreBox value={g[b]} onChange={set(b)} label={`${title}: ${name2} goals`} />
+        <span className="min-w-0 flex-1 truncate text-right text-sm">{name2}</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <h4 className="text-sm font-semibold">Report the tie</h4>
+      {leg('Leg 1', `${name1} at home`, 0, 1)}
+      {leg('Leg 2', `${name2} at home · include extra time`, 2, 3)}
+
+      <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2 text-sm" aria-live="polite">
+        <span className="text-muted-foreground">Aggregate</span>
+        <span className="font-semibold tabular-nums">
+          {complete ? `${agg1} – ${agg2}` : '–'}
+          {leader && <span className="ml-2 font-normal text-muted-foreground">{leader} goes through</span>}
+        </span>
+      </div>
+
+      {level && (
+        <div className="space-y-2">
+          <p className="text-sm">Level on aggregate. Who won on penalties?</p>
+          <div className="grid grid-cols-2 gap-3">
+            {[p1, p2].map((p) => (
+              <Button
+                key={p.user_id}
+                type="button"
+                variant={pens === p.user_id ? 'default' : 'outline'}
+                onClick={() => setPens(p.user_id)}
+                className="h-11 truncate"
+              >
+                {p.gamertag}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Button
+        className="h-12 w-full gap-2"
+        disabled={!ready || submitting}
+        onClick={() =>
+          onSubmit({
+            leg1: [n[0]!, n[1]!],
+            leg2: [n[2]!, n[3]!],
+            pens: level ? pens : null,
+          })
+        }
+      >
+        <Trophy className="h-4 w-4" />
+        {mine ? 'Update my report' : 'Submit result'}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        {mine
+          ? 'Report sent. Waiting for your opponent.'
+          : 'Your opponent reports too. If you disagree on who went through, you’ll both be asked for screenshots of the final scores.'}
+      </p>
     </div>
   );
 }
@@ -995,6 +1199,13 @@ function MatchCard({ match, currentUserId, tournamentId, isAdmin, winnerId, tour
               )}
             </div>
           </div>
+        )}
+
+        {matchResult?.status === 'confirmed' && matchResult.score && (
+          <p className="px-1 text-xs tabular-nums text-muted-foreground">
+            Agg {aggregate(matchResult.score)[0]}–{aggregate(matchResult.score)[1]}
+            {matchResult.score.pens ? ' · pens' : ''}
+          </p>
         )}
 
         {/* View Stream Button for Non-participants */}

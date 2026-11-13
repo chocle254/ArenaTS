@@ -1141,6 +1141,7 @@ export default function TournamentDetail() {
                         <p className="text-sm text-muted-foreground">Bracket type</p>
                         <p className="text-lg font-semibold capitalize">
                           {tournament.bracket_type.replace('_', ' ')}
+                          {tournament.two_legged && ' · home and away'}
                         </p>
                       </div>
                       <div className="space-y-1">
