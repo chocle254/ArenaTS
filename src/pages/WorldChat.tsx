@@ -53,7 +53,11 @@ function useOnlineCount() {
 
 export default function WorldChat() {
   const { user } = useAuth();
-  const { messages, loading, sendMessage, markAsRead, goLive } = useWorldChat();
+  const { messages, loading, sendMessage, markAsRead, goLive, loadOlder, hasOlder } = useWorldChat();
+  // Messages added at the top by "Show older" don't count as new for the scroll-to-bottom logic
+  const [prepended, setPrepended] = useState(0);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const navigate = useNavigate();
   const online = useOnlineCount();
   const [text, setText] = useState('');
@@ -79,7 +83,28 @@ export default function WorldChat() {
     [messages],
   );
   const groups = useMemo(() => groupMessages(rows, (m) => m.user_id), [rows]);
-  const scroll = useChatScroll(rows.length);
+  const scroll = useChatScroll(rows.length - prepended);
+
+  const showOlder = useCallback(async () => {
+    const el = scroll.ref.current;
+    const fromBottom = el ? el.scrollHeight - el.scrollTop : 0;
+    setLoadingOlder(true);
+    const added = await loadOlder();
+    setLoadingOlder(false);
+    if (!added) return;
+    setPrepended((n) => n + added);
+    // Keep the message the player was reading in place
+    requestAnimationFrame(() => {
+      if (el) el.scrollTop = el.scrollHeight - fromBottom;
+    });
+  }, [loadOlder, scroll.ref]);
+
+  // Slow mode countdown (the server allows one message every 5 seconds)
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   // "@gam" at the end of the draft → suggest players
   const mentionQuery = useMemo(() => {
@@ -114,15 +139,20 @@ export default function WorldChat() {
   const send = useCallback(async () => {
     const body = text.trim();
     if (!body) return;
+    if (cooldown > 0) {
+      toast.info(`Slow mode: wait ${cooldown}s before sending again.`);
+      return;
+    }
     setText('');
     try {
       await sendMessage(body);
+      setCooldown(5);
       requestAnimationFrame(() => scroll.scrollToBottom(false));
     } catch (error) {
       setText(body);
       toast.error((error as Error)?.message || 'Message not sent. Try again.');
     }
-  }, [text, sendMessage, scroll]);
+  }, [text, sendMessage, scroll, cooldown]);
 
   const goBack = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -196,7 +226,15 @@ export default function WorldChat() {
               <p className="text-sm text-muted-foreground">Say hi, find a squad, or call out a rematch. Use @ to mention a player.</p>
             </div>
           ) : (
-            rows.map((m, i) => {
+            <>
+            {hasOlder && (
+              <div className="flex justify-center py-2">
+                <Button variant="ghost" size="sm" onClick={showOlder} disabled={loadingOlder} className="text-xs text-muted-foreground">
+                  {loadingOlder ? 'Loading…' : 'Show older messages'}
+                </Button>
+              </div>
+            )}
+            {rows.map((m, i) => {
               const g = groups[i];
               const own = m.user_id === user?.id;
               const p = m.profile;
@@ -233,7 +271,8 @@ export default function WorldChat() {
                   </Bubble>
                 </React.Fragment>
               );
-            })
+            })}
+            </>
           )}
         </MessageList>
       </ChatShell>

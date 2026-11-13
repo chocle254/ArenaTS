@@ -31,6 +31,9 @@ interface WorldChatContextType {
   sendMessage: (message: string) => Promise<void>;
   markAsRead: () => void;
   refreshMessages: () => Promise<void>;
+  /** Fetches the page of messages before the oldest one shown. Resolves to how many were added. */
+  loadOlder: () => Promise<number>;
+  hasOlder: boolean;
   /**
    * Call while the World Chat screen is open. Returns a release function.
    * Messages stream in live only while at least one screen holds this.
@@ -43,6 +46,15 @@ const WorldChatContext = createContext<WorldChatContextType | undefined>(undefin
 const PROFILE_COLUMNS = 'id, gamertag, avatar_url, location, tier, favorite_games, wins, losses, win_rate, global_rank, tournaments_played';
 const LAST_READ_KEY = 'world-chat-last-read';
 const UNREAD_POLL_MS = 60_000;
+// Keep the screen light on cheap phones: a short first page, older ones on request
+const FIRST_PAGE = 100;
+const OLDER_PAGE = 50;
+
+const withProfile = (msg: { id: string; user_id: string; message: string; created_at: string; profiles?: unknown }, cache: Map<string, ChatProfile>) => {
+  const p = (Array.isArray(msg.profiles) ? msg.profiles[0] : msg.profiles) as ChatProfile | undefined;
+  if (p?.id) cache.set(p.id, p);
+  return { ...msg, profiles: p || { id: msg.user_id, gamertag: 'Player', avatar_url: null, wins: 0, losses: 0 } } as WorldChatMessage;
+};
 
 const readLastRead = () => {
   try {
@@ -69,6 +81,7 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [liveHolders, setLiveHolders] = useState(0);
+  const [hasOlder, setHasOlder] = useState(false);
   const profileCache = useRef(new Map<string, ChatProfile>());
   const pendingProfiles = useRef(new Map<string, Promise<ChatProfile | null>>());
 
@@ -98,18 +111,15 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
         .from('world_chat_messages')
         .select(`id, user_id, message, created_at, profiles!world_chat_messages_user_id_fkey (${PROFILE_COLUMNS})`)
         .order('created_at', { ascending: false })
-        .limit(150);
+        .limit(FIRST_PAGE);
       if (error) throw error;
 
       const rows = (data || [])
         .slice()
         .reverse()
-        .map((msg) => {
-          const p = (Array.isArray(msg.profiles) ? msg.profiles[0] : msg.profiles) as ChatProfile | undefined;
-          if (p?.id) profileCache.current.set(p.id, p);
-          return { ...msg, profiles: p || { id: msg.user_id, gamertag: 'Player', avatar_url: null, wins: 0, losses: 0 } } as WorldChatMessage;
-        });
+        .map((msg) => withProfile(msg, profileCache.current));
       setMessages(rows);
+      setHasOlder((data || []).length === FIRST_PAGE);
     } catch (error) {
       console.error('[WorldChat] Error loading messages:', error);
     } finally {
@@ -240,12 +250,45 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
     setUnreadCount(0);
   }, []);
 
+  const oldestRef = useRef<string | null>(null);
+  oldestRef.current = messages[0]?.created_at ?? null;
+  const loadingOlder = useRef(false);
+  const loadOlder = useCallback(async () => {
+    const before = oldestRef.current;
+    if (!userId || !before || loadingOlder.current) return 0;
+    loadingOlder.current = true;
+    try {
+      const { data, error } = await supabase
+        .from('world_chat_messages')
+        .select(`id, user_id, message, created_at, profiles!world_chat_messages_user_id_fkey (${PROFILE_COLUMNS})`)
+        .lt('created_at', before)
+        .order('created_at', { ascending: false })
+        .limit(OLDER_PAGE);
+      if (error) throw error;
+      const older = (data || []).slice().reverse().map((msg) => withProfile(msg, profileCache.current));
+      setHasOlder(older.length === OLDER_PAGE);
+      let added = 0;
+      setMessages((prev) => {
+        const known = new Set(prev.map((m) => m.id));
+        const fresh = older.filter((m) => !known.has(m.id));
+        added = fresh.length;
+        return [...fresh, ...prev];
+      });
+      return added;
+    } catch (error) {
+      console.error('[WorldChat] Error loading older messages:', error);
+      return 0;
+    } finally {
+      loadingOlder.current = false;
+    }
+  }, [userId]);
+
   const refreshMessages = useCallback(async () => {
     await loadMessages();
   }, [loadMessages]);
 
   return (
-    <WorldChatContext.Provider value={{ messages, unreadCount, loading, sendMessage, markAsRead, refreshMessages, goLive }}>{children}</WorldChatContext.Provider>
+    <WorldChatContext.Provider value={{ messages, unreadCount, loading, sendMessage, markAsRead, refreshMessages, goLive, loadOlder, hasOlder }}>{children}</WorldChatContext.Provider>
   );
 }
 
