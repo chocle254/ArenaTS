@@ -6,6 +6,7 @@ import { AdminDisputes } from '@/components/admin/AdminDisputes';
 import type { Dispute } from '@/components/disputes/evidence';
 import { AdminMoney, type TournamentRevenue } from '@/components/admin/AdminMoney';
 import { AdminPlayers } from '@/components/admin/AdminPlayers';
+import { AdminReports } from '@/components/admin/AdminReports';
 import { AdminTournaments } from '@/components/admin/AdminTournaments';
 import FinanceAnalytics from '@/components/admin/FinanceAnalytics';
 import { Button } from '@/components/ui/button';
@@ -14,11 +15,12 @@ import { supabase } from '@/db/supabase';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
 import { cn } from '@/lib/utils';
 
-type Tab = 'overview' | 'disputes' | 'players' | 'tournaments' | 'money' | 'analytics';
+type Tab = 'overview' | 'disputes' | 'reports' | 'players' | 'tournaments' | 'money' | 'analytics';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'disputes', label: 'Disputes' },
+  { id: 'reports', label: 'Reports' },
   { id: 'players', label: 'Players' },
   { id: 'tournaments', label: 'Tournaments' },
   { id: 'money', label: 'Money' },
@@ -286,6 +288,7 @@ export default function AdminDashboard() {
       )}
 
       {tab === 'disputes' && <AdminDisputes disputes={disputes} names={names} />}
+      {tab === 'reports' && <AdminReports />}
       {tab === 'players' && <AdminPlayers />}
       {tab === 'tournaments' && <AdminTournaments />}
       {tab === 'money' && <AdminMoney revenueBalance={snap.revenueBalance} tournaments={revenueRows} currentUserId={user.id} onChanged={loadSnapshot} />}

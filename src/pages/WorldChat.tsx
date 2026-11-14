@@ -1,4 +1,4 @@
-import { Check, Copy, Globe, MessageSquare, Reply, Trash2, UserPlus } from 'lucide-react';
+import { Check, Copy, Flag, Globe, MessageSquare, Reply, Trash2, UserPlus } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -17,6 +17,7 @@ import {
   useChatScroll,
   useJumpToMessage,
 } from '@/components/chat/chat-kit';
+import { ReportDialog } from '@/components/chat/ReportDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -74,6 +75,7 @@ export default function WorldChat() {
   const [replyTo, setReplyTo] = useState<{ id: string; tag: string; text: string } | null>(null);
   const [menuFor, setMenuFor] = useState<{ id: string; user_id: string; message: string; tag: string } | null>(null);
   const { flash, jump } = useJumpToMessage();
+  const [reporting, setReporting] = useState<{ id: string; user_id: string; message: string; tag: string } | null>(null);
   // Messages added at the top by "Show older" don't count as new for the scroll-to-bottom logic
   const [prepended, setPrepended] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -330,6 +332,18 @@ export default function WorldChat() {
 
       <PlayerCard profile={selected} onClose={() => setSelected(null)} />
 
+      {reporting && (
+        <ReportDialog
+          open
+          onOpenChange={(o) => !o && setReporting(null)}
+          reportedId={reporting.user_id}
+          reportedName={reporting.tag}
+          source="world"
+          messageId={reporting.id}
+          messagePreview={reporting.message}
+        />
+      )}
+
       <MessageMenu
         open={!!menuFor}
         onClose={() => setMenuFor(null)}
@@ -355,6 +369,9 @@ export default function WorldChat() {
                     );
                   },
                 },
+                ...(menuFor.user_id !== user?.id
+                  ? [{ label: 'Report', icon: <Flag className="h-5 w-5" />, danger: true, onClick: () => setReporting(menuFor) }]
+                  : []),
                 ...(menuFor.user_id === user?.id
                   ? [
                       {

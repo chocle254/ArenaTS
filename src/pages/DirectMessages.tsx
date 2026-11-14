@@ -1,4 +1,4 @@
-import { Ban, Check, CheckCheck, Clock3, Copy, Lock, MessageSquarePlus, Pencil, Reply, Search, Swords, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Ban, Check, CheckCheck, Clock3, Copy, Flag, Lock, MessageSquarePlus, Pencil, Reply, Search, Swords, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -18,6 +18,7 @@ import {
   useChatScroll,
   useJumpToMessage,
 } from '@/components/chat/chat-kit';
+import { ReportDialog } from '@/components/chat/ReportDialog';
 import { SendChallengePanel } from '@/components/SendChallengePanel';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -259,6 +260,7 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editing, setEditing] = useState<DirectMessage | null>(null);
   const [menuFor, setMenuFor] = useState<DirectMessage | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
   const { partnerHere, partnerTyping, setTyping } = useDmPresence(user?.id, partnerId);
   const { flash, jump } = useJumpToMessage();
 
@@ -374,6 +376,8 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
       });
     if (mine && real && m.message && Date.now() - new Date(m.created_at).getTime() < EDIT_WINDOW_MS)
       list.push({ label: 'Edit', icon: <Pencil className="h-5 w-5" />, onClick: () => startEdit(m) });
+    if (!mine)
+      list.push({ label: 'Report', icon: <Flag className="h-5 w-5" />, onClick: () => setReportOpen(true), danger: true } as (typeof list)[number]);
     if (mine && real)
       list.push({
         label: 'Delete for everyone',
@@ -403,6 +407,17 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
             subtitle={status ? <span className={online || partnerTyping ? 'text-success' : undefined}>{status}</span> : undefined}
             onTitleClick={() => navigate(`/profile/${partnerId}`)}
             actions={
+              <>
+              <button
+                type="button"
+                onClick={() => setReportOpen(true)}
+                disabled={!partner || msgs.length === 0}
+                aria-label={`Report ${partner?.gamertag || 'player'}`}
+                title="Report"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-white/5 hover:text-destructive disabled:opacity-40"
+              >
+                <Flag className="h-[18px] w-[18px]" />
+              </button>
               <button
                 type="button"
                 onClick={() => setChallengeOpen(true)}
@@ -413,6 +428,7 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
                 <span className="hidden sm:inline">Challenge</span>
                 <span className="sr-only sm:hidden">Challenge {partner?.gamertag}</span>
               </button>
+              </>
             }
           />
         }
@@ -502,6 +518,10 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
         onReact={(e) => menuFor && react(menuFor.id, e)}
         actions={menuFor ? menuActions(menuFor) : []}
       />
+
+      {partner && (
+        <ReportDialog open={reportOpen} onOpenChange={setReportOpen} reportedId={partner.id} reportedName={partner.gamertag || 'this player'} source="dm" />
+      )}
 
       {partner && (
         <SendChallengePanel
