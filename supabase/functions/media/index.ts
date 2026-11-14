@@ -7,7 +7,8 @@
 //   POST { action: 'view', kind: 'kyc'|'evidence', paths: [...] }   -> { urls: { path: url } } (10 min links)
 //   POST { action: 'trailers' }                                     -> reusable trailers library
 // Scheduled (x-cron-key header = private.app_secrets media_cron):
-//   POST { action: 'cleanup' }   delete trailers whose tournaments ended over a day ago (unless kept for reuse)
+//   POST { action: 'cleanup' }   delete trailers whose tournaments ended over a day ago (unless kept for reuse),
+//                                and ID photos of deleted accounts after their 7-year retention
 //   POST { action: 'migrate' }   copy ID photos and evidence from Supabase Storage to B2
 //   POST { action: 'selftest' }  write, read and delete a test file in each bucket
 //
@@ -189,7 +190,20 @@ async function cleanup(db: ReturnType<typeof admin>) {
       console.error('trailer cleanup failed', r.id, e);
     }
   }
-  return { deleted };
+
+  // ID photos of deleted accounts, once their 7-year retention is over
+  let kycDeleted = 0;
+  const { data: kyc } = await db.rpc('retained_kyc_to_delete');
+  for (const r of (kyc || []) as { id: number; object_keys: string[] }[]) {
+    try {
+      for (const key of r.object_keys || []) await deleteObject('private', key);
+      await db.from('retained_kyc_records').update({ files_deleted_at: new Date().toISOString() }).eq('id', r.id);
+      kycDeleted++;
+    } catch (e) {
+      console.error('retained ID photo cleanup failed', r.id, e);
+    }
+  }
+  return { deleted, kycDeleted };
 }
 
 /** Copies existing ID photos and evidence from Supabase Storage into B2 (safe to run again) */

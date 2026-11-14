@@ -4,7 +4,7 @@ import { ArrowLeft, Lock, Eye, Database, Globe, UserCheck, ShieldAlert, FileText
 import { Button } from '@/components/ui/button';
 
 const PrivacyPolicy = () => {
-  const lastUpdated = "2026-05-25";
+  const lastUpdated = "2026-11-14";
 
   const sections = [
     {
@@ -63,7 +63,13 @@ const PrivacyPolicy = () => {
       icon: <Lock className="w-5 h-5" />,
       content: `6.1 Retention Period: Account data is retained as long as the account is active. However, financial records, KYC documents, and transaction histories are retained for a minimum of 7 years to comply with statutory tax and AML requirements.
       
-      6.2 Withdrawal Holds: As per our Terms, we may hold withdrawal data and related funds for up to 30 days to complete integrity audits and fraud investigations.`
+      6.2 Withdrawal Holds: As per our Terms, we may hold withdrawal data and related funds for up to 30 days to complete integrity audits and fraud investigations.
+
+      6.3 Deleting Your Account: You can delete your account at any time in Settings once your winnings are withdrawn and you have no tournament, challenge, dispute, deposit or withdrawal in progress. Deletion happens immediately and cannot be undone. We delete your gamertag, email address, phone and M-Pesa numbers, profile details, in-game IDs, World Chat messages, direct messages, friends and notifications, and you can no longer sign in. Any play balance or welcome tickets left on the account are forfeited, as they cannot be withdrawn.
+
+      6.4 What We Keep After Deletion: Transaction, deposit, withdrawal, prize and match records are kept for at least 7 years for tax and anti-money-laundering purposes, attached to an anonymous "Deleted player" with no name or contact details. If you verified your identity, your ID documents and verification record are locked in an admin-only archive for 7 years after deletion and then deleted automatically. Dispute evidence you uploaded is kept with the dispute record.
+
+      6.5 Preventing Repeat Sign-up Bonuses: When an account is deleted we keep a one-way, salted fingerprint of its email address and M-Pesa number (not the email or number itself). It is used only to stop the same person claiming another welcome ticket or invite reward on a new account.`
     },
     {
       id: "third-party-content",
@@ -77,7 +83,7 @@ const PrivacyPolicy = () => {
       id: "rights",
       title: "8. User Rights & Regional Disclosures",
       icon: <UserCheck className="w-5 h-5" />,
-      content: `8.1 Global Rights: You may request access to, correction of, or deletion of your personal data, subject to our legal retention obligations.
+      content: `8.1 Global Rights: You may request access to, correction of, or deletion of your personal data, subject to our legal retention obligations. You can delete your account yourself in Settings (see sections 6.3 to 6.5).
       
       8.2 EU/UK Consumer Protection: Deposits are credited to your play balance immediately. Pursuant to regional laws, the statutory 14-day cooling-off period is waived upon execution of the digital delivery.
       

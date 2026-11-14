@@ -111,14 +111,15 @@ export function DeleteAccount() {
             <div>
               <p className="font-semibold">Deleted now</p>
               <p className="text-muted-foreground">
-                Your gamertag, email, phone, M-Pesa number, profile, in-game IDs, ID photos, chats, messages, friends and notifications. You’ll be signed out and
-                can’t sign in again.
+                Your gamertag, email, phone, M-Pesa number, profile, in-game IDs, chats, messages, friends and notifications. You’ll be signed out and can’t
+                sign in again.
               </p>
             </div>
             <div>
               <p className="font-semibold">Kept, with your name removed</p>
               <p className="text-muted-foreground">
-                Payment and prize records and past match results, because the law requires us to keep financial records. They show as “Deleted player”.
+                Payment and prize records and past match results, shown as “Deleted player”. If you verified your ID, the ID photos are locked away for 7 years
+                (anti-money-laundering law), then deleted. A new account with the same email or M-Pesa number won’t get another welcome ticket.
               </p>
             </div>
             {(play > 0 || tickets > 0) && (
