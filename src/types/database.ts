@@ -301,11 +301,18 @@ export interface DirectMessage {
   id: string;
   sender_id: string;
   receiver_id: string;
-  message: string;
+  /** Decrypted text (null when deleted or photo-only). Stored encrypted. */
+  message: string | null;
   created_at: string;
   read_at: string | null;
   image_url: string | null;
   parent_message_id: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  /** The replied-to message (first 140 characters) */
+  reply_message?: string | null;
+  reply_sender_id?: string | null;
+  reply_deleted?: boolean | null;
   parent_message?: DirectMessage | null;
   sender?: Profile;
   receiver?: Profile;

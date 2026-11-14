@@ -127,7 +127,7 @@ function Sidebar() {
           <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
           <Link to="/terms" className="hover:text-foreground">Terms</Link>
         </div>
-        <p className="mt-1 opacity-60">© {new Date().getFullYear()} Nebula Dark LLC</p>
+        <p className="mt-1 opacity-60">© {new Date().getFullYear()} Arena · Nairobi, Kenya</p>
       </div>
     </aside>
   );

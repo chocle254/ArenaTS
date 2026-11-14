@@ -1,12 +1,31 @@
-import { Check, CheckCheck, Clock3, MessageSquarePlus, Search, Swords, UserPlus, Users, X } from 'lucide-react';
+import { Ban, Check, CheckCheck, Clock3, Copy, Lock, MessageSquarePlus, Pencil, Reply, Search, Swords, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { toast } from 'sonner';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Bubble, ChatHeader, ChatShell, Composer, DayDivider, type DeliveryState, formatTime, groupMessages, inboxTime, MessageList, useChatScroll } from '@/components/chat/chat-kit';
+import {
+  Bubble,
+  ChatHeader,
+  ChatShell,
+  Composer,
+  ComposerBanner,
+  DayDivider,
+  type DeliveryState,
+  formatTime,
+  groupMessages,
+  inboxTime,
+  MessageList,
+  MessageMenu,
+  useChatScroll,
+  useJumpToMessage,
+} from '@/components/chat/chat-kit';
 import { SendChallengePanel } from '@/components/SendChallengePanel';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDirectMessages } from '@/contexts/DirectMessageContext';
 import { supabase } from '@/db/supabase';
+import { useDmPresence } from '@/hooks/use-dm-presence';
+import { REACTION_EMOJI, useReactions } from '@/hooks/use-reactions';
+import { rankOf } from '@/lib/chat-rank';
 import { isOnline, PUBLIC_PROFILE_COLUMNS } from '@/lib/profile-columns';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import type { DirectMessage, Profile } from '@/types/database';
@@ -152,7 +171,17 @@ export default function DirectMessages() {
                           </span>
                           <span className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
                             {mine && <Ticks m={m} />}
-                            <span className={cn('min-w-0 flex-1 truncate', c.unread_count > 0 && 'text-foreground')}>{m.image_url && !m.message ? 'Photo' : m.message}</span>
+                            <span className={cn('min-w-0 flex-1 truncate', c.unread_count > 0 && 'text-foreground', m.deleted_at && 'italic')}>
+                              {m.deleted_at ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <Ban className="h-3.5 w-3.5" /> This message was deleted
+                                </span>
+                              ) : m.image_url && !m.message ? (
+                                'Photo'
+                              ) : (
+                                m.message
+                              )}
+                            </span>
                             {c.unread_count > 0 && (
                               <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-white">{c.unread_count}</span>
                             )}
@@ -217,14 +246,21 @@ export default function DirectMessages() {
   );
 }
 
+const EDIT_WINDOW_MS = 15 * 60_000;
+
 function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => void }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const { conversations, friends, activeConversation, fetchMessages, markAsRead, sendMessage, setActiveChatUserId } = useDirectMessages();
+  const { conversations, friends, activeConversation, fetchMessages, markAsRead, sendMessage, editMessage, deleteMessage, setActiveChatUserId } = useDirectMessages();
   const [partner, setPartner] = useState<Partner | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState('');
   const [challengeOpen, setChallengeOpen] = useState(false);
+  const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
+  const [editing, setEditing] = useState<DirectMessage | null>(null);
+  const [menuFor, setMenuFor] = useState<DirectMessage | null>(null);
+  const { partnerHere, partnerTyping, setTyping } = useDmPresence(user?.id, partnerId);
+  const { flash, jump } = useJumpToMessage();
 
   // Partner profile: from the inbox if we have it, otherwise public columns only
   useEffect(() => {
@@ -265,18 +301,96 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
   );
   const groups = useMemo(() => groupMessages(msgs, (m) => m.sender_id), [msgs]);
   const scroll = useChatScroll(msgs.length, partnerId);
+  const ids = useMemo(() => msgs.map((m) => m.id), [msgs]);
+  const { byMessage, myReaction, react } = useReactions('dm', ids, user?.id);
+
+  const myRank = rankOf(profile);
+  const partnerRank = rankOf(partner);
+  const nameOf = (id: string | null | undefined) => (id === user?.id ? 'You' : partner?.gamertag || 'Them');
+
+  const onDraft = (v: string) => {
+    setText(v);
+    setTyping(v.trim().length > 0);
+  };
 
   const send = () => {
     const body = text.trim();
     if (!body) return;
     setText('');
-    void sendMessage(partnerId, body);
+    setTyping(false);
+    if (editing) {
+      if (body !== editing.message) void editMessage(editing.id, body);
+      setEditing(null);
+      return;
+    }
+    void sendMessage(partnerId, body, undefined, replyTo);
+    setReplyTo(null);
     requestAnimationFrame(() => scroll.scrollToBottom(false));
   };
 
+  const startReply = (m: DirectMessage) => {
+    setEditing(null);
+    setReplyTo(m);
+  };
+
+  const startEdit = (m: DirectMessage) => {
+    setReplyTo(null);
+    setEditing(m);
+    setText(m.message || '');
+  };
+
+  const cancelBanner = () => {
+    if (editing) setText('');
+    setEditing(null);
+    setReplyTo(null);
+  };
+
   const delivery = (m: DirectMessage): DeliveryState => (m.id.startsWith('temp-') ? 'sending' : m.read_at ? 'read' : 'sent');
-  const online = isOnline(partner?.last_seen_at);
-  const status = !partner ? '' : online ? 'online' : partner.last_seen_at ? `last seen ${formatRelativeTime(partner.last_seen_at)}` : '';
+  const online = partnerHere || isOnline(partner?.last_seen_at);
+  const status = !partner
+    ? ''
+    : partnerTyping
+      ? 'typing…'
+      : online
+        ? 'online'
+        : partner.last_seen_at
+          ? `last seen ${formatRelativeTime(partner.last_seen_at)}`
+          : '';
+
+  const menuActions = (m: DirectMessage) => {
+    const mine = m.sender_id === user?.id;
+    const real = !m.id.startsWith('temp-');
+    const list = [{ label: 'Reply', icon: <Reply className="h-5 w-5" />, onClick: () => startReply(m) }];
+    if (m.message)
+      list.push({
+        label: 'Copy',
+        icon: <Copy className="h-5 w-5" />,
+        onClick: () => {
+          navigator.clipboard?.writeText(m.message || '').then(
+            () => toast.success('Copied'),
+            () => undefined,
+          );
+        },
+      });
+    if (mine && real && m.message && Date.now() - new Date(m.created_at).getTime() < EDIT_WINDOW_MS)
+      list.push({ label: 'Edit', icon: <Pencil className="h-5 w-5" />, onClick: () => startEdit(m) });
+    if (mine && real)
+      list.push({
+        label: 'Delete for everyone',
+        icon: <Trash2 className="h-5 w-5" />,
+        onClick: () => {
+          if (window.confirm('Delete this message for everyone?')) void deleteMessage(m.id);
+        },
+        danger: true,
+      } as (typeof list)[number]);
+    return list;
+  };
+
+  const banner = editing ? (
+    <ComposerBanner title="Editing message" text={editing.message || ''} onCancel={cancelBanner} icon={<Pencil className="h-4 w-4 shrink-0 text-primary-soft" />} />
+  ) : replyTo ? (
+    <ComposerBanner title={`Replying to ${nameOf(replyTo.sender_id)}`} text={replyTo.message || (replyTo.image_url ? 'Photo' : '')} onCancel={cancelBanner} />
+  ) : null;
 
   return (
     <>
@@ -286,7 +400,7 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
             onBack={onBack}
             avatar={partner ? <PartnerAvatar p={partner} size="h-10 w-10" dot={false} /> : <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-secondary" />}
             title={partner?.gamertag || ' '}
-            subtitle={status ? <span className={online ? 'text-success' : undefined}>{status}</span> : undefined}
+            subtitle={status ? <span className={online || partnerTyping ? 'text-success' : undefined}>{status}</span> : undefined}
             onTitleClick={() => navigate(`/profile/${partnerId}`)}
             actions={
               <button
@@ -302,9 +416,22 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
             }
           />
         }
-        composer={<Composer value={text} onChange={setText} onSend={send} placeholder="Message" />}
+        composer={
+          <Composer
+            value={text}
+            onChange={onDraft}
+            onSend={send}
+            placeholder={editing ? 'Edit message' : 'Message'}
+            maxLength={2000}
+            above={banner}
+            focusKey={editing?.id || replyTo?.id || null}
+          />
+        }
       >
         <MessageList scroll={scroll}>
+          <p className="mx-auto mb-3 mt-1 flex max-w-xs items-center justify-center gap-1.5 rounded-lg bg-gold/10 px-3 py-1.5 text-center text-[12px] text-gold/90">
+            <Lock className="h-3 w-3 shrink-0" /> Messages are stored encrypted. Arena only opens a chat if it’s reported.
+          </p>
           {!loaded && msgs.length === 0 ? (
             <div className="space-y-3 py-4" aria-label="Loading messages">
               {[55, 35, 65].map((w, i) => (
@@ -320,17 +447,61 @@ function Conversation({ partnerId, onBack }: { partnerId: string; onBack: () => 
               <p className="text-sm text-muted-foreground">Or tap Challenge to play a 1v1 for KES.</p>
             </div>
           ) : (
-            msgs.map((m, i) => (
-              <React.Fragment key={m.id}>
-                {groups[i].newDay && <DayDivider date={new Date(m.created_at)} />}
-                <Bubble own={m.sender_id === user?.id} group={groups[i]} time={formatTime(m.created_at)} delivery={delivery(m)}>
-                  {m.message}
-                </Bubble>
-              </React.Fragment>
-            ))
+            msgs.map((m, i) => {
+              const own = m.sender_id === user?.id;
+              const domId = `dm-${m.id}`;
+              return (
+                <React.Fragment key={m.id}>
+                  {groups[i].newDay && <DayDivider date={new Date(m.created_at)} />}
+                  <Bubble
+                    id={domId}
+                    own={own}
+                    group={groups[i]}
+                    time={formatTime(m.created_at)}
+                    delivery={delivery(m)}
+                    rank={own ? myRank : partnerRank}
+                    edited={!!m.edited_at}
+                    deleted={!!m.deleted_at}
+                    highlight={flash === domId}
+                    reply={
+                      m.parent_message_id || m.reply_sender_id
+                        ? {
+                            name: nameOf(m.reply_sender_id),
+                            text: m.reply_deleted ? 'This message was deleted' : m.reply_message || 'Photo',
+                            onClick: () => m.parent_message_id && jump(`dm-${m.parent_message_id}`),
+                          }
+                        : null
+                    }
+                    reactions={byMessage[m.id]}
+                    onReactionClick={(e) => react(m.id, e)}
+                    onReply={() => startReply(m)}
+                    onMenu={() => setMenuFor(m)}
+                  >
+                    {m.message}
+                  </Bubble>
+                </React.Fragment>
+              );
+            })
+          )}
+          {partnerTyping && (
+            <div className="mt-2 flex">
+              <span className="rounded-2xl rounded-bl-md bg-secondary px-3 py-2 text-sm text-muted-foreground" aria-live="polite">
+                {partner?.gamertag} is typing…
+              </span>
+            </div>
           )}
         </MessageList>
       </ChatShell>
+
+      <MessageMenu
+        open={!!menuFor}
+        onClose={() => setMenuFor(null)}
+        preview={menuFor?.message || undefined}
+        reactions={menuFor && !menuFor.id.startsWith('temp-') ? REACTION_EMOJI : undefined}
+        current={menuFor ? myReaction(menuFor.id) : undefined}
+        onReact={(e) => menuFor && react(menuFor.id, e)}
+        actions={menuFor ? menuActions(menuFor) : []}
+      />
 
       {partner && (
         <SendChallengePanel

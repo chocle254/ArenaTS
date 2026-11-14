@@ -11,7 +11,7 @@ const PrivacyPolicy = () => {
       id: "introduction",
       title: "1. Introduction & Domicile",
       icon: <Eye className="w-5 h-5" />,
-      content: `ARENA ("we", "our", or "us"), operated by Nebula Dark LLC, a Delaware limited liability company, is committed to protecting your privacy. This Privacy Policy governs our data collection, processing, and usage practices in relation to the Platform. By using ARENA, you consent to the data practices described in this statement. We operate in a highly regulated environment involving real-money contests, and our privacy protocols reflect our commitment to financial and legal compliance.`
+      content: `ARENA ("we", "our", or "us"), based in Nairobi, Kenya, is committed to protecting your privacy. We process personal data in line with the Data Protection Act, 2019 (Kenya) and act as the data controller for the Platform. This Privacy Policy governs our data collection, processing, and usage practices in relation to the Platform. By using ARENA, you consent to the data practices described in this statement. We operate in a highly regulated environment involving real-money contests, and our privacy protocols reflect our commitment to financial and legal compliance.`
     },
     {
       id: "collection",
@@ -19,7 +19,7 @@ const PrivacyPolicy = () => {
       icon: <Database className="w-5 h-5" />,
       content: `2.1 Registration & Profile: Username, email, hashed password, and country of residence.
       
-      2.2 Match & Interaction Data: Gameplay results, in-game IDs, world chat logs, direct messages, and match evidence (video/screenshots) submitted for dispute resolution.
+      2.2 Match & Interaction Data: Gameplay results, in-game IDs, World Chat messages (public and deleted after 7 days), direct messages, reactions, and match evidence (video/screenshots) submitted for dispute resolution. Direct messages are stored encrypted. Arena staff only open a private conversation to investigate a report (for example scams, threats or match fixing) or where the law requires it. "Online" and "typing" indicators are sent live between the two players and are not stored.
       
       2.3 Geolocation Data: We collect precise location data to enforce our "Restricted Territories" policy. This is used to automatically bar users from jurisdictions where cash-prize esports are prohibited.
       
@@ -81,13 +81,13 @@ const PrivacyPolicy = () => {
     },
     {
       id: "rights",
-      title: "8. User Rights & Regional Disclosures",
+      title: "8. Your Rights",
       icon: <UserCheck className="w-5 h-5" />,
-      content: `8.1 Global Rights: You may request access to, correction of, or deletion of your personal data, subject to our legal retention obligations. You can delete your account yourself in Settings (see sections 6.3 to 6.5).
+      content: `8.1 Your Rights under the Data Protection Act, 2019: You have the right to be told how your data is used, to access it, to have it corrected, to object to its use, and to have it deleted, subject to our legal retention obligations. You can delete your account yourself in Settings (see sections 6.3 to 6.5). For anything else, email us and we will respond within 30 days.
       
-      8.2 EU/UK Consumer Protection: Deposits are credited to your play balance immediately. Pursuant to regional laws, the statutory 14-day cooling-off period is waived upon execution of the digital delivery.
+      8.2 Deposits: M-Pesa deposits are credited to your play balance immediately. Play balance is for tournament and match entries and cannot be withdrawn; winnings can.
       
-      8.3 Governing Venue: All data disputes are subject to the exclusive jurisdiction of the state and federal courts located in Delaware, USA.`
+      8.3 Complaints: If you are unhappy with how we handle your data, contact us first. You also have the right to complain to the Office of the Data Protection Commissioner (ODPC), Kenya. This policy is governed by the laws of Kenya.`
     }
   ];
 
@@ -147,7 +147,7 @@ const PrivacyPolicy = () => {
             </div>
           </div>
           <p className="text-center text-xs text-muted-foreground mt-12">
-            &copy; 2026 Nebula Dark LLC. All rights reserved. Registered in Delaware, USA. Managed under Delaware Data Privacy Laws.
+            &copy; 2026 Arena, Nairobi, Kenya. All rights reserved. Governed by the Data Protection Act, 2019 (Kenya).
           </p>
         </footer>
       </main>

@@ -14,6 +14,7 @@ type ChatProfile = {
   win_rate?: number;
   global_rank?: number;
   tournaments_played?: number;
+  xp?: number | null;
 };
 
 interface WorldChatMessage {
@@ -21,6 +22,7 @@ interface WorldChatMessage {
   user_id: string;
   message: string;
   created_at: string;
+  reply_to_id?: string | null;
   profiles?: ChatProfile;
 }
 
@@ -28,7 +30,8 @@ interface WorldChatContextType {
   messages: WorldChatMessage[];
   unreadCount: number;
   loading: boolean;
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string, replyToId?: string | null) => Promise<void>;
+  deleteMessage: (id: string) => Promise<void>;
   markAsRead: () => void;
   refreshMessages: () => Promise<void>;
   /** Fetches the page of messages before the oldest one shown. Resolves to how many were added. */
@@ -43,14 +46,14 @@ interface WorldChatContextType {
 
 const WorldChatContext = createContext<WorldChatContextType | undefined>(undefined);
 
-const PROFILE_COLUMNS = 'id, gamertag, avatar_url, location, tier, favorite_games, wins, losses, win_rate, global_rank, tournaments_played';
+const PROFILE_COLUMNS = 'id, gamertag, avatar_url, location, tier, favorite_games, wins, losses, win_rate, global_rank, tournaments_played, xp';
 const LAST_READ_KEY = 'world-chat-last-read';
 const UNREAD_POLL_MS = 60_000;
 // Keep the screen light on cheap phones: a short first page, older ones on request
 const FIRST_PAGE = 100;
 const OLDER_PAGE = 50;
 
-const withProfile = (msg: { id: string; user_id: string; message: string; created_at: string; profiles?: unknown }, cache: Map<string, ChatProfile>) => {
+const withProfile = (msg: { id: string; user_id: string; message: string; created_at: string; reply_to_id?: string | null; profiles?: unknown }, cache: Map<string, ChatProfile>) => {
   const p = (Array.isArray(msg.profiles) ? msg.profiles[0] : msg.profiles) as ChatProfile | undefined;
   if (p?.id) cache.set(p.id, p);
   return { ...msg, profiles: p || { id: msg.user_id, gamertag: 'Player', avatar_url: null, wins: 0, losses: 0 } } as WorldChatMessage;
@@ -109,7 +112,7 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('world_chat_messages')
-        .select(`id, user_id, message, created_at, profiles!world_chat_messages_user_id_fkey (${PROFILE_COLUMNS})`)
+        .select(`id, user_id, message, created_at, reply_to_id, profiles!world_chat_messages_user_id_fkey (${PROFILE_COLUMNS})`)
         .order('created_at', { ascending: false })
         .limit(FIRST_PAGE);
       if (error) throw error;
@@ -162,13 +165,17 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
     const channel = supabase
       .channel('world-chat-global')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'world_chat_messages' }, async (payload) => {
-        const row = payload.new as { id: string; user_id: string; message: string; created_at: string };
+        const row = payload.new as { id: string; user_id: string; message: string; created_at: string; reply_to_id?: string | null };
         const p = await profileFor(row.user_id);
         const msg: WorldChatMessage = {
           ...row,
           profiles: p || { id: row.user_id, gamertag: 'Player', avatar_url: null, wins: 0, losses: 0 },
         };
         setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg].slice(-300)));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'world_chat_messages' }, (payload) => {
+        const gone = (payload.old as { id?: string })?.id;
+        if (gone) setMessages((prev) => prev.filter((m) => m.id !== gone));
       })
       .subscribe();
     return () => {
@@ -211,13 +218,13 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const sendMessage = useCallback(
-    async (message: string) => {
+    async (message: string, replyToId?: string | null) => {
       const body = message.trim();
       if (!user || !body) return;
       const { data, error } = await supabase
         .from('world_chat_messages')
-        .insert({ user_id: user.id, message: body })
-        .select('id, user_id, message, created_at')
+        .insert({ user_id: user.id, message: body, reply_to_id: replyToId || null })
+        .select('id, user_id, message, created_at, reply_to_id')
         .single();
       if (error) {
         console.error('[WorldChat] Error sending message:', error);
@@ -232,6 +239,7 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
           wins: profile?.wins ?? 0,
           losses: profile?.losses ?? 0,
           tournaments_played: profile?.tournaments_played ?? 0,
+          xp: (profile as { xp?: number | null } | null)?.xp ?? null,
         };
         profileCache.current.set(user.id, me);
         setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, { ...(data as Omit<WorldChatMessage, 'profiles'>), profiles: me }].slice(-300)));
@@ -240,6 +248,16 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
     },
     [user, profile?.gamertag, profile?.avatar_url, profile?.wins, profile?.losses, profile?.tournaments_played, notifyMentions],
   );
+
+  const deleteMessage = useCallback(async (id: string) => {
+    const before = messages;
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    const { error } = await supabase.from('world_chat_messages').delete().eq('id', id);
+    if (error) {
+      setMessages(before);
+      throw error;
+    }
+  }, [messages]);
 
   const markAsRead = useCallback(() => {
     try {
@@ -260,7 +278,7 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('world_chat_messages')
-        .select(`id, user_id, message, created_at, profiles!world_chat_messages_user_id_fkey (${PROFILE_COLUMNS})`)
+        .select(`id, user_id, message, created_at, reply_to_id, profiles!world_chat_messages_user_id_fkey (${PROFILE_COLUMNS})`)
         .lt('created_at', before)
         .order('created_at', { ascending: false })
         .limit(OLDER_PAGE);
@@ -288,7 +306,7 @@ export function WorldChatProvider({ children }: { children: React.ReactNode }) {
   }, [loadMessages]);
 
   return (
-    <WorldChatContext.Provider value={{ messages, unreadCount, loading, sendMessage, markAsRead, refreshMessages, goLive, loadOlder, hasOlder }}>{children}</WorldChatContext.Provider>
+    <WorldChatContext.Provider value={{ messages, unreadCount, loading, sendMessage, deleteMessage, markAsRead, refreshMessages, goLive, loadOlder, hasOlder }}>{children}</WorldChatContext.Provider>
   );
 }
 

@@ -1,8 +1,22 @@
-import { Check, Globe, MessageSquare, UserPlus } from 'lucide-react';
+import { Check, Copy, Globe, MessageSquare, Reply, Trash2, UserPlus } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Bubble, ChatHeader, ChatShell, Composer, DayDivider, formatTime, groupMessages, MessageList, nameColor, useChatScroll } from '@/components/chat/chat-kit';
+import {
+  Bubble,
+  ChatHeader,
+  ChatShell,
+  Composer,
+  ComposerBanner,
+  DayDivider,
+  formatTime,
+  groupMessages,
+  MessageList,
+  MessageMenu,
+  nameColor,
+  useChatScroll,
+  useJumpToMessage,
+} from '@/components/chat/chat-kit';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -10,6 +24,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDirectMessages } from '@/contexts/DirectMessageContext';
 import { useWorldChat } from '@/contexts/WorldChatContext';
 import { supabase } from '@/db/supabase';
+import { REACTION_EMOJI, useReactions } from '@/hooks/use-reactions';
+import { RANK_BADGE, rankOf } from '@/lib/chat-rank';
 import { formatCompactNumber } from '@/lib/arena-currency';
 import { getLevelInfo } from '@/lib/progression';
 
@@ -22,6 +38,7 @@ interface ChatProfile {
   losses: number;
   win_rate?: number;
   tournaments_played?: number;
+  xp?: number | null;
 }
 
 const likeSafe = (q: string) => q.replace(/[%_\\]/g, (m) => `\\${m}`);
@@ -53,7 +70,10 @@ function useOnlineCount() {
 
 export default function WorldChat() {
   const { user } = useAuth();
-  const { messages, loading, sendMessage, markAsRead, goLive, loadOlder, hasOlder } = useWorldChat();
+  const { messages, loading, sendMessage, deleteMessage, markAsRead, goLive, loadOlder, hasOlder } = useWorldChat();
+  const [replyTo, setReplyTo] = useState<{ id: string; tag: string; text: string } | null>(null);
+  const [menuFor, setMenuFor] = useState<{ id: string; user_id: string; message: string; tag: string } | null>(null);
+  const { flash, jump } = useJumpToMessage();
   // Messages added at the top by "Show older" don't count as new for the scroll-to-bottom logic
   const [prepended, setPrepended] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -145,14 +165,19 @@ export default function WorldChat() {
     }
     setText('');
     try {
-      await sendMessage(body);
+      await sendMessage(body, replyTo?.id);
+      setReplyTo(null);
       setCooldown(5);
       requestAnimationFrame(() => scroll.scrollToBottom(false));
     } catch (error) {
       setText(body);
       toast.error((error as Error)?.message || 'Message not sent. Try again.');
     }
-  }, [text, sendMessage, scroll, cooldown]);
+  }, [text, sendMessage, scroll, cooldown, replyTo]);
+
+  const ids = useMemo(() => rows.map((m) => m.id), [rows]);
+  const { byMessage, myReaction, react } = useReactions('world', ids, user?.id);
+  const byId = useMemo(() => new Map(rows.map((m) => [m.id, m])), [rows]);
 
   const goBack = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -193,8 +218,11 @@ export default function WorldChat() {
             onSend={send}
             placeholder="Message everyone"
             maxLength={500}
+            focusKey={replyTo?.id || null}
             above={
-              mentions.length > 0 ? (
+              <>
+              {replyTo && <ComposerBanner title={`Replying to ${replyTo.tag}`} text={replyTo.text} onCancel={() => setReplyTo(null)} />}
+              {mentions.length > 0 ? (
                 <ul className="mb-2 overflow-hidden rounded-2xl border border-border bg-background" role="listbox" aria-label="Mention a player">
                   {mentions.map((m) => (
                     <li key={m.id}>
@@ -211,7 +239,8 @@ export default function WorldChat() {
                     </li>
                   ))}
                 </ul>
-              ) : null
+              ) : null}
+              </>
             }
           />
         }
@@ -241,19 +270,41 @@ export default function WorldChat() {
               const tag = p?.gamertag || 'Player';
               const color = nameColor(m.user_id);
               const open = () => !own && p && setSelected(p);
+              const rank = rankOf(p);
+              const domId = `wc-${m.id}`;
+              const parent = m.reply_to_id ? byId.get(m.reply_to_id) : undefined;
               return (
                 <React.Fragment key={m.id}>
                   {g.newDay && <DayDivider date={new Date(m.created_at)} />}
                   <Bubble
+                    id={domId}
                     own={own}
                     group={g}
                     time={formatTime(m.created_at)}
                     showAvatarColumn
+                    rank={rank}
+                    highlight={flash === domId}
+                    reply={
+                      m.reply_to_id
+                        ? {
+                            name: parent ? (parent.user_id === user?.id ? 'You' : parent.profile?.gamertag || 'Player') : 'Earlier message',
+                            text: parent ? parent.message : 'Scroll up or tap “Show older messages” to see it',
+                            onClick: () => jump(`wc-${m.reply_to_id}`),
+                          }
+                        : null
+                    }
+                    reactions={byMessage[m.id]}
+                    onReactionClick={(e) => react(m.id, e)}
+                    onReply={() => setReplyTo({ id: m.id, tag: own ? 'yourself' : tag, text: m.message })}
+                    onMenu={() => setMenuFor({ id: m.id, user_id: m.user_id, message: m.message, tag })}
                     sender={
                       own ? undefined : (
-                        <button type="button" onClick={open} style={{ color }} className="hover:underline">
-                          {tag}
-                        </button>
+                        <span className="flex items-center gap-1.5">
+                          <button type="button" onClick={open} style={{ color }} className="hover:underline">
+                            {tag}
+                          </button>
+                          {rank !== 'Rookie' && <span className={`rounded px-1 text-[10px] font-bold uppercase tracking-wide ${RANK_BADGE[rank]}`}>{rank}</span>}
+                        </span>
                       )
                     }
                     avatar={
@@ -278,6 +329,49 @@ export default function WorldChat() {
       </ChatShell>
 
       <PlayerCard profile={selected} onClose={() => setSelected(null)} />
+
+      <MessageMenu
+        open={!!menuFor}
+        onClose={() => setMenuFor(null)}
+        preview={menuFor?.message}
+        reactions={REACTION_EMOJI}
+        current={menuFor ? myReaction(menuFor.id) : undefined}
+        onReact={(e) => menuFor && react(menuFor.id, e)}
+        actions={
+          menuFor
+            ? [
+                {
+                  label: 'Reply',
+                  icon: <Reply className="h-5 w-5" />,
+                  onClick: () => setReplyTo({ id: menuFor.id, tag: menuFor.user_id === user?.id ? 'yourself' : menuFor.tag, text: menuFor.message }),
+                },
+                {
+                  label: 'Copy',
+                  icon: <Copy className="h-5 w-5" />,
+                  onClick: () => {
+                    navigator.clipboard?.writeText(menuFor.message).then(
+                      () => toast.success('Copied'),
+                      () => undefined,
+                    );
+                  },
+                },
+                ...(menuFor.user_id === user?.id
+                  ? [
+                      {
+                        label: 'Delete',
+                        icon: <Trash2 className="h-5 w-5" />,
+                        danger: true,
+                        onClick: () => {
+                          if (window.confirm('Delete this message from World Chat?'))
+                            deleteMessage(menuFor.id).catch(() => toast.error('Could not delete the message'));
+                        },
+                      },
+                    ]
+                  : []),
+              ]
+            : []
+        }
+      />
     </>
   );
 }

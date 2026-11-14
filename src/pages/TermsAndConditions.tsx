@@ -4,26 +4,26 @@ import { ArrowLeft, ShieldCheck, Gavel, Info, AlertTriangle, CreditCard, Trophy,
 import { Button } from '@/components/ui/button';
 
 const TermsAndConditions = () => {
-  const lastUpdated = "2026-05-25";
+  const lastUpdated = "2026-11-14";
 
   const sections = [
     {
       id: "acceptance",
       title: "1. Acceptance of Terms",
       icon: <ShieldCheck className="w-5 h-5" />,
-      content: `By accessing or using the ARENA platform ("Platform"), operated by Nebula Dark LLC ("we," "us," or "our"), you agree to be bound by these Terms & Conditions ("Terms"). You must be at least 18 years of age to register an account. If you do not agree to these Terms, you must not access or use the Platform.`
+      content: `By accessing or using the ARENA platform ("Platform"), operated by Arena, based in Nairobi, Kenya ("we," "us," or "our"), you agree to be bound by these Terms & Conditions ("Terms"). You must be at least 18 years of age to register an account. If you do not agree to these Terms, you must not access or use the Platform.`
     },
     {
       id: "platform-rules",
       title: "2. Platform Rules",
       icon: <ShieldCheck className="w-5 h-5" />,
-      content: `2.1 Eligibility: You must be at least 18 years old and have the legal capacity to enter into binding contracts. Employees of Nebula Dark LLC and their immediate family members are not eligible to participate in paid contests.
+      content: `2.1 Eligibility: You must be at least 18 years old and have the legal capacity to enter into binding contracts. Arena staff and their immediate family members are not eligible to participate in paid contests.
 
 2.2 Account Security: You are responsible for maintaining the confidentiality of your login credentials and for all activities that occur under your account. You must notify us immediately of any unauthorized access.
 
 2.3 One Account Per User: Each user may maintain only one active account. Creating multiple accounts to circumvent restrictions, manipulate rankings, or exploit promotions is prohibited.
 
-2.4 Prohibited Jurisdictions: Participation in paid tournaments is prohibited for residents of jurisdictions where such contests are restricted by law. In the United States, this includes but is not limited to: Arizona, Arkansas, Connecticut, Delaware, Louisiana, Montana, South Carolina, South Dakota, Tennessee, and Washington. Users are solely responsible for ensuring their participation is legal in their jurisdiction. We reserve the right to use geofencing technologies to restrict access and to terminate accounts found in violation, resulting in the forfeiture of all funds.`
+2.4 Where You Can Play: Arena is built for players in Kenya. Participation in paid tournaments is prohibited where such contests are restricted by law. Users are solely responsible for ensuring their participation is legal in their jurisdiction. We reserve the right to use geofencing technologies to restrict access and to terminate accounts found in violation, resulting in the forfeiture of all funds.`
     },
     {
       id: "tournament-participation",
@@ -95,7 +95,7 @@ const TermsAndConditions = () => {
       icon: <Scale className="w-5 h-5" />,
       content: `8.1 Service "As-Is": The Platform is provided on an "as-is" and "as-available" basis. We do not guarantee uninterrupted, error-free, or secure service.
 
-8.2 Excluded Damages: To the fullest extent permitted by law, Nebula Dark LLC, its affiliates, officers, directors, employees, and agents shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of profits, data, or goodwill, arising from your use of or inability to use the Platform.
+8.2 Excluded Damages: To the fullest extent permitted by law, Arena and its staff, partners and agents shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of profits, data, or goodwill, arising from your use of or inability to use the Platform.
 
 8.3 Liability Cap: Our total aggregate liability to you for any claims arising out of or relating to these Terms or the Platform shall be limited to the total amount you have paid to us in transaction fees and purchases on the Platform in the twelve (12) months immediately preceding the event giving rise to the claim. This cap does not apply to liability that cannot be excluded or limited under applicable law.`
     },
@@ -129,9 +129,9 @@ const TermsAndConditions = () => {
       id: "governing-law",
       title: "12. Governing Law & Dispute Resolution",
       icon: <Gavel className="w-5 h-5" />,
-      content: `13.1 Jurisdiction: These Terms are governed by the laws of the State of Delaware, USA, without regard to conflict of law principles.
+      content: `13.1 Governing Law: These Terms are governed by the laws of the Republic of Kenya.
       
-      13.2 Arbitration: Any legal dispute shall be settled by binding arbitration through the American Arbitration Association (AAA) in Delaware.
+      13.2 Disputes: Contact us first and we will try to resolve any complaint within 30 days. If that fails, the dispute shall be settled by arbitration in Nairobi under the Arbitration Act, 1995 (Kenya), unless the law gives you the right to go to a Kenyan court. Nothing here limits your rights under the Consumer Protection Act, 2012.
       
       13.3 Class Action Waiver: YOU AGREE TO RESOLVE DISPUTES INDIVIDUALLY AND WAIVE THE RIGHT TO PARTICIPATE IN ANY CLASS ACTION LAWSUIT OR CLASS-WIDE ARBITRATION.`
     }
@@ -193,7 +193,7 @@ const TermsAndConditions = () => {
             </div>
           </div>
           <p className="text-center text-xs text-muted-foreground mt-12">
-            &copy; 2026 Nebula Dark LLC. All rights reserved. Registered in Delaware, USA.
+            &copy; 2026 Arena, Nairobi, Kenya. All rights reserved.
           </p>
         </footer>
       </main>

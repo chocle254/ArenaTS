@@ -455,7 +455,7 @@ export default function Landing() {
             <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
             <Link to="/terms" className="hover:text-foreground">Terms</Link>
           </nav>
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Nebula Dark LLC</p>
+          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Arena · Nairobi, Kenya</p>
         </div>
       </footer>
     </div>

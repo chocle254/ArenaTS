@@ -20,7 +20,9 @@ interface DirectMessageContextType {
   loading: boolean;
   friends: Profile[];
   pendingRequests: FriendRequest[];
-  sendMessage: (receiverId: string, message: string, imageUrl?: string) => Promise<void>;
+  sendMessage: (receiverId: string, message: string, imageUrl?: string, replyTo?: DirectMessage | null) => Promise<void>;
+  editMessage: (id: string, text: string) => Promise<void>;
+  deleteMessage: (id: string) => Promise<void>;
   markAsRead: (senderId: string) => Promise<void>;
   fetchConversations: () => Promise<void>;
   fetchMessages: (otherUserId: string) => Promise<void>;
@@ -118,45 +120,26 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
 
     try {
       setLoading(true);
-      // This is a complex query to get unique conversations with last message and unread count
-      // For simplicity in this demo environment, we'll fetch all DMs and process them
-      const { data, error } = await supabase
-        .from('direct_messages')
-        .select(`
-          *,
-          sender:profiles!direct_messages_sender_id_fkey (id, gamertag, avatar_url, last_seen_at),
-          receiver:profiles!direct_messages_receiver_id_fkey (id, gamertag, avatar_url, last_seen_at)
-        `)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order('created_at', { ascending: false })
-        .limit(200);
-
+      // Decrypted last message + unread count per conversation, worked out by the database
+      const { data, error } = await supabase.rpc('dm_inbox');
       if (error) throw error;
+      const rows = (data || []) as (DirectMessage & { other_id: string; unread_count: number })[];
+      const ids = [...new Set(rows.map((r) => r.other_id))];
+      const { data: people } = ids.length
+        ? await supabase.from('profiles').select(PUBLIC_PROFILE_COLUMNS).in('id', ids)
+        : { data: [] as Profile[] };
+      const byId = new Map(((people || []) as unknown as Profile[]).map((p) => [p.id, p]));
 
-      const dms = data as (DirectMessage & { sender: Profile; receiver: Profile })[];
-      const conversationMap = new Map<string, Conversation>();
+      const list: Conversation[] = [];
       let totalUnread = 0;
-
-      dms.forEach((dm) => {
-        const otherUser = dm.sender_id === user.id ? dm.receiver : dm.sender;
-        if (!otherUser) return;
-
-        if (!conversationMap.has(otherUser.id)) {
-          conversationMap.set(otherUser.id, {
-            other_user: otherUser,
-            last_message: dm,
-            unread_count: 0
-          });
-        }
-
-        if (dm.receiver_id === user.id && !dm.read_at) {
-          totalUnread++;
-          const conv = conversationMap.get(otherUser.id)!;
-          conv.unread_count++;
-        }
-      });
-
-      setConversations(Array.from(conversationMap.values()));
+      for (const r of rows) {
+        const other = byId.get(r.other_id);
+        if (!other) continue;
+        totalUnread += r.unread_count;
+        const { other_id: _o, unread_count, ...last } = r;
+        list.push({ other_user: other, last_message: last as DirectMessage, unread_count });
+      }
+      setConversations(list);
       setUnreadTotal(totalUnread);
     } catch (error) {
       console.error('Error fetching conversations:', error);
@@ -169,25 +152,15 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('direct_messages')
-        .select(`
-          *,
-          sender:profiles!direct_messages_sender_id_fkey (id, gamertag, avatar_url),
-          receiver:profiles!direct_messages_receiver_id_fkey (id, gamertag, avatar_url)
-        `)
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user.id})`)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
+      const { data, error } = await supabase.rpc('dm_thread', { p_other: otherUserId, p_limit: 100 });
       if (error) throw error;
-      setActiveConversation((data || []).reverse());
+      setActiveConversation(((data || []) as DirectMessage[]).reverse());
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
   }, [userId]);
 
-  const sendMessage = useCallback(async (receiverId: string, message: string, imageUrl?: string) => {
+  const sendMessage = useCallback(async (receiverId: string, message: string, imageUrl?: string, replyTo?: DirectMessage | null) => {
     if (!user) return;
 
     // Create optimistic message
@@ -199,7 +172,9 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
       image_url: imageUrl || null,
       created_at: new Date().toISOString(),
       read_at: null,
-      parent_message_id: null
+      parent_message_id: replyTo?.id ?? null,
+      reply_message: replyTo ? (replyTo.message || (replyTo.image_url ? 'Photo' : '')) : null,
+      reply_sender_id: replyTo?.sender_id ?? null,
     };
 
     // Update active conversation immediately
@@ -237,7 +212,8 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
           sender_id: user.id,
           receiver_id: receiverId,
           message,
-          image_url: imageUrl || null
+          image_url: imageUrl || null,
+          parent_message_id: replyTo && !replyTo.id.startsWith('temp-') ? replyTo.id : null,
         });
 
       if (error) throw error;
@@ -273,19 +249,37 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('direct_messages')
-        .update({ read_at: new Date().toISOString() })
-        .eq('sender_id', senderId)
-        .eq('receiver_id', user.id)
-        .is('read_at', null);
-
+      const { data, error } = await supabase.rpc('dm_mark_read', { p_other: senderId });
       if (error) throw error;
-      fetchConversations();
+      if (data) fetchConversations();
     } catch (error) {
       console.error('Error marking as read:', error);
     }
   }, [user, fetchConversations]);
+
+  const editMessage = useCallback(async (id: string, text: string) => {
+    const body = text.trim();
+    if (!body) return;
+    const before = activeConversation.find((m) => m.id === id);
+    setActiveConversation((prev) => prev.map((m) => (m.id === id ? { ...m, message: body, edited_at: new Date().toISOString() } : m)));
+    const { error } = await supabase.rpc('dm_edit', { p_id: id, p_text: body });
+    if (error) {
+      if (before) setActiveConversation((prev) => prev.map((m) => (m.id === id ? before : m)));
+      toast.error(error.message || 'Could not edit the message');
+    }
+  }, [activeConversation]);
+
+  const deleteMessage = useCallback(async (id: string) => {
+    const before = activeConversation.find((m) => m.id === id);
+    setActiveConversation((prev) => prev.map((m) => (m.id === id ? { ...m, message: null, image_url: null, deleted_at: new Date().toISOString() } : m)));
+    const { error } = await supabase.rpc('dm_delete', { p_id: id });
+    if (error) {
+      if (before) setActiveConversation((prev) => prev.map((m) => (m.id === id ? before : m)));
+      toast.error(error.message || 'Could not delete the message');
+      return;
+    }
+    fetchConversations();
+  }, [activeConversation, fetchConversations]);
 
   const respondToFriendRequest = useCallback(async (requestId: string, status: 'accepted' | 'declined') => {
     if (!user) return;
@@ -332,9 +326,14 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
     fetchConversations();
     fetchSocialData();
 
-    const handleDmChange = (payload: { eventType: string; new: unknown }) => {
-      const newMessage = payload.new as DirectMessage;
-      if (!newMessage || !newMessage.id) return;
+    const handleDmChange = async (payload: { eventType: string; new: unknown }) => {
+      const raw = payload.new as DirectMessage;
+      if (!raw || !raw.id) return;
+      if (raw.sender_id !== userId && raw.receiver_id !== userId) return;
+      // The event only carries ciphertext: fetch the readable row
+      const { data: rows } = await supabase.rpc('dm_get', { p_id: raw.id });
+      const newMessage = ((rows || []) as DirectMessage[])[0];
+      if (!newMessage) return;
       if (newMessage.sender_id !== userId && newMessage.receiver_id !== userId) return;
 
       const otherUserId = newMessage.sender_id === userId ? newMessage.receiver_id : newMessage.sender_id;
@@ -347,6 +346,8 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
       if (payload.eventType === 'UPDATE') {
         // Read receipts: update the message in place, don't reorder anything.
         setActiveConversation((prev) => prev.map((m) => (m.id === newMessage.id ? { ...m, ...newMessage } : m)));
+        // Edited or deleted last message: refresh its inbox preview
+        setConversations((prev) => prev.map((c) => (c.last_message.id === newMessage.id ? { ...c, last_message: { ...c.last_message, ...newMessage } } : c)));
         return;
       }
 
@@ -392,7 +393,7 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
       if (currentOtherId && otherUserId === currentOtherId) {
         setActiveConversation((prev) => {
           if (prev.some((m) => m.id === newMessage.id)) return prev;
-          const filtered = prev.filter((m) => !m.id.startsWith('temp-') || m.message !== newMessage.message);
+          const filtered = prev.filter((m) => !m.id.startsWith('temp-') || m.message !== newMessage.message || m.sender_id !== newMessage.sender_id);
           return [...filtered, newMessage];
         });
         if (newMessage.receiver_id === userId) {
@@ -483,6 +484,8 @@ export function DirectMessageProvider({ children }: { children: React.ReactNode 
         friends,
         pendingRequests,
         sendMessage,
+        editMessage,
+        deleteMessage,
         markAsRead,
         fetchConversations,
         fetchMessages,
