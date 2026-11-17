@@ -2,6 +2,7 @@ import { AlertTriangle, BadgeCheck, CheckCircle2, ChevronRight, Gavel, Loader2, 
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { AdminBackups } from '@/components/admin/AdminBackups';
 import { AdminDisputes } from '@/components/admin/AdminDisputes';
 import type { Dispute } from '@/components/disputes/evidence';
 import { AdminMoney, type TournamentRevenue } from '@/components/admin/AdminMoney';
@@ -15,7 +16,7 @@ import { supabase } from '@/db/supabase';
 import { formatArenaCurrency, formatCompactNumber } from '@/lib/arena-currency';
 import { cn } from '@/lib/utils';
 
-type Tab = 'overview' | 'disputes' | 'reports' | 'players' | 'tournaments' | 'money' | 'analytics';
+type Tab = 'overview' | 'disputes' | 'reports' | 'players' | 'tournaments' | 'money' | 'analytics' | 'backups';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -25,6 +26,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'tournaments', label: 'Tournaments' },
   { id: 'money', label: 'Money' },
   { id: 'analytics', label: 'Analytics' },
+  { id: 'backups', label: 'Backups' },
 ];
 
 interface Snapshot {
@@ -293,6 +295,7 @@ export default function AdminDashboard() {
       {tab === 'tournaments' && <AdminTournaments />}
       {tab === 'money' && <AdminMoney revenueBalance={snap.revenueBalance} tournaments={revenueRows} currentUserId={user.id} onChanged={loadSnapshot} />}
       {tab === 'analytics' && <FinanceAnalytics />}
+      {tab === 'backups' && <AdminBackups />}
     </div>
   );
 }
